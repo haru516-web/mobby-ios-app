@@ -1,0 +1,1910 @@
+{
+  "mobiyura": [
+    {
+      "id": "mobiyura:furniture:01",
+      "characterId": "mobiyura",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "mobiyura:furniture:02",
+      "characterId": "mobiyura",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "mobiyura:furniture:03",
+      "characterId": "mobiyura",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "mobiyura:furniture:04",
+      "characterId": "mobiyura",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "mobiyura:furniture:05",
+      "characterId": "mobiyura",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "mobiyura:furniture:06",
+      "characterId": "mobiyura",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "mobiyura:furniture:07",
+      "characterId": "mobiyura",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "mobiyura:furniture:08",
+      "characterId": "mobiyura",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "mobiyura:furniture:09",
+      "characterId": "mobiyura",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "mobiyura:furniture:10",
+      "characterId": "mobiyura",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "mobiyura:furniture:11",
+      "characterId": "mobiyura",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "mobiyura:furniture:12",
+      "characterId": "mobiyura",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "mobiyura:furniture:13",
+      "characterId": "mobiyura",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "mobiyura:furniture:14",
+      "characterId": "mobiyura",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "mobiyura:furniture:15",
+      "characterId": "mobiyura",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "mobiyura:furniture:16",
+      "characterId": "mobiyura",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "mobiyura:furniture:17",
+      "characterId": "mobiyura",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "mobiyura:furniture:18",
+      "characterId": "mobiyura",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "mobiyura:furniture:19",
+      "characterId": "mobiyura",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "mobiyura:furniture:20",
+      "characterId": "mobiyura",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "mobiyura:furniture:21",
+      "characterId": "mobiyura",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "mobiyura:furniture:22",
+      "characterId": "mobiyura",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "mobiyura:furniture:23",
+      "characterId": "mobiyura",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "mobiyura:furniture:24",
+      "characterId": "mobiyura",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "mobiyura:furniture:25",
+      "characterId": "mobiyura",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "mobiyura:furniture:26",
+      "characterId": "mobiyura",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "mobiyura:furniture:27",
+      "characterId": "mobiyura",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "mobiyura:furniture:28",
+      "characterId": "mobiyura",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "mobiyura:furniture:29",
+      "characterId": "mobiyura",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "mobiyura:furniture:30",
+      "characterId": "mobiyura",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/mobiyura/mobiyura-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "reomoby": [
+    {
+      "id": "reomoby:furniture:01",
+      "characterId": "reomoby",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "reomoby:furniture:02",
+      "characterId": "reomoby",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "reomoby:furniture:03",
+      "characterId": "reomoby",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "reomoby:furniture:04",
+      "characterId": "reomoby",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "reomoby:furniture:05",
+      "characterId": "reomoby",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "reomoby:furniture:06",
+      "characterId": "reomoby",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "reomoby:furniture:07",
+      "characterId": "reomoby",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "reomoby:furniture:08",
+      "characterId": "reomoby",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "reomoby:furniture:09",
+      "characterId": "reomoby",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "reomoby:furniture:10",
+      "characterId": "reomoby",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "reomoby:furniture:11",
+      "characterId": "reomoby",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "reomoby:furniture:12",
+      "characterId": "reomoby",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "reomoby:furniture:13",
+      "characterId": "reomoby",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "reomoby:furniture:14",
+      "characterId": "reomoby",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "reomoby:furniture:15",
+      "characterId": "reomoby",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "reomoby:furniture:16",
+      "characterId": "reomoby",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "reomoby:furniture:17",
+      "characterId": "reomoby",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "reomoby:furniture:18",
+      "characterId": "reomoby",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "reomoby:furniture:19",
+      "characterId": "reomoby",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "reomoby:furniture:20",
+      "characterId": "reomoby",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "reomoby:furniture:21",
+      "characterId": "reomoby",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "reomoby:furniture:22",
+      "characterId": "reomoby",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "reomoby:furniture:23",
+      "characterId": "reomoby",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "reomoby:furniture:24",
+      "characterId": "reomoby",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "reomoby:furniture:25",
+      "characterId": "reomoby",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "reomoby:furniture:26",
+      "characterId": "reomoby",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "reomoby:furniture:27",
+      "characterId": "reomoby",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "reomoby:furniture:28",
+      "characterId": "reomoby",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "reomoby:furniture:29",
+      "characterId": "reomoby",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "reomoby:furniture:30",
+      "characterId": "reomoby",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/reomoby/reomoby-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "potemoby": [
+    {
+      "id": "potemoby:furniture:01",
+      "characterId": "potemoby",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "potemoby:furniture:02",
+      "characterId": "potemoby",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "potemoby:furniture:03",
+      "characterId": "potemoby",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "potemoby:furniture:04",
+      "characterId": "potemoby",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "potemoby:furniture:05",
+      "characterId": "potemoby",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "potemoby:furniture:06",
+      "characterId": "potemoby",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "potemoby:furniture:07",
+      "characterId": "potemoby",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "potemoby:furniture:08",
+      "characterId": "potemoby",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "potemoby:furniture:09",
+      "characterId": "potemoby",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "potemoby:furniture:10",
+      "characterId": "potemoby",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "potemoby:furniture:11",
+      "characterId": "potemoby",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "potemoby:furniture:12",
+      "characterId": "potemoby",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "potemoby:furniture:13",
+      "characterId": "potemoby",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "potemoby:furniture:14",
+      "characterId": "potemoby",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "potemoby:furniture:15",
+      "characterId": "potemoby",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "potemoby:furniture:16",
+      "characterId": "potemoby",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "potemoby:furniture:17",
+      "characterId": "potemoby",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "potemoby:furniture:18",
+      "characterId": "potemoby",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "potemoby:furniture:19",
+      "characterId": "potemoby",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "potemoby:furniture:20",
+      "characterId": "potemoby",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "potemoby:furniture:21",
+      "characterId": "potemoby",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "potemoby:furniture:22",
+      "characterId": "potemoby",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "potemoby:furniture:23",
+      "characterId": "potemoby",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "potemoby:furniture:24",
+      "characterId": "potemoby",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "potemoby:furniture:25",
+      "characterId": "potemoby",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "potemoby:furniture:26",
+      "characterId": "potemoby",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "potemoby:furniture:27",
+      "characterId": "potemoby",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "potemoby:furniture:28",
+      "characterId": "potemoby",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "potemoby:furniture:29",
+      "characterId": "potemoby",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "potemoby:furniture:30",
+      "characterId": "potemoby",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/potemoby/potemoby-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "mobichi": [
+    {
+      "id": "mobichi:furniture:01",
+      "characterId": "mobichi",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "mobichi:furniture:02",
+      "characterId": "mobichi",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "mobichi:furniture:03",
+      "characterId": "mobichi",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "mobichi:furniture:04",
+      "characterId": "mobichi",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "mobichi:furniture:05",
+      "characterId": "mobichi",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "mobichi:furniture:06",
+      "characterId": "mobichi",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "mobichi:furniture:07",
+      "characterId": "mobichi",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "mobichi:furniture:08",
+      "characterId": "mobichi",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "mobichi:furniture:09",
+      "characterId": "mobichi",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "mobichi:furniture:10",
+      "characterId": "mobichi",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "mobichi:furniture:11",
+      "characterId": "mobichi",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "mobichi:furniture:12",
+      "characterId": "mobichi",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "mobichi:furniture:13",
+      "characterId": "mobichi",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "mobichi:furniture:14",
+      "characterId": "mobichi",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "mobichi:furniture:15",
+      "characterId": "mobichi",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "mobichi:furniture:16",
+      "characterId": "mobichi",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "mobichi:furniture:17",
+      "characterId": "mobichi",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "mobichi:furniture:18",
+      "characterId": "mobichi",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "mobichi:furniture:19",
+      "characterId": "mobichi",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "mobichi:furniture:20",
+      "characterId": "mobichi",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "mobichi:furniture:21",
+      "characterId": "mobichi",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "mobichi:furniture:22",
+      "characterId": "mobichi",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "mobichi:furniture:23",
+      "characterId": "mobichi",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "mobichi:furniture:24",
+      "characterId": "mobichi",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "mobichi:furniture:25",
+      "characterId": "mobichi",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "mobichi:furniture:26",
+      "characterId": "mobichi",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "mobichi:furniture:27",
+      "characterId": "mobichi",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "mobichi:furniture:28",
+      "characterId": "mobichi",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "mobichi:furniture:29",
+      "characterId": "mobichi",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "mobichi:furniture:30",
+      "characterId": "mobichi",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/mobichi/mobichi-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "yami": [
+    {
+      "id": "yami:furniture:01",
+      "characterId": "yami",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/yami/yami-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "yami:furniture:02",
+      "characterId": "yami",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/yami/yami-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "yami:furniture:03",
+      "characterId": "yami",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/yami/yami-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "yami:furniture:04",
+      "characterId": "yami",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/yami/yami-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "yami:furniture:05",
+      "characterId": "yami",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/yami/yami-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "yami:furniture:06",
+      "characterId": "yami",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/yami/yami-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "yami:furniture:07",
+      "characterId": "yami",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/yami/yami-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "yami:furniture:08",
+      "characterId": "yami",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/yami/yami-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "yami:furniture:09",
+      "characterId": "yami",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/yami/yami-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "yami:furniture:10",
+      "characterId": "yami",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/yami/yami-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "yami:furniture:11",
+      "characterId": "yami",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/yami/yami-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "yami:furniture:12",
+      "characterId": "yami",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/yami/yami-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "yami:furniture:13",
+      "characterId": "yami",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/yami/yami-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "yami:furniture:14",
+      "characterId": "yami",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/yami/yami-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "yami:furniture:15",
+      "characterId": "yami",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/yami/yami-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "yami:furniture:16",
+      "characterId": "yami",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/yami/yami-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "yami:furniture:17",
+      "characterId": "yami",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/yami/yami-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "yami:furniture:18",
+      "characterId": "yami",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/yami/yami-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "yami:furniture:19",
+      "characterId": "yami",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/yami/yami-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "yami:furniture:20",
+      "characterId": "yami",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/yami/yami-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "yami:furniture:21",
+      "characterId": "yami",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/yami/yami-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "yami:furniture:22",
+      "characterId": "yami",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/yami/yami-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "yami:furniture:23",
+      "characterId": "yami",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/yami/yami-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "yami:furniture:24",
+      "characterId": "yami",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/yami/yami-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "yami:furniture:25",
+      "characterId": "yami",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/yami/yami-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "yami:furniture:26",
+      "characterId": "yami",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/yami/yami-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "yami:furniture:27",
+      "characterId": "yami",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/yami/yami-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "yami:furniture:28",
+      "characterId": "yami",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/yami/yami-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "yami:furniture:29",
+      "characterId": "yami",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/yami/yami-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "yami:furniture:30",
+      "characterId": "yami",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/yami/yami-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "mobirin": [
+    {
+      "id": "mobirin:furniture:01",
+      "characterId": "mobirin",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "mobirin:furniture:02",
+      "characterId": "mobirin",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "mobirin:furniture:03",
+      "characterId": "mobirin",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "mobirin:furniture:04",
+      "characterId": "mobirin",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "mobirin:furniture:05",
+      "characterId": "mobirin",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "mobirin:furniture:06",
+      "characterId": "mobirin",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "mobirin:furniture:07",
+      "characterId": "mobirin",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "mobirin:furniture:08",
+      "characterId": "mobirin",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "mobirin:furniture:09",
+      "characterId": "mobirin",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "mobirin:furniture:10",
+      "characterId": "mobirin",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "mobirin:furniture:11",
+      "characterId": "mobirin",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "mobirin:furniture:12",
+      "characterId": "mobirin",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "mobirin:furniture:13",
+      "characterId": "mobirin",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "mobirin:furniture:14",
+      "characterId": "mobirin",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "mobirin:furniture:15",
+      "characterId": "mobirin",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "mobirin:furniture:16",
+      "characterId": "mobirin",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "mobirin:furniture:17",
+      "characterId": "mobirin",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "mobirin:furniture:18",
+      "characterId": "mobirin",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "mobirin:furniture:19",
+      "characterId": "mobirin",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "mobirin:furniture:20",
+      "characterId": "mobirin",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "mobirin:furniture:21",
+      "characterId": "mobirin",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "mobirin:furniture:22",
+      "characterId": "mobirin",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "mobirin:furniture:23",
+      "characterId": "mobirin",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "mobirin:furniture:24",
+      "characterId": "mobirin",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "mobirin:furniture:25",
+      "characterId": "mobirin",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "mobirin:furniture:26",
+      "characterId": "mobirin",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "mobirin:furniture:27",
+      "characterId": "mobirin",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "mobirin:furniture:28",
+      "characterId": "mobirin",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "mobirin:furniture:29",
+      "characterId": "mobirin",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "mobirin:furniture:30",
+      "characterId": "mobirin",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/mobirin/mobirin-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "mobiyan": [
+    {
+      "id": "mobiyan:furniture:01",
+      "characterId": "mobiyan",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "mobiyan:furniture:02",
+      "characterId": "mobiyan",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "mobiyan:furniture:03",
+      "characterId": "mobiyan",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "mobiyan:furniture:04",
+      "characterId": "mobiyan",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "mobiyan:furniture:05",
+      "characterId": "mobiyan",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "mobiyan:furniture:06",
+      "characterId": "mobiyan",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "mobiyan:furniture:07",
+      "characterId": "mobiyan",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "mobiyan:furniture:08",
+      "characterId": "mobiyan",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "mobiyan:furniture:09",
+      "characterId": "mobiyan",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "mobiyan:furniture:10",
+      "characterId": "mobiyan",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "mobiyan:furniture:11",
+      "characterId": "mobiyan",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "mobiyan:furniture:12",
+      "characterId": "mobiyan",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "mobiyan:furniture:13",
+      "characterId": "mobiyan",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "mobiyan:furniture:14",
+      "characterId": "mobiyan",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "mobiyan:furniture:15",
+      "characterId": "mobiyan",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "mobiyan:furniture:16",
+      "characterId": "mobiyan",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "mobiyan:furniture:17",
+      "characterId": "mobiyan",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "mobiyan:furniture:18",
+      "characterId": "mobiyan",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "mobiyan:furniture:19",
+      "characterId": "mobiyan",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "mobiyan:furniture:20",
+      "characterId": "mobiyan",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "mobiyan:furniture:21",
+      "characterId": "mobiyan",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "mobiyan:furniture:22",
+      "characterId": "mobiyan",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "mobiyan:furniture:23",
+      "characterId": "mobiyan",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "mobiyan:furniture:24",
+      "characterId": "mobiyan",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "mobiyan:furniture:25",
+      "characterId": "mobiyan",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "mobiyan:furniture:26",
+      "characterId": "mobiyan",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "mobiyan:furniture:27",
+      "characterId": "mobiyan",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "mobiyan:furniture:28",
+      "characterId": "mobiyan",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "mobiyan:furniture:29",
+      "characterId": "mobiyan",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "mobiyan:furniture:30",
+      "characterId": "mobiyan",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/mobiyan/mobiyan-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "babumoby": [
+    {
+      "id": "babumoby:furniture:01",
+      "characterId": "babumoby",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "babumoby:furniture:02",
+      "characterId": "babumoby",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "babumoby:furniture:03",
+      "characterId": "babumoby",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "babumoby:furniture:04",
+      "characterId": "babumoby",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "babumoby:furniture:05",
+      "characterId": "babumoby",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "babumoby:furniture:06",
+      "characterId": "babumoby",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "babumoby:furniture:07",
+      "characterId": "babumoby",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "babumoby:furniture:08",
+      "characterId": "babumoby",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "babumoby:furniture:09",
+      "characterId": "babumoby",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "babumoby:furniture:10",
+      "characterId": "babumoby",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "babumoby:furniture:11",
+      "characterId": "babumoby",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "babumoby:furniture:12",
+      "characterId": "babumoby",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "babumoby:furniture:13",
+      "characterId": "babumoby",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "babumoby:furniture:14",
+      "characterId": "babumoby",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "babumoby:furniture:15",
+      "characterId": "babumoby",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "babumoby:furniture:16",
+      "characterId": "babumoby",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "babumoby:furniture:17",
+      "characterId": "babumoby",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "babumoby:furniture:18",
+      "characterId": "babumoby",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "babumoby:furniture:19",
+      "characterId": "babumoby",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "babumoby:furniture:20",
+      "characterId": "babumoby",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "babumoby:furniture:21",
+      "characterId": "babumoby",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "babumoby:furniture:22",
+      "characterId": "babumoby",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "babumoby:furniture:23",
+      "characterId": "babumoby",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "babumoby:furniture:24",
+      "characterId": "babumoby",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "babumoby:furniture:25",
+      "characterId": "babumoby",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "babumoby:furniture:26",
+      "characterId": "babumoby",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "babumoby:furniture:27",
+      "characterId": "babumoby",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "babumoby:furniture:28",
+      "characterId": "babumoby",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "babumoby:furniture:29",
+      "characterId": "babumoby",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "babumoby:furniture:30",
+      "characterId": "babumoby",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/babumoby/babumoby-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ],
+  "mobibou": [
+    {
+      "id": "mobibou:furniture:01",
+      "characterId": "mobibou",
+      "label": "専用家具 01",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-01.png",
+      "sheetIndex": 1
+    },
+    {
+      "id": "mobibou:furniture:02",
+      "characterId": "mobibou",
+      "label": "専用家具 02",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-02.png",
+      "sheetIndex": 2
+    },
+    {
+      "id": "mobibou:furniture:03",
+      "characterId": "mobibou",
+      "label": "専用家具 03",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-03.png",
+      "sheetIndex": 3
+    },
+    {
+      "id": "mobibou:furniture:04",
+      "characterId": "mobibou",
+      "label": "専用家具 04",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-04.png",
+      "sheetIndex": 4
+    },
+    {
+      "id": "mobibou:furniture:05",
+      "characterId": "mobibou",
+      "label": "専用家具 05",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-05.png",
+      "sheetIndex": 5
+    },
+    {
+      "id": "mobibou:furniture:06",
+      "characterId": "mobibou",
+      "label": "専用家具 06",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-06.png",
+      "sheetIndex": 6
+    },
+    {
+      "id": "mobibou:furniture:07",
+      "characterId": "mobibou",
+      "label": "専用家具 07",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-07.png",
+      "sheetIndex": 7
+    },
+    {
+      "id": "mobibou:furniture:08",
+      "characterId": "mobibou",
+      "label": "専用家具 08",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-08.png",
+      "sheetIndex": 8
+    },
+    {
+      "id": "mobibou:furniture:09",
+      "characterId": "mobibou",
+      "label": "専用家具 09",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-09.png",
+      "sheetIndex": 9
+    },
+    {
+      "id": "mobibou:furniture:10",
+      "characterId": "mobibou",
+      "label": "専用家具 10",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-10.png",
+      "sheetIndex": 10
+    },
+    {
+      "id": "mobibou:furniture:11",
+      "characterId": "mobibou",
+      "label": "専用家具 11",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-11.png",
+      "sheetIndex": 11
+    },
+    {
+      "id": "mobibou:furniture:12",
+      "characterId": "mobibou",
+      "label": "専用家具 12",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-12.png",
+      "sheetIndex": 12
+    },
+    {
+      "id": "mobibou:furniture:13",
+      "characterId": "mobibou",
+      "label": "専用家具 13",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-13.png",
+      "sheetIndex": 13
+    },
+    {
+      "id": "mobibou:furniture:14",
+      "characterId": "mobibou",
+      "label": "専用家具 14",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-14.png",
+      "sheetIndex": 14
+    },
+    {
+      "id": "mobibou:furniture:15",
+      "characterId": "mobibou",
+      "label": "専用家具 15",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-15.png",
+      "sheetIndex": 15
+    },
+    {
+      "id": "mobibou:furniture:16",
+      "characterId": "mobibou",
+      "label": "専用家具 16",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-16.png",
+      "sheetIndex": 16
+    },
+    {
+      "id": "mobibou:furniture:17",
+      "characterId": "mobibou",
+      "label": "専用家具 17",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-17.png",
+      "sheetIndex": 17
+    },
+    {
+      "id": "mobibou:furniture:18",
+      "characterId": "mobibou",
+      "label": "専用家具 18",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-18.png",
+      "sheetIndex": 18
+    },
+    {
+      "id": "mobibou:furniture:19",
+      "characterId": "mobibou",
+      "label": "専用家具 19",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-19.png",
+      "sheetIndex": 19
+    },
+    {
+      "id": "mobibou:furniture:20",
+      "characterId": "mobibou",
+      "label": "専用家具 20",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-20.png",
+      "sheetIndex": 20
+    },
+    {
+      "id": "mobibou:furniture:21",
+      "characterId": "mobibou",
+      "label": "専用家具 21",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-21.png",
+      "sheetIndex": 21
+    },
+    {
+      "id": "mobibou:furniture:22",
+      "characterId": "mobibou",
+      "label": "専用家具 22",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-22.png",
+      "sheetIndex": 22
+    },
+    {
+      "id": "mobibou:furniture:23",
+      "characterId": "mobibou",
+      "label": "専用家具 23",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-23.png",
+      "sheetIndex": 23
+    },
+    {
+      "id": "mobibou:furniture:24",
+      "characterId": "mobibou",
+      "label": "専用家具 24",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-24.png",
+      "sheetIndex": 24
+    },
+    {
+      "id": "mobibou:furniture:25",
+      "characterId": "mobibou",
+      "label": "専用家具 25",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-25.png",
+      "sheetIndex": 25
+    },
+    {
+      "id": "mobibou:furniture:26",
+      "characterId": "mobibou",
+      "label": "専用家具 26",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-26.png",
+      "sheetIndex": 26
+    },
+    {
+      "id": "mobibou:furniture:27",
+      "characterId": "mobibou",
+      "label": "専用家具 27",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-27.png",
+      "sheetIndex": 27
+    },
+    {
+      "id": "mobibou:furniture:28",
+      "characterId": "mobibou",
+      "label": "専用家具 28",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-28.png",
+      "sheetIndex": 28
+    },
+    {
+      "id": "mobibou:furniture:29",
+      "characterId": "mobibou",
+      "label": "専用家具 29",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-29.png",
+      "sheetIndex": 29
+    },
+    {
+      "id": "mobibou:furniture:30",
+      "characterId": "mobibou",
+      "label": "専用家具 30",
+      "path": "assets/furniture/characters/mobibou/mobibou-furniture-30.png",
+      "sheetIndex": 30
+    }
+  ]
+}
