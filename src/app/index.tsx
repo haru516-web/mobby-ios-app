@@ -19,6 +19,7 @@ import { MobbyPullMesh, type MobbyPullMeshHandle } from '@/components/MobbyPullM
 
 type Screen = 'home' | 'collection' | 'time' | 'touch' | 'trade';
 type ItemKind = 'ぬいキー' | 'ぬいぐるみ';
+type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placed';
 
 type Item = {
   id: string;
@@ -471,14 +472,80 @@ function CollectionScreen({ items, owned, selectedId, onSelect }: { items: Item[
   );
 }
 
-function MobbyTimeScreen({ today, claimed, onGet, secondsLeft }: { today: Item; claimed: boolean; onGet: () => void; secondsLeft: number }) {
+function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onTrade, secondsLeft }: { today: Item; stage: MobbyTimeStage; onOpen: () => void; onReveal: () => void; onPlace: () => void; onTrade: () => void; secondsLeft: number }) {
   const active = secondsLeft > 0;
   const minutes = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
   const seconds = (secondsLeft % 60).toString().padStart(2, '0');
+  const opening = stage === 'opening';
+  const revealed = stage === 'revealed' || stage === 'placed';
+  const placed = stage === 'placed';
+  const step = stage === 'arrived' || stage === 'opening' ? 1 : stage === 'revealed' ? 2 : 3;
+  const packageMotion = useRef(new Animated.Value(0)).current;
+  const magicGlow = useRef(new Animated.Value(0)).current;
+  const revealFlash = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!opening) {
+      packageMotion.setValue(0);
+      magicGlow.setValue(0);
+      revealFlash.setValue(0);
+      return;
+    }
+    const animation = Animated.sequence([
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(packageMotion, { toValue: 1, duration: 90, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: -1, duration: 90, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: 1, duration: 80, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: -1, duration: 80, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: 0, duration: 70, useNativeDriver: true }),
+        ]),
+        Animated.timing(magicGlow, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ]),
+      Animated.delay(230),
+      Animated.timing(revealFlash, { toValue: 1, duration: 170, useNativeDriver: true }),
+      Animated.delay(110),
+    ]);
+    animation.start(({ finished }) => { if (finished) onReveal(); });
+    return () => animation.stop();
+  }, [magicGlow, onReveal, opening, packageMotion, revealFlash]);
+
+  const startOpening = () => {
+    if (!active || opening) return;
+    onOpen();
+  };
+  const placement = today.kind === 'ぬいキー' ? '壁' : '棚';
+  const packageTransform = {
+    transform: [
+      { translateX: packageMotion.interpolate({ inputRange: [-1, 0, 1], outputRange: [-10, 0, 10] }) },
+      { rotate: packageMotion.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-5deg', '-2deg', '4deg'] }) },
+      { scale: magicGlow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) },
+    ],
+  };
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <View style={styles.timeHeader}><Text style={styles.eyebrow}>EVERYONE, SAME TIME</Text><Text style={styles.bigTitle}>{active ? 'MOBBY TIME' : 'MOBBY TIME FINISH'}</Text><Text style={styles.timeHeaderSub}>1日1回、みんな同時にモビーがやってくる。</Text><View style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{active ? '残り' : '次回まで'}</Text><Text style={styles.bigTimerValue}>{active ? `${minutes}:${seconds}` : '明日'}</Text><Text style={styles.bigTimerUnit}>TODAY 19:30 — 20:00</Text></View></View>
-      <View style={styles.encounterCard}><View style={styles.encounterStepRow}><View style={styles.encounterStepActive}><Text style={styles.stepNo}>01</Text><Text style={styles.stepText}>さがす</Text></View><View style={styles.stepLine} /><View style={styles.encounterStep}><Text style={styles.stepNo}>02</Text><Text style={styles.stepText}>GET</Text></View><View style={styles.stepLine} /><View style={styles.encounterStep}><Text style={styles.stepNo}>03</Text><Text style={styles.stepText}>集める</Text></View></View><View style={styles.encounterScene}><View style={styles.encounterGlow} />{claimed ? <Image source={today.image} resizeMode="contain" style={styles.encounterImage} /> : <View style={[styles.encounterSilhouette, { backgroundColor: today.accent }]}><Text style={styles.silhouetteEyes}>••</Text><Text style={styles.silhouetteQuestion}>?</Text></View>}<View style={styles.encounterBubble}><Text style={styles.encounterBubbleTitle}>{claimed ? 'NEW!' : active ? '何かいる……' : 'また明日'}</Text><Text style={styles.encounterBubbleText}>{claimed ? today.name : active ? '物陰がふるふるしている' : 'MOBBY TIMEは終了しました'}</Text></View></View><Text style={styles.encounterCaption}>{claimed ? '今日のモビーがコレクションに追加されました。' : active ? 'シルエットをタップして、モビーを見つけよう。' : 'GETと交換は次のMOBBY TIMEまでお休みです。'}</Text><Pressable accessibilityRole="button" onPress={onGet} disabled={claimed || !active} style={({ pressed }) => [styles.primaryButton, (claimed || !active) && styles.primaryButtonDone, pressed && styles.pressed]}><Image source={claimed ? MOBBY_ICON : SPARKLES} resizeMode="contain" style={styles.primaryButtonIcon} /><Text style={styles.primaryButtonText}>{claimed ? 'GET済み　コレクションを見る' : active ? '今日のモビーをGET！' : '次のMOBBY TIMEを待つ'}</Text></Pressable></View>
+      <View style={styles.encounterCard}>
+        <View style={styles.arrivalNotice}><View style={styles.liveDotCircle} /><Text style={styles.arrivalNoticeText}>{active ? 'モビーが届いてる…！' : '今日のMOBBY TIMEは終了しました'}</Text></View>
+        <View style={styles.encounterStepRow}>
+          {['ひらく', 'NEW!', 'かざる'].map((label, index) => <View key={label} style={styles.timeStepWrap}><View style={index + 1 <= step ? styles.encounterStepActive : styles.encounterStep}><Text style={styles.stepNo}>0{index + 1}</Text><Text style={styles.stepText}>{label}</Text></View>{index < 2 ? <View style={[styles.stepLine, index + 1 < step && styles.stepLineDone]} /> : null}</View>)}
+        </View>
+        <View style={styles.encounterScene}>
+          <View style={styles.encounterGlow} />
+          {!revealed ? (
+            <Animated.View style={[styles.packageAnimationWrap, packageTransform]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="届いた箱を開ける" onPress={startOpening} disabled={!active || opening} style={({ pressed }) => [styles.mobbyPackage, pressed && styles.packagePressed]}>
+              <View style={styles.packageLid}><View style={styles.packageTape} /></View><View style={styles.packageBody}><Text style={styles.packageLogo}>MOBBY</Text><Text style={styles.packageHint}>TAP TO OPEN</Text></View>
+            </Pressable>
+            </Animated.View>
+          ) : <Image source={today.keyImage ?? today.image} resizeMode="contain" style={styles.encounterKeyImage} />}
+          {opening ? <><Animated.View pointerEvents="none" style={[styles.magicRing, { opacity: magicGlow, transform: [{ scale: magicGlow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1.35] }) }] }]} /><View pointerEvents="none" style={styles.magicParticles}><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text></View><Animated.View pointerEvents="none" style={[styles.revealFlash, { opacity: revealFlash }]} /></> : null}
+          <View style={styles.encounterBubble}><Text style={styles.encounterBubbleTitle}>{!active ? 'また明日' : placed ? '飾ったよ！' : revealed ? 'NEW!' : opening ? 'OPENING…' : '届いてる…！'}</Text><Text style={styles.encounterBubbleText}>{!active ? '次回のMOBBY TIMEを待ってね' : placed ? `${today.name}を${placement}に追加` : revealed ? today.name : opening ? 'なにが出るかな…' : '箱をタップして開けよう'}</Text></View>
+          {revealed && !placed ? <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW!</Text></View> : null}
+        </View>
+        <Text style={styles.encounterCaption}>{!active ? 'GETと交換は次のMOBBY TIMEまでお休みです。' : placed ? '追加完了。残り時間は友達との交換を楽しめます。' : revealed ? `新しい${today.kind}を${placement}に追加しよう。` : opening ? '箱の中から光があふれている…！' : '30分以内に箱を開けると、今日のモビーに会えます。'}</Text>
+        {revealed ? <Pressable accessibilityRole="button" onPress={placed ? onTrade : onPlace} disabled={!active} style={({ pressed }) => [styles.primaryButton, !active && styles.primaryButtonDone, pressed && styles.pressed]}><Image source={placed ? EXCHANGE : MOBBY_ICON} resizeMode="contain" style={styles.primaryButtonIcon} /><Text style={styles.primaryButtonText}>{placed ? '残り時間で友達と交換' : `${placement}に追加する`}</Text></Pressable> : <Text style={styles.packageTapCaption}>{opening ? '開封中…' : '箱をタップ'}</Text>}
+      </View>
     </ScrollView>
   );
 }
@@ -526,10 +593,12 @@ function PullableMobby({ selected, onPull }: { selected: Item; onPull: () => voi
   const meshVisible = Platform.OS === 'web' && status !== 'idle';
   return (
     <View style={styles.pullableWrap}>
-      <Animated.View {...panResponder.panHandlers} accessibilityRole="button" accessibilityLabel="モビーのほっぺを引っ張る" style={[styles.pullableSlot, { transform: [{ scaleX }, { scaleY }] }]}>
-        <Image source={selected.image} resizeMode="contain" style={styles.pullableBody} />
-      </Animated.View>
-      <MobbyPullMesh ref={meshRef} source={selected.image} size={320} visible={meshVisible} />
+      <View style={styles.pullableStage}>
+        <Animated.View {...panResponder.panHandlers} accessibilityRole="button" accessibilityLabel="モビーのほっぺを引っ張る" style={[styles.pullableSlot, { opacity: meshVisible ? 0 : 1, transform: [{ scaleX }, { scaleY }] }]}>
+          <Image source={selected.image} resizeMode="contain" style={styles.pullableBody} />
+        </Animated.View>
+        <MobbyPullMesh ref={meshRef} source={selected.image} size={320} visible={meshVisible} />
+      </View>
       {status !== 'idle' ? <View pointerEvents="none" style={styles.pullStatus}><Text style={styles.pullStatusText}>{status === 'pulling' ? 'のびてる……' : 'びよーん！'}</Text></View> : null}
     </View>
   );
@@ -578,25 +647,29 @@ export default function IndexScreen() {
   const [screen, setScreen] = useState<Screen>('home');
   const [selectedId, setSelectedId] = useState('yami-key');
   const [owned, setOwned] = useState(INITIAL_OWNED);
-  const [claimed, setClaimed] = useState(false);
+  const [mobbyTimeStage, setMobbyTimeStage] = useState<MobbyTimeStage>('arrived');
+  const [todayId, setTodayId] = useState(ITEMS[0].id);
   const [secondsLeft, setSecondsLeft] = useState(1421);
   const [reaction, setReaction] = useState('');
   const [notice, setNotice] = useState('');
   const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
-  const today = ITEMS[5];
+  const today = ITEMS.find((item) => item.id === todayId) ?? ITEMS[0];
 
   useEffect(() => {
+    setTodayId(ITEMS[Math.floor(Math.random() * ITEMS.length)].id);
     const timer = setInterval(() => setSecondsLeft((value) => value > 0 ? value - 1 : 0), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const selectItem = (id: string) => { setSelectedId(id); setScreen('touch'); };
-  const getToday = () => {
+  const revealToday = useCallback(() => setMobbyTimeStage('revealed'), []);
+  const placeToday = () => {
     if (secondsLeft <= 0) return;
-    setClaimed(true);
+    setMobbyTimeStage('placed');
     setOwned((current) => ({ ...current, [today.id]: (current[today.id] ?? 0) + 1 }));
     setSelectedId(today.id);
-    setNotice('NEW! もびゆら ぬい がコレクションに追加されました');
+    const placement = today.kind === 'ぬいキー' ? '壁' : '棚';
+    setNotice(`NEW! ${today.name}を${placement}に追加しました`);
   };
 
   const interact = (kind: string) => {
@@ -609,12 +682,12 @@ export default function IndexScreen() {
       <View style={styles.outer}>
         <View style={styles.appShell}>
           <Image source={screen === 'home' ? HOME_WALL_BACKGROUND : screen === 'collection' ? COLLECTION_WALL_BACKGROUND : ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />
-          <Header onBell={() => setNotice('お知らせ：MOBBY TIMEは毎日19:30から！')} />
+          <Header onBell={() => { const next = ITEMS[Math.floor(Math.random() * ITEMS.length)]; setTodayId(next.id); setSecondsLeft(1800); setMobbyTimeStage('arrived'); setScreen('time'); setNotice('MOBBY TIME！中身は開けるまでのお楽しみ'); }} />
           {notice ? <Pressable onPress={() => setNotice('')} style={styles.noticeToast}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></Pressable> : null}
           <View style={styles.screenBody}>
             {screen === 'home' ? <HomeScreen selected={selected} onSelect={setSelectedId} /> : null}
             {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} /> : null}
-            {screen === 'time' ? <MobbyTimeScreen today={today} claimed={claimed} onGet={getToday} secondsLeft={secondsLeft} /> : null}
+            {screen === 'time' ? <MobbyTimeScreen today={today} stage={mobbyTimeStage} onOpen={() => setMobbyTimeStage('opening')} onReveal={revealToday} onPlace={placeToday} onTrade={() => setScreen('trade')} secondsLeft={secondsLeft} /> : null}
             {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
             {screen === 'trade' ? <TradeScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={setSelectedId} /> : null}
           </View>
@@ -794,14 +867,34 @@ const styles = StyleSheet.create({
   bigTimerValue: { color: '#FFF7EA', fontSize: 30, fontWeight: '900', letterSpacing: 2 },
   bigTimerUnit: { color: '#E7D9E0', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
   encounterCard: { padding: 13, borderRadius: 24, backgroundColor: '#FFFDF6', borderWidth: 1.3, borderColor: '#E8D0B3', shadowColor: '#78535E', shadowOpacity: 0.12, shadowRadius: 7, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  arrivalNotice: { minHeight: 38, marginBottom: 12, borderRadius: 14, backgroundColor: '#F5E5E6', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  arrivalNoticeText: { color: '#68465F', fontSize: 13, fontWeight: '900' },
   encounterStepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 11 },
+  timeStepWrap: { flexDirection: 'row', alignItems: 'flex-start' },
   encounterStep: { alignItems: 'center', opacity: 0.48 },
   encounterStepActive: { alignItems: 'center' },
   stepNo: { color: '#8E687D', fontSize: 9, fontWeight: '900' },
   stepText: { color: '#5C3E54', fontSize: 10, fontWeight: '900', marginTop: 2 },
   stepLine: { width: 36, height: 1.5, backgroundColor: '#DFC7B0', marginHorizontal: 8, marginTop: 9 },
+  stepLineDone: { backgroundColor: '#8E687D' },
   encounterScene: { height: 280, borderRadius: 19, overflow: 'hidden', backgroundColor: '#E6D1BE', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   encounterGlow: { position: 'absolute', width: 245, height: 245, borderRadius: 130, backgroundColor: 'rgba(255,242,204,0.62)' },
+  packageAnimationWrap: { zIndex: 3, alignItems: 'center', justifyContent: 'center' },
+  mobbyPackage: { width: 166, height: 150, alignItems: 'center', justifyContent: 'flex-end', transform: [{ rotate: '-2deg' }] },
+  packagePressed: { transform: [{ rotate: '1deg' }, { scale: 0.96 }] },
+  packageLid: { width: 174, height: 31, borderRadius: 7, backgroundColor: '#B88058', borderWidth: 3, borderColor: '#74503E', zIndex: 2, alignItems: 'center' },
+  packageTape: { width: 42, height: '100%', backgroundColor: '#E6C98D', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#B38B5A' },
+  packageBody: { width: 156, height: 118, marginTop: -3, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, backgroundColor: '#C99266', borderWidth: 3, borderColor: '#74503E', alignItems: 'center', justifyContent: 'center' },
+  packageLogo: { color: '#FFF3D7', fontSize: 25, fontWeight: '900', letterSpacing: 2 },
+  packageHint: { color: '#704B3B', fontSize: 9, fontWeight: '900', letterSpacing: 1.4, marginTop: 7 },
+  packageTapCaption: { color: '#7B5A6B', fontSize: 11, fontWeight: '900', textAlign: 'center', marginTop: 10 },
+  magicRing: { position: 'absolute', width: 190, height: 190, borderRadius: 100, borderWidth: 8, borderColor: '#FFF4B0', backgroundColor: 'rgba(255,248,190,0.3)', zIndex: 2 },
+  magicParticles: { ...StyleSheet.absoluteFillObject, zIndex: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 28 },
+  magicParticle: { color: '#FFF7B8', fontSize: 32, fontWeight: '900', textShadowColor: '#D98FA0', textShadowRadius: 8 },
+  revealFlash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFBE8', zIndex: 7 },
+  encounterKeyImage: { width: 218, height: 238 },
+  newBadge: { position: 'absolute', left: 14, bottom: 14, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: '#E16F83', transform: [{ rotate: '-7deg' }], borderWidth: 2, borderColor: '#FFF7EA' },
+  newBadgeText: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
   encounterSilhouette: { width: 154, height: 194, borderRadius: 75, alignItems: 'center', justifyContent: 'center', opacity: 0.64, borderWidth: 4, borderColor: 'rgba(67,55,69,0.26)' },
   silhouetteEyes: { color: '#5D5367', fontSize: 30, letterSpacing: 20, marginLeft: 17 },
   silhouetteQuestion: { color: '#5D5367', fontSize: 54, fontWeight: '900', marginTop: 13 },
@@ -825,11 +918,12 @@ const styles = StyleSheet.create({
   touchStage: { height: 500, borderRadius: 28, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1.4, borderColor: 'rgba(91,64,92,0.22)' },
   touchStageImage: { opacity: 0.98 },
   pullableWrap: { width: 332, height: 365, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  pullableStage: { width: 320, height: 320, position: 'relative' },
   // PanResponder turns this view into an accessible button on web. Suppress
   // the browser's default focus ring so a completed pull does not leave a
   // harsh black rectangle over the parchment stage.
-  pullableSlot: { width: 320, height: 344, alignItems: 'center', justifyContent: 'center', zIndex: 2, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
-  pullableBody: { width: 320, height: 344 },
+  pullableSlot: { ...StyleSheet.absoluteFillObject, width: 320, height: 320, alignItems: 'center', justifyContent: 'center', zIndex: 2, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  pullableBody: { width: 320, height: 320 },
   pullStatus: { position: 'absolute', bottom: -2, left: 0, right: 0, alignItems: 'center', zIndex: 4 },
   pullStatusText: { color: '#8A6672', fontSize: 9, fontWeight: '900', backgroundColor: 'rgba(255,248,232,0.78)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   stageLight: { position: 'absolute', width: 300, height: 300, borderRadius: 160, backgroundColor: 'rgba(255,248,229,0.55)' },
