@@ -19,6 +19,8 @@ import {
 } from 'react-native';
 
 import { MobbyPullMesh, type MobbyPullMeshHandle } from '@/components/MobbyPullMesh';
+import { getMobby, type MobbyId } from '@/data/mobies';
+import { PULL_ASSETS, type MobbyPullAsset, type PullFrame } from '@/data/mobbyPullAssets';
 import { useMobbyAudio } from '@/hooks/useMobbyAudio';
 
 type Screen = 'home' | 'collection' | 'time' | 'touch' | 'trade';
@@ -100,6 +102,52 @@ const KEYCHAIN_SMALL = {
   babumoby: require('../../assets/mobby-keychains/babumoby-key-s.png'),
 } as const;
 
+const PULL_REACTION_FRAMES: Partial<Record<MobbyId, readonly number[]>> = {
+  mobibou: [
+    require('../../assets/mobies/reactions/mobibou_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/mobibou_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/mobibou_pull_reaction_03_angry_protest.webp'),
+    require('../../assets/mobies/reactions/mobibou_pull_reaction_04_sulking.webp'),
+  ],
+  mobiyura: [
+    require('../../assets/mobies/reactions/mobiyura_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/mobiyura_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/mobiyura_pull_reaction_03_dramatic_protest.webp'),
+    require('../../assets/mobies/reactions/mobiyura_pull_reaction_04_haughty_sulk.webp'),
+  ],
+  reomoby: [
+    require('../../assets/mobies/reactions/reomoby_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/reomoby_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/reomoby_pull_reaction_03_aristocratic_protest.webp'),
+    require('../../assets/mobies/reactions/reomoby_pull_reaction_04_haughty_sulk.webp'),
+  ],
+  mobirin: [
+    require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_03_indignant_protest.webp'),
+    require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_04_dignified_sulk.webp'),
+  ],
+  potemoby: [
+    require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_01_sleepy_startled.webp'),
+    require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_03_lazy_protest.webp'),
+    require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_04_lazy_sulk.webp'),
+  ],
+  babumoby: [
+    require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_03_baby_protest.webp'),
+    require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_04_sulking.webp'),
+  ],
+  mobichi: [
+    require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_03_indignant_protest.webp'),
+    require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_04_dignified_sulk.webp'),
+  ],
+};
+const DEFAULT_PULL_REACTION_PATTERN: 'single' | 'sequence' = 'single';
+
 const ITEMS: Item[] = [
   { id: 'mobichi-key', name: 'もびち ぬいキー', kind: 'ぬいキー', rarity: 'R', image: require('../../assets/mobies/mobichi.webp'), keyImage: KEYCHAIN.mobichi, smallKeyImage: KEYCHAIN_SMALL.mobichi, accent: '#E79AA7' },
   { id: 'mobiyan-plush', name: 'もびやん ぬい', kind: 'ぬいぐるみ', rarity: 'SR', image: require('../../assets/mobies/mobiyan.webp'), keyImage: KEYCHAIN.mobiyan, smallKeyImage: KEYCHAIN_SMALL.mobiyan, accent: '#83B8C4' },
@@ -111,6 +159,18 @@ const ITEMS: Item[] = [
   { id: 'pote-plush', name: 'ぽてもび ぬい', kind: 'ぬいぐるみ', rarity: 'N', image: require('../../assets/mobies/potemoby.webp'), keyImage: KEYCHAIN.potemoby, smallKeyImage: KEYCHAIN_SMALL.potemoby, accent: '#C49B72' },
   { id: 'babu-key', name: 'ばぶモビー ぬいキー', kind: 'ぬいキー', rarity: 'N', image: require('../../assets/mobies/babumoby.webp'), keyImage: KEYCHAIN.babumoby, smallKeyImage: KEYCHAIN_SMALL.babumoby, accent: '#E7AFC0' },
 ];
+
+const ITEM_MOBBY_IDS: Record<string, MobbyId> = {
+  'mobichi-key': 'mobichi',
+  'mobiyan-plush': 'mobiyan',
+  'yami-key': 'yami',
+  'mobibou-plush': 'mobibou',
+  'mobirin-key': 'mobirin',
+  'mobiyura-plush': 'mobiyura',
+  'reo-key': 'reomoby',
+  'pote-plush': 'potemoby',
+  'babu-key': 'babumoby',
+};
 
 // The source illustrations have slightly different transparent padding below
 // their feet. Normalize that padding so every plush touches the same shelf
@@ -404,6 +464,8 @@ function HomeScreen({
   onSwapWallItems,
   onSwapPlushItems,
   onUiTap,
+  onInteract,
+  reaction,
 }: {
   selected: Item;
   onSelect: (id: string) => void;
@@ -413,6 +475,8 @@ function HomeScreen({
   onSwapWallItems: (fromIndex: number, toIndex: number) => void;
   onSwapPlushItems: (fromIndex: number, toIndex: number) => void;
   onUiTap: () => void;
+  onInteract: (kind: string) => void;
+  reaction: string;
 }) {
   const { height: appHeight } = useAppLayout();
   const compactViewport = appHeight < 780;
@@ -569,11 +633,18 @@ function HomeScreen({
             );
           })}
         </View>
-        {!isEditing ? <View style={styles.homeCharacterPicker}>
+        {!isEditing ? <View style={[styles.homeCharacterPicker, compactViewport && styles.homeCharacterPickerCompact]}>
           <Pressable accessibilityRole="button" accessibilityLabel="前のモビー" onPress={() => selectRelative(-1)} style={styles.homeCharacterArrow}><Text style={styles.homeCharacterArrowText}>‹</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="次のモビー" onPress={() => selectRelative(1)} style={styles.homeCharacterArrow}><Text style={styles.homeCharacterArrowText}>›</Text></Pressable>
         </View> : null}
-        <Image source={selected.image} resizeMode="contain" style={[styles.homeMainCharacter, compactViewport && styles.homeMainCharacterCompact, isEditing && styles.homeMainCharacterEditing]} />
+        {isEditing ? (
+          <Image source={selected.image} resizeMode="contain" style={[styles.homeMainCharacter, compactViewport && styles.homeMainCharacterCompact, styles.homeMainCharacterEditing]} />
+        ) : (
+          <View style={[styles.homeMainCharacter, styles.homeMainCharacterPullable, compactViewport && styles.homeMainCharacterCompact]}>
+            <PullableMobby selected={selected} size={compactViewport ? 178 : 220} onPull={() => onInteract('ほっぺ')} />
+          </View>
+        )}
+        {!isEditing && reaction ? <View pointerEvents="none" style={[styles.homeReactionBubble, { top: shelfSurfaceY + 4 }]}><View style={styles.homeReactionTailBorder} /><View style={styles.homeReactionTail} /><Text style={styles.homeReactionBubbleText}>{reaction}</Text></View> : null}
         {isEditing ? <View style={styles.homeEditGuide}><Text style={styles.homeEditGuideTitle}>お部屋を編集</Text><Text style={styles.homeEditGuideText}>{editInstruction}</Text></View> : null}
       </View>
     </View>
@@ -1074,12 +1145,59 @@ function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onPlaced, on
   );
 }
 
-function PullableMobby({ selected, onPull }: { selected: Item; onPull: () => void }) {
+function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPull: () => void; size?: number }) {
   const { scale: appScale } = useAppLayout();
-  const [status, setStatus] = useState<'idle' | 'pulling' | 'released'>('idle');
+  const mobbyId = itemMobbyId(selected.id);
+  const pullAsset = PULL_ASSETS[mobbyId];
+  const reactionFrames = PULL_REACTION_FRAMES[mobbyId];
+  const [status, setStatus] = useState<'idle' | 'pulling' | 'released' | 'reacting'>('idle');
+  const [reactionFrame, setReactionFrame] = useState<number | null>(null);
+  const [reactionPattern, setReactionPattern] = useState<'single' | 'sequence'>(DEFAULT_PULL_REACTION_PATTERN);
+  const [eyeIndex, setEyeIndex] = useState(-1);
+  const [mouthIndex, setMouthIndex] = useState(-1);
   const scaleX = useRef(new Animated.Value(1)).current;
   const scaleY = useRef(new Animated.Value(1)).current;
+  const reactionMotion = useRef(new Animated.Value(0)).current;
+  const reactionAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const lastSingleReactionRef = useRef(-1);
   const meshRef = useRef<MobbyPullMeshHandle>(null);
+  const sectorRef = useRef(0);
+  const strongRef = useRef(false);
+  const reactionTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearReactionTimers = useCallback(() => {
+    reactionTimersRef.current.forEach(clearTimeout);
+    reactionTimersRef.current = [];
+    reactionAnimationRef.current?.stop();
+    reactionAnimationRef.current = null;
+  }, []);
+
+  const resetExpression = useCallback(() => {
+    setEyeIndex(-1);
+    setMouthIndex(-1);
+    sectorRef.current = 0;
+    strongRef.current = false;
+  }, []);
+
+  useEffect(() => () => clearReactionTimers(), [clearReactionTimers]);
+  useEffect(() => {
+    if (reactionFrames) void Asset.loadAsync([...reactionFrames]);
+  }, [reactionFrames]);
+  useEffect(() => {
+    clearReactionTimers();
+    setReactionFrame(null);
+    setStatus('idle');
+    resetExpression();
+  }, [clearReactionTimers, mobbyId, resetExpression]);
+
+  const toggleReactionPattern = useCallback(() => {
+    clearReactionTimers();
+    setReactionFrame(null);
+    setStatus('idle');
+    reactionMotion.setValue(0);
+    resetExpression();
+    setReactionPattern((current) => current === 'single' ? 'sequence' : 'single');
+  }, [clearReactionTimers, reactionMotion, resetExpression]);
 
   const release = useCallback((dx: number, dy: number) => {
     if (Math.hypot(dx, dy) < 4) {
@@ -1087,18 +1205,71 @@ function PullableMobby({ selected, onPull }: { selected: Item; onPull: () => voi
       return;
     }
     meshRef.current?.release();
-    setStatus('released');
     onPull();
     Animated.parallel([
       Animated.spring(scaleX, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 13 }),
       Animated.spring(scaleY, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 13 }),
-    ]).start(() => setStatus('idle'));
-  }, [onPull, scaleX, scaleY]);
+    ]).start();
+
+    if (reactionFrames) {
+      clearReactionTimers();
+      resetExpression();
+      setStatus('reacting');
+      reactionMotion.setValue(0);
+
+      if (reactionPattern === 'single') {
+        const previous = lastSingleReactionRef.current;
+        const nextFrame = previous < 0
+          ? Math.floor(Math.random() * reactionFrames.length)
+          : (previous + 1 + Math.floor(Math.random() * (reactionFrames.length - 1))) % reactionFrames.length;
+        lastSingleReactionRef.current = nextFrame;
+        setReactionFrame(nextFrame);
+        reactionAnimationRef.current = Animated.timing(reactionMotion, {
+          toValue: 1,
+          duration: [760, 900, 920, 1500][nextFrame],
+          easing: Easing.linear,
+          useNativeDriver: true,
+        });
+      } else {
+        setReactionFrame(0);
+        [220, 620, 1120].forEach((at, index) => {
+          reactionTimersRef.current.push(setTimeout(() => setReactionFrame(index + 1), at));
+        });
+        reactionAnimationRef.current = Animated.sequence([
+          Animated.timing(reactionMotion, {
+            toValue: 1,
+            duration: 2100,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.delay(600),
+        ]);
+      }
+      reactionAnimationRef.current.start(({ finished }) => {
+        if (!finished) return;
+        setReactionFrame(null);
+        setStatus('idle');
+        reactionMotion.setValue(0);
+        reactionTimersRef.current = [];
+        reactionAnimationRef.current = null;
+      });
+      return;
+    }
+
+    setStatus('released');
+    reactionTimersRef.current.push(setTimeout(() => {
+      setStatus('idle');
+      resetExpression();
+      reactionTimersRef.current = [];
+    }, 550));
+  }, [clearReactionTimers, onPull, reactionFrames, reactionMotion, reactionPattern, resetExpression, scaleX, scaleY]);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
+      clearReactionTimers();
+      setReactionFrame(null);
       scaleX.stopAnimation();
       scaleY.stopAnimation();
       setStatus('pulling');
@@ -1110,23 +1281,135 @@ function PullableMobby({ selected, onPull }: { selected: Item; onPull: () => voi
       scaleX.setValue(1 + Math.min(0.16, Math.abs(dx) / 430));
       scaleY.setValue(1 - Math.min(0.06, Math.abs(dx) / 1100));
       meshRef.current?.update(dx, dy);
+      if (Math.hypot(dx, dy) >= 4) {
+        const expression = selectPullExpression(pullAsset, dx, dy, size, sectorRef, strongRef);
+        setEyeIndex(expression.eyeIndex);
+        setMouthIndex(expression.mouthIndex);
+      }
     },
     onPanResponderRelease: (_event, gesture) => release(gesture.dx / appScale, gesture.dy / appScale),
     onPanResponderTerminate: (_event, gesture) => release(gesture.dx / appScale, gesture.dy / appScale),
-  }), [appScale, release, scaleX, scaleY]);
+  }), [appScale, clearReactionTimers, pullAsset, release, scaleX, scaleY, size]);
 
-  const meshVisible = Platform.OS === 'web' && status !== 'idle';
+  const meshVisible = Platform.OS === 'web' && (status === 'pulling' || status === 'released');
+  const isPullReaction = Boolean(reactionFrames && reactionFrame !== null);
+  const defaultEye = pullAsset.defaultEye ?? pullAsset.eyes[0];
+  const activeEye = eyeIndex >= 0 ? pullAsset.eyes[eyeIndex] ?? defaultEye : defaultEye;
+  const activeMouth = mouthIndex >= 0 ? pullAsset.mouths[mouthIndex] : null;
+  const eyeFrame = eyeIndex >= 0 ? pullAsset.eyeFrame : pullAsset.defaultEyeFrame ?? pullAsset.eyeFrame;
+  const reactionTranslateX = reactionMotion.interpolate({
+    inputRange: [0, 0.1, 0.24, 0.42, 0.48, 0.54, 0.6, 0.68, 0.82, 1],
+    outputRange: [0, 0, -4, 0, -7, 7, -6, 4, 0, 0],
+  });
+  const reactionTranslateY = reactionMotion.interpolate({
+    inputRange: [0, 0.08, 0.18, 0.42, 0.68, 0.84, 1],
+    outputRange: [5, -5, 0, 0, 2, 4, 0],
+  });
+  const reactionScaleX = reactionMotion.interpolate({
+    inputRange: [0, 0.08, 0.18, 1],
+    outputRange: [0.94, 1.04, 1, 1],
+  });
+  const reactionScaleY = reactionMotion.interpolate({
+    inputRange: [0, 0.08, 0.18, 1],
+    outputRange: [0.9, 1.05, 1, 1],
+  });
+  const reactionRotate = reactionMotion.interpolate({
+    inputRange: [0, 0.1, 0.24, 0.42, 0.48, 0.54, 0.6, 0.68, 0.82, 1],
+    outputRange: ['0deg', '-1deg', '1.5deg', '0deg', '-2.5deg', '2.5deg', '-2deg', '1.5deg', '0deg', '0deg'],
+  });
+  const burstOpacity = reactionMotion.interpolate({ inputRange: [0, 0.03, 0.2, 0.21], outputRange: [0, 0.9, 0, 0] });
+  const burstScale = reactionMotion.interpolate({ inputRange: [0, 0.2], outputRange: [0.45, 1.45], extrapolate: 'clamp' });
+  const cheekEffectOpacity = reactionMotion.interpolate({ inputRange: [0.09, 0.13, 0.25, 0.3], outputRange: [0, 0.78, 0.62, 0], extrapolate: 'clamp' });
+  const cheekEffectShift = reactionMotion.interpolate({ inputRange: [0.1, 0.17, 0.24, 0.3], outputRange: [0, -4, 3, 0], extrapolate: 'clamp' });
+  const protestEffectOpacity = reactionMotion.interpolate({ inputRange: [0.28, 0.32, 0.48, 0.54], outputRange: [0, 0.82, 0.72, 0], extrapolate: 'clamp' });
+  const protestEffectShift = reactionMotion.interpolate({ inputRange: [0.29, 0.37, 0.45, 0.53], outputRange: [0, 8, -6, 0], extrapolate: 'clamp' });
+  const sulkEffectOpacity = reactionMotion.interpolate({ inputRange: [0.51, 0.57, 0.82, 1], outputRange: [0, 0.68, 0.5, 0.38], extrapolate: 'clamp' });
+  const sulkEffectDrop = reactionMotion.interpolate({ inputRange: [0.52, 0.68, 1], outputRange: [-5, 2, 5], extrapolate: 'clamp' });
+  const singleEffectOpacity = reactionMotion.interpolate({ inputRange: [0, 0.08, 0.72, 1], outputRange: [0, 0.78, 0.62, 0], extrapolate: 'clamp' });
+  const singleTranslateX = reactionMotion.interpolate({ inputRange: [0, 0.16, 0.32, 0.48, 0.68, 1], outputRange: [0, -4, 4, -3, 1, 0] });
+  const singleTranslateY = reactionMotion.interpolate({ inputRange: [0, 0.14, 0.32, 0.72, 1], outputRange: [4, -4, 0, 2, 0] });
+  const singleScaleX = reactionMotion.interpolate({ inputRange: [0, 0.12, 0.28, 1], outputRange: [0.95, 1.035, 1, 1] });
+  const singleScaleY = reactionMotion.interpolate({ inputRange: [0, 0.12, 0.28, 1], outputRange: [0.91, 1.045, 1, 1] });
+  const singleRotate = reactionMotion.interpolate({ inputRange: [0, 0.18, 0.36, 0.58, 1], outputRange: ['0deg', '-1.5deg', '1.5deg', '-0.7deg', '0deg'] });
+  const activeReactionTranslateX = reactionPattern === 'single' ? singleTranslateX : reactionTranslateX;
+  const activeReactionTranslateY = reactionPattern === 'single' ? singleTranslateY : reactionTranslateY;
+  const activeReactionScaleX = reactionPattern === 'single' ? singleScaleX : reactionScaleX;
+  const activeReactionScaleY = reactionPattern === 'single' ? singleScaleY : reactionScaleY;
+  const activeReactionRotate = reactionPattern === 'single' ? singleRotate : reactionRotate;
   return (
-    <View style={styles.pullableWrap}>
-      <View style={styles.pullableStage}>
-        <Animated.View {...panResponder.panHandlers} accessibilityRole="button" accessibilityLabel="モビーのほっぺを引っ張る" style={[styles.pullableSlot, { opacity: meshVisible ? 0 : 1, transform: [{ scaleX }, { scaleY }] }]}>
-          <Image source={selected.image} resizeMode="contain" style={styles.pullableBody} />
+    <View style={[styles.pullableWrap, { width: size, height: size + (size >= 300 ? 45 : 12) }]}>
+      <View style={[styles.pullableStage, { width: size, height: size }]}>
+        {reactionFrames ? <Pressable accessibilityRole="button" accessibilityLabel={`リアクションを${reactionPattern === 'single' ? '4種連続' : '単発'}に切り替える`} onPress={toggleReactionPattern} style={({ pressed }) => [styles.reactionPatternButton, size >= 300 ? styles.reactionPatternButtonLarge : styles.reactionPatternButtonCompact, pressed && styles.reactionPatternButtonPressed]}><Text style={styles.reactionPatternCaption}>反応</Text><Text style={styles.reactionPatternValue}>{reactionPattern === 'single' ? '単発' : '4連続'}</Text></Pressable> : null}
+        <Animated.View {...panResponder.panHandlers} accessibilityRole="button" accessibilityLabel="モビーのほっぺを引っ張る" style={[styles.pullableSlot, { width: size, height: size, opacity: meshVisible || isPullReaction ? 0 : 1, transform: [{ scaleX }, { scaleY }] }]}>
+          <Image source={pullAsset.body} resizeMode="contain" style={[styles.pullableBody, { width: size, height: size }]} />
         </Animated.View>
-        <MobbyPullMesh ref={meshRef} source={selected.image} size={320} visible={meshVisible} />
+        <MobbyPullMesh ref={meshRef} source={pullAsset.body} size={size} visible={meshVisible} />
+        {!isPullReaction ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pullableFaceLayer]}>
+          <Image source={activeEye} resizeMode="contain" style={pullFaceFrameStyle(eyeFrame, pullAsset, size)} />
+          {activeMouth ? <Image source={activeMouth} resizeMode="contain" style={pullFaceFrameStyle(pullAsset.mouthFrame, pullAsset, size)} /> : null}
+        </View> : null}
+        {reactionFrames ? <Animated.View pointerEvents="none" style={[styles.pullableReactionLayer, {
+          opacity: isPullReaction ? 1 : 0,
+          transform: [{ translateX: activeReactionTranslateX }, { translateY: activeReactionTranslateY }, { rotate: activeReactionRotate }, { scaleX: activeReactionScaleX }, { scaleY: activeReactionScaleY }],
+        }]}>{reactionFrames.map((frame, index) => <Image key={index} source={frame} resizeMode="contain" fadeDuration={0} style={[styles.pullableReactionFrame, { width: size, height: size, opacity: reactionFrame === index ? 1 : 0 }]} />)}</Animated.View> : null}
+        {isPullReaction ? <Animated.View pointerEvents="none" style={[styles.pullableReactionBurst, { opacity: burstOpacity, transform: [{ scale: burstScale }] }]} /> : null}
+        {reactionFrame === 0 ? <View pointerEvents="none" style={styles.animeEffectLayer}>{Array.from({ length: 8 }, (_, index) => <Animated.View key={index} style={[styles.animeBurstRayWrap, { opacity: burstOpacity, transform: [{ rotate: `${index * 45}deg` }, { scale: burstScale }] }]}><View style={[styles.animeBurstRay, { height: size * 0.11, left: size / 2 - 1.5, top: size * 0.025 }]} /></Animated.View>)}</View> : null}
+        {reactionFrame === 1 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: reactionPattern === 'single' ? singleEffectOpacity : cheekEffectOpacity, transform: [{ translateX: cheekEffectShift }] }]}><Text style={[styles.animeCheekLine, styles.animeCheekLineLeft]}>)))</Text><Text style={[styles.animeCheekLine, styles.animeCheekLineRight]}>(((</Text></Animated.View> : null}
+        {reactionFrame === 2 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: reactionPattern === 'single' ? singleEffectOpacity : protestEffectOpacity, transform: [{ translateX: protestEffectShift }] }]}><View style={[styles.animeSpeedGroup, styles.animeSpeedGroupLeft]}><View style={[styles.animeSpeedLine, { width: size * 0.16 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.11 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.07 }]} /></View><View style={[styles.animeSpeedGroup, styles.animeSpeedGroupRight]}><View style={[styles.animeSpeedLine, { width: size * 0.16 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.11 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.07 }]} /></View><Text style={styles.animeAngerMark}>〽</Text></Animated.View> : null}
+        {reactionFrame === 3 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: reactionPattern === 'single' ? singleEffectOpacity : sulkEffectOpacity, transform: [{ translateY: sulkEffectDrop }] }]}><View style={styles.animeGloomLines}><View style={styles.animeGloomLine} /><View style={[styles.animeGloomLine, styles.animeGloomLineShort]} /><View style={styles.animeGloomLine} /></View><Text style={styles.animeSigh}>≈</Text></Animated.View> : null}
       </View>
       {status !== 'idle' ? <View pointerEvents="none" style={styles.pullStatus}><Text style={styles.pullStatusText}>{status === 'pulling' ? 'のびてる……' : 'びよーん！'}</Text></View> : null}
     </View>
   );
+}
+
+function itemMobbyId(itemId: string): MobbyId {
+  if (itemId.startsWith('reo-')) return 'reomoby';
+  if (itemId.startsWith('pote-')) return 'potemoby';
+  if (itemId.startsWith('babu-')) return 'babumoby';
+  return itemId.split('-')[0] as MobbyId;
+}
+
+function pullFaceFrameStyle(frame: PullFrame, asset: MobbyPullAsset, size: number) {
+  const scale = size / asset.sourceSize;
+  return {
+    position: 'absolute' as const,
+    left: frame.x * scale,
+    top: frame.y * scale,
+    width: frame.width * scale,
+    height: frame.height * scale,
+  };
+}
+
+function selectPullExpression(
+  asset: MobbyPullAsset,
+  dx: number,
+  dy: number,
+  width: number,
+  sectorRef: { current: number },
+  strongRef: { current: boolean },
+) {
+  const magnitude = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx);
+  const fullTurn = Math.PI * 2;
+  const sectorSize = fullTurn / asset.eyePairs.length;
+  const normalized = (angle + fullTurn + sectorSize / 2) % fullTurn;
+  const candidateSector = Math.floor(normalized / sectorSize) % asset.eyePairs.length;
+  const currentCenter = sectorRef.current * sectorSize;
+  const distanceFromCurrent = Math.abs(Math.atan2(Math.sin(angle - currentCenter), Math.cos(angle - currentCenter)));
+  if (magnitude >= 12 && distanceFromCurrent > sectorSize / 2 + Math.PI / 18) sectorRef.current = candidateSector;
+
+  const strongOn = Math.max(70, width * 0.16);
+  const strongOff = Math.max(52, width * 0.12);
+  if (!strongRef.current && magnitude >= strongOn) strongRef.current = true;
+  if (strongRef.current && magnitude <= strongOff) strongRef.current = false;
+
+  const eyePair = asset.eyePairs[sectorRef.current] ?? asset.eyePairs[0];
+  const mouthPair = asset.mouthPairs[sectorRef.current] ?? asset.mouthPairs[0];
+  return {
+    eyeIndex: eyePair[strongRef.current ? 1 : 0],
+    mouthIndex: mouthPair[strongRef.current ? 1 : 0],
+  };
 }
 
 function TouchScreen({ selected, onInteract, reaction }: { selected: Item; onInteract: (kind: string) => void; reaction: string }) {
@@ -1207,6 +1490,7 @@ export default function IndexScreen() {
   const [wallPlacement, setWallPlacement] = useState<Item | null>(null);
   const [homeWallItemIds, setHomeWallItemIds] = useState(() => ITEMS.map((item) => item.id));
   const [homePlushItemIds, setHomePlushItemIds] = useState(() => ITEMS.filter((item) => item.kind === 'ぬいぐるみ').map((item) => item.id));
+  const pullReactionIndexRef = useRef<Record<string, number>>({});
   const { engageBgm, playSfx } = useMobbyAudio({ bgmEnabled: appStarted && soundEnabled, sfxEnabled: soundEnabled });
   const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
   const today = ITEMS.find((item) => item.id === todayId) ?? ITEMS[0];
@@ -1235,6 +1519,7 @@ export default function IndexScreen() {
 
   const selectItem = useCallback((id: string) => {
     playSfx('tap');
+    setReaction('');
     setSelectedId(id);
     setScreen('touch');
   }, [playSfx]);
@@ -1300,9 +1585,16 @@ export default function IndexScreen() {
 
   const interact = useCallback((kind: string) => {
     playSfx('tap');
-    const lines: Record<string, string> = { ほっぺ: 'むむっ。ほっぺは大事。' };
-    setReaction(lines[kind] ?? '？');
-  }, [playSfx]);
+    if (kind !== 'ほっぺ') {
+      setReaction('？');
+      return;
+    }
+    const mobby = getMobby(ITEM_MOBBY_IDS[selected.id] ?? 'mobichi');
+    const lines = mobby.lines.tease;
+    const currentIndex = pullReactionIndexRef.current[selected.id] ?? 0;
+    setReaction(lines[currentIndex % lines.length]);
+    pullReactionIndexRef.current[selected.id] = currentIndex + 1;
+  }, [playSfx, selected.id]);
 
   const navigateTo = useCallback((nextScreen: Screen) => {
     playSfx('tap');
@@ -1311,6 +1603,7 @@ export default function IndexScreen() {
 
   const selectHomeMobby = useCallback((id: string) => {
     playSfx('tap');
+    setReaction('');
     setSelectedId(id);
   }, [playSfx]);
 
@@ -1351,7 +1644,7 @@ export default function IndexScreen() {
                 />
               ) : null}
               <View style={styles.screenBody}>
-                {screen === 'home' ? <HomeScreen selected={selected} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.id} wallItemIds={homeWallItemIds} plushItemIds={homePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} /> : null}
+                {screen === 'home' ? <HomeScreen selected={selected} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.id} wallItemIds={homeWallItemIds} plushItemIds={homePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} onInteract={interact} reaction={reaction} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} /> : null}
                 {screen === 'time' ? <MobbyTimeScreen today={today} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); }} onReveal={revealToday} onPlace={() => { playSfx('tap'); setMobbyTimeStage('placing'); }} onPlaced={placeToday} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
@@ -1489,12 +1782,18 @@ const styles = StyleSheet.create({
   homePlushImage: { width: 70, height: 80 },
   homePlushSlotBadge: { top: -5, right: -4 },
   homeSelectablePressed: { opacity: 0.74, transform: [{ scale: 0.96 }] },
-  homeCharacterPicker: { position: 'absolute', top: '63%', left: 14, right: 14, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
+  homeCharacterPicker: { position: 'absolute', left: 14, right: 14, bottom: 82, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
+  homeCharacterPickerCompact: { bottom: 52 },
   homeCharacterArrow: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,249,237,0.92)', borderWidth: 1.2, borderColor: '#E2BF9B', shadowColor: '#684B4B', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   homeCharacterArrowText: { color: '#76516C', fontSize: 30, lineHeight: 32, marginTop: -2 },
-  homeMainCharacter: { position: 'absolute', left: '50%', bottom: 122, width: 220, height: 250, marginLeft: -110, zIndex: 8 },
-  homeMainCharacterCompact: { bottom: 88, width: 178, height: 198, marginLeft: -89 },
+  homeMainCharacter: { position: 'absolute', left: '50%', bottom: 90, width: 220, height: 250, marginLeft: -110, zIndex: 8 },
+  homeMainCharacterCompact: { bottom: 60, width: 178, height: 198, marginLeft: -89 },
+  homeMainCharacterPullable: { alignItems: 'center', justifyContent: 'flex-end', overflow: 'visible' },
   homeMainCharacterEditing: { opacity: 0.13 },
+  homeReactionBubble: { position: 'absolute', right: 10, width: 120, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 15, backgroundColor: '#FFFDF5', borderWidth: 1, borderColor: '#E8CDB4', transform: [{ rotate: '-2deg' }], zIndex: 12 },
+  homeReactionTailBorder: { position: 'absolute', left: 14, bottom: -22, width: 0, height: 0, borderLeftWidth: 10, borderRightWidth: 10, borderTopWidth: 24, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#E8CDB4', transform: [{ rotate: '30deg' }] },
+  homeReactionTail: { position: 'absolute', left: 15, bottom: -18, width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 21, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#FFFDF5', transform: [{ rotate: '30deg' }], zIndex: 1 },
+  homeReactionBubbleText: { color: '#5E4057', fontSize: 10, lineHeight: 14, fontWeight: '900', textAlign: 'center' },
   wallFlightOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 60, overflow: 'hidden' },
   wallFlightStatus: { position: 'absolute', top: 84, left: 72, right: 72, minHeight: 38, borderRadius: 18, backgroundColor: 'rgba(83,58,101,0.94)', alignItems: 'center', justifyContent: 'center', zIndex: 6, borderWidth: 1, borderColor: '#E9C7DA' },
   wallFlightStatusText: { color: '#FFF8E9', fontSize: 12, fontWeight: '900', letterSpacing: 0.4 },
@@ -1684,6 +1983,31 @@ const styles = StyleSheet.create({
   // harsh black rectangle over the parchment stage.
   pullableSlot: { ...StyleSheet.absoluteFillObject, width: 320, height: 320, alignItems: 'center', justifyContent: 'center', zIndex: 2, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   pullableBody: { width: 320, height: 320 },
+  pullableFaceLayer: { zIndex: 4 },
+  pullableReactionLayer: { ...StyleSheet.absoluteFillObject, zIndex: 5 },
+  pullableReactionFrame: { ...StyleSheet.absoluteFillObject },
+  pullableReactionBurst: { position: 'absolute', zIndex: 4, left: '18%', top: '18%', width: '64%', height: '64%', borderRadius: 999, borderWidth: 4, borderColor: 'rgba(255, 225, 151, 0.8)' },
+  reactionPatternButton: { position: 'absolute', zIndex: 20, width: 54, minHeight: 48, paddingHorizontal: 5, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: 'rgba(255, 249, 235, 0.94)', borderWidth: 1.5, borderColor: '#D7AF84', shadowColor: '#6F4738', shadowOpacity: 0.16, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+  reactionPatternButtonLarge: { left: -50, top: '43%' },
+  reactionPatternButtonCompact: { left: -60, top: '41%' },
+  reactionPatternButtonPressed: { transform: [{ scale: 0.94 }], opacity: 0.88 },
+  reactionPatternCaption: { color: '#9A786D', fontSize: 8, fontWeight: '800', lineHeight: 11 },
+  reactionPatternValue: { color: '#68465F', fontSize: 11, fontWeight: '900', lineHeight: 15 },
+  animeEffectLayer: { ...StyleSheet.absoluteFillObject, zIndex: 6 },
+  animeBurstRayWrap: { ...StyleSheet.absoluteFillObject },
+  animeBurstRay: { position: 'absolute', width: 3, borderRadius: 3, backgroundColor: 'rgba(255, 225, 151, 0.88)' },
+  animeCheekLine: { position: 'absolute', top: '38%', color: 'rgba(255, 220, 146, 0.9)', fontSize: 18, fontWeight: '900', letterSpacing: -4 },
+  animeCheekLineLeft: { left: '3%', transform: [{ rotate: '-10deg' }] },
+  animeCheekLineRight: { right: '3%', transform: [{ rotate: '10deg' }] },
+  animeSpeedGroup: { position: 'absolute', top: '31%', gap: 7 },
+  animeSpeedGroupLeft: { left: '1%', alignItems: 'flex-start' },
+  animeSpeedGroupRight: { right: '1%', alignItems: 'flex-end' },
+  animeSpeedLine: { height: 3, borderRadius: 3, backgroundColor: 'rgba(211, 111, 82, 0.8)' },
+  animeAngerMark: { position: 'absolute', right: '12%', top: '15%', color: 'rgba(205, 78, 62, 0.82)', fontSize: 23, fontWeight: '900', transform: [{ rotate: '-18deg' }] },
+  animeGloomLines: { position: 'absolute', left: '17%', top: '9%', flexDirection: 'row', gap: 7, alignItems: 'flex-start' },
+  animeGloomLine: { width: 3, height: 27, borderRadius: 3, backgroundColor: 'rgba(103, 82, 120, 0.56)' },
+  animeGloomLineShort: { height: 18 },
+  animeSigh: { position: 'absolute', right: '10%', top: '37%', color: 'rgba(255, 238, 198, 0.72)', fontSize: 25, fontWeight: '900', transform: [{ rotate: '-12deg' }] },
   pullStatus: { position: 'absolute', bottom: -2, left: 0, right: 0, alignItems: 'center', zIndex: 4 },
   pullStatusText: { color: '#8A6672', fontSize: 9, fontWeight: '900', backgroundColor: 'rgba(255,248,232,0.78)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   stageLight: { position: 'absolute', width: 300, height: 300, borderRadius: 160, backgroundColor: 'rgba(255,248,229,0.55)' },
