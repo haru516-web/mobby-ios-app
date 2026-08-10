@@ -60,6 +60,7 @@ const ROOM_BACKGROUND = require('../../assets/rooms/sunny-stitch-room.png');
 const HOME_WALL_BACKGROUND = require('../../assets/backgrounds/home-room-rich-v2.png');
 const HOME_GARLAND = require('../../assets/backgrounds/home-garland-trimmed-v1.png');
 const COLLECTION_WALL_BACKGROUND = require('../../assets/backgrounds/home-wall.png');
+const COLLECTION_DISPLAY_BOARD = require('../../assets/backgrounds/collection-display-board-v1.png');
 const WOODEN_HOOK = require('../../assets/backgrounds/hook-transparent.png');
 const PLUSH_SHELF_BASE = require('../../assets/backgrounds/plush-base-transparent.png');
 const TRADE_EXCHANGE_BOARD = require('../../assets/backgrounds/trade-exchange-board.png');
@@ -122,20 +123,13 @@ const PLUSH_VISIBLE_BOTTOM_RATIO: Record<string, number> = {
 };
 const PLUSH_CONTACT_REFERENCE = PLUSH_VISIBLE_BOTTOM_RATIO['mobiyan-plush'];
 
-// Coordinates are measured against the 440 × 720 collection artwork. The
-// collection screen starts below the 74px app header, so the Y values below
-// are screen-body coordinates. Keeping these as artwork anchors makes every
-// item follow its hook or shelf when the responsive app canvas is scaled.
-const COLLECTION_KEY_ANCHORS = [
-  { x: 139, y: 84 }, { x: 220, y: 84 }, { x: 301, y: 84 },
-  { x: 139, y: 183 }, { x: 220, y: 183 }, { x: 301, y: 183 },
-  { x: 139, y: 282 }, { x: 220, y: 282 }, { x: 301, y: 282 },
-] as const;
-
-const COLLECTION_PLUSH_ANCHORS = [
-  { x: 66, shelfY: 362 }, { x: 143, shelfY: 362 }, { x: 220, shelfY: 362 }, { x: 297, shelfY: 362 }, { x: 374, shelfY: 362 },
-  { x: 92, shelfY: 460 }, { x: 177, shelfY: 460 }, { x: 263, shelfY: 460 }, { x: 348, shelfY: 460 },
-] as const;
+// Foreground anchors align with the three-by-three pegs and shelves on the
+// collection display board. Keeping them in design-space coordinates makes
+// every item stay attached while the responsive app canvas is scaled.
+const COLLECTION_BOARD_TOP = 78;
+const COLLECTION_COLUMN_X = [128, 220, 312] as const;
+const COLLECTION_KEY_ROW_RATIOS = [0.149, 0.396, 0.665] as const;
+const COLLECTION_PLUSH_SHELF_RATIOS = [0.324, 0.6, 0.871] as const;
 
 const OPENING_KEY_DECORATIONS = [
   { itemIndex: 1, left: 18, top: 94, size: 78, fromY: 8, toY: -8, fromRotate: '-8deg', toRotate: '5deg', layer: 2 },
@@ -405,7 +399,6 @@ function HomeScreen({
   selected,
   onSelect,
   hiddenWallItemId,
-  hiddenPlushItemId,
   wallItemIds,
   plushItemIds,
   onSwapWallItems,
@@ -415,7 +408,6 @@ function HomeScreen({
   selected: Item;
   onSelect: (id: string) => void;
   hiddenWallItemId?: string;
-  hiddenPlushItemId?: string;
   wallItemIds: string[];
   plushItemIds: string[];
   onSwapWallItems: (fromIndex: number, toIndex: number) => void;
@@ -555,7 +547,6 @@ function HomeScreen({
                   isEditing && styles.homeDecorationEditable,
                   isEditTarget && styles.homeDecorationTarget,
                   isEditSelected && styles.homeDecorationEditSelected,
-                  item.id === hiddenPlushItemId && styles.homePlushItemHidden,
                   pressed && styles.homeSelectablePressed,
                 ]}
               >
@@ -589,75 +580,43 @@ function HomeScreen({
   );
 }
 
-function HomePlacementFlight({ item, targetIndex, onComplete }: { item: Item; targetIndex: number; onComplete: () => void }) {
+function WallPlacementFlight({ item, onComplete }: { item: Item; onComplete: () => void }) {
   const { width, height } = useAppLayout();
   const progress = useRef(new Animated.Value(0)).current;
-  const onCompleteRef = useRef(onComplete);
-  const runRef = useRef(0);
   const appWidth = width;
   const roomHeight = Math.max(520, height - 74);
-  const isPlush = item.kind === 'ぬいぐるみ';
-  const safeTargetIndex = Math.max(0, targetIndex);
-  const wallRow = Math.floor(safeTargetIndex / 5);
-  const wallColumn = safeTargetIndex % 5;
-  const wallTargetCenterX = appWidth * (0.1431 + wallColumn * 0.17845);
-  const wallTargetCenterY = 74 + roomHeight * 0.07 + wallRow * roomHeight * 0.1849 + 53;
-  const shelfWidth = appWidth * 0.84;
-  const shelfSlotWidth = shelfWidth * 0.22;
-  const shelfGap = (shelfWidth - shelfSlotWidth * 4) / 3;
-  const plushColumn = Math.min(3, safeTargetIndex);
-  const plushWidth = Math.min(shelfSlotWidth * 1.04, roomHeight * 0.18 * 0.92);
-  const plushHeight = plushWidth * 1.14;
-  const plushRenderedHeight = Math.min(plushWidth, plushHeight);
-  const plushTopInset = (plushHeight - plushRenderedHeight) / 2;
-  const plushVisibleBottomRatio = PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE;
-  const plushPixelsBelowFeet = plushHeight - (plushTopInset + plushRenderedHeight * plushVisibleBottomRatio);
-  const renderedBaseHeight = Math.min(roomHeight, appWidth * 1.5);
-  const shelfSurfaceY = roomHeight * 0.35 + renderedBaseHeight * (1112 / 1536 - 0.5);
-  const plushTargetCenterX = appWidth * 0.08 + shelfSlotWidth / 2 + plushColumn * (shelfSlotWidth + shelfGap);
-  const plushTargetCenterY = 74 + shelfSurfaceY + plushPixelsBelowFeet - plushHeight / 2;
-  const targetCenterX = isPlush ? plushTargetCenterX : wallTargetCenterX;
-  const targetCenterY = isPlush ? plushTargetCenterY : wallTargetCenterY;
-  const flightWidth = isPlush ? plushWidth : 84;
-  const flightHeight = isPlush ? plushHeight : 92;
+  const itemIndex = Math.max(0, ITEMS.findIndex((candidate) => candidate.id === item.id));
+  const row = Math.floor(itemIndex / 5);
+  const column = itemIndex % 5;
+  const targetCenterX = appWidth * (0.1431 + column * 0.17845);
+  const targetCenterY = 74 + roomHeight * 0.07 + row * roomHeight * 0.1849 + 53;
   const startCenterX = appWidth / 2;
   const startCenterY = height * 0.55;
 
   useEffect(() => {
-    onCompleteRef.current = onComplete;
-  }, [onComplete]);
-
-  useEffect(() => {
-    progress.setValue(0);
-    const runId = ++runRef.current;
     const animation = Animated.sequence([
       Animated.timing(progress, { toValue: 0.18, duration: 360, useNativeDriver: true }),
       Animated.timing(progress, { toValue: 1, duration: 1550, useNativeDriver: true }),
       Animated.delay(650),
     ]);
-    animation.start(({ finished }) => {
-      if (finished && runRef.current === runId) onCompleteRef.current();
-    });
-    return () => {
-      if (runRef.current === runId) runRef.current += 1;
-      animation.stop();
-    };
-  }, [progress]);
+    animation.start(({ finished }) => { if (finished) onComplete(); });
+    return () => animation.stop();
+  }, [onComplete, progress]);
 
-  const flightX = progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [startCenterX - flightWidth / 2, startCenterX - flightWidth / 2, targetCenterX - flightWidth / 2] });
-  const flightY = progress.interpolate({ inputRange: [0, 0.18, 0.68, 1], outputRange: [startCenterY - flightHeight / 2, startCenterY - flightHeight, targetCenterY - flightHeight, targetCenterY - flightHeight / 2] });
+  const flightX = progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [startCenterX - 42, startCenterX - 42, targetCenterX - 42] });
+  const flightY = progress.interpolate({ inputRange: [0, 0.18, 0.68, 1], outputRange: [startCenterY - 46, startCenterY - 92, targetCenterY - 92, targetCenterY - 46] });
 
   return (
     <View pointerEvents="none" style={styles.wallFlightOverlay}>
-      <View style={styles.wallFlightStatus}><Text style={styles.wallFlightStatusText}>{isPlush ? 'ぬいぐるみが棚へ移動中…' : 'ぬいキーが壁へ移動中…'}</Text></View>
-      <Animated.View style={[styles.wallFlightTrail, { width: flightWidth, height: flightHeight, borderRadius: flightWidth / 2, opacity: progress.interpolate({ inputRange: [0, 0.18, 0.82, 1], outputRange: [0, 0.92, 0.72, 0] }), transform: [{ translateX: flightX }, { translateY: flightY }, { scale: progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.6, 1.25, 0.85] }) }] }]} />
-      <Animated.View style={[styles.wallFlightItem, { width: flightWidth, height: flightHeight, transform: [
+      <View style={styles.wallFlightStatus}><Text style={styles.wallFlightStatusText}>ぬいキーが壁へ移動中…</Text></View>
+      <Animated.View style={[styles.wallFlightTrail, { opacity: progress.interpolate({ inputRange: [0, 0.18, 0.82, 1], outputRange: [0, 0.92, 0.72, 0] }), transform: [{ translateX: flightX }, { translateY: flightY }, { scale: progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.6, 1.25, 0.85] }) }] }]} />
+      <Animated.View style={[styles.wallFlightItem, { transform: [
         { translateX: flightX },
         { translateY: flightY },
         { scale: progress.interpolate({ inputRange: [0, 0.18, 0.82, 1], outputRange: [1.35, 1.55, 1.08, 1] }) },
         { rotate: progress.interpolate({ inputRange: [0, 0.45, 0.75, 1], outputRange: ['-7deg', '8deg', '-4deg', '0deg'] }) },
       ] }]}>
-        <Image source={isPlush ? item.image : item.keyImage ?? item.image} resizeMode="contain" style={[styles.wallFlightImage, { width: flightWidth, height: flightHeight }]} />
+        <Image source={item.keyImage ?? item.image} resizeMode="contain" style={styles.wallFlightImage} />
       </Animated.View>
       <Animated.View style={[styles.wallLandingBurst, { left: targetCenterX - 38, top: targetCenterY - 38, opacity: progress.interpolate({ inputRange: [0, 0.82, 1], outputRange: [0, 0, 1] }), transform: [{ scale: progress.interpolate({ inputRange: [0, 0.82, 1], outputRange: [0.3, 0.3, 1.35] }) }] }]}><Text style={styles.wallLandingBurstText}>✦</Text></Animated.View>
     </View>
@@ -750,12 +709,13 @@ type KeychainGridProps = {
   selectedId: string;
   onSelect: (id: string) => void;
   imageSize: KeychainImageSize;
+  boardHeight: number;
 };
 
 type TileFrame = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
 
-function KeychainGrid({ items, owned, selectedId, onSelect, imageSize }: KeychainGridProps) {
+function KeychainGrid({ items, owned, selectedId, onSelect, imageSize, boardHeight }: KeychainGridProps) {
   const { scale: appScale } = useAppLayout();
   const tileFrames = useRef<Record<string, TileFrame>>({});
   const tileSwings = useRef<Record<string, KeychainSwing>>({});
@@ -891,7 +851,10 @@ function KeychainGrid({ items, owned, selectedId, onSelect, imageSize }: Keychai
           selectedId={selectedId}
           onSelect={onSelect}
           imageSize={imageSize}
-          placement={{ left: COLLECTION_KEY_ANCHORS[index].x - 41, top: COLLECTION_KEY_ANCHORS[index].y }}
+          placement={{
+            left: COLLECTION_COLUMN_X[index % 3] - 41,
+            top: COLLECTION_BOARD_TOP + COLLECTION_KEY_ROW_RATIOS[Math.floor(index / 3)] * boardHeight,
+          }}
           onSwingReady={registerSwing}
           onLayout={item ? (event) => registerFrame(item.id, event) : undefined}
           onGestureStart={beginGesture}
@@ -903,14 +866,16 @@ function KeychainGrid({ items, owned, selectedId, onSelect, imageSize }: Keychai
   );
 }
 
-function getPlushCollectionPlacement(index: number) {
-  const anchor = COLLECTION_PLUSH_ANCHORS[index] ?? COLLECTION_PLUSH_ANCHORS[COLLECTION_PLUSH_ANCHORS.length - 1];
-  return { left: anchor.x - 36, top: anchor.shelfY - 80 };
+function getPlushCollectionPlacement(index: number, boardHeight: number) {
+  const columnX = COLLECTION_COLUMN_X[index % 3];
+  const shelfRatio = COLLECTION_PLUSH_SHELF_RATIOS[Math.floor(index / 3)] ?? COLLECTION_PLUSH_SHELF_RATIOS[2];
+  const shelfY = COLLECTION_BOARD_TOP + shelfRatio * boardHeight;
+  return { left: columnX - 44, top: shelfY - 96 };
 }
 
 function getPlushCollectionImageBottom(item: Item) {
-  const imageWidth = 72;
-  const imageHeight = 78;
+  const imageWidth = 88;
+  const imageHeight = 96;
   const renderedImageHeight = Math.min(imageWidth, imageHeight);
   const containTopInset = (imageHeight - renderedImageHeight) / 2;
   const visibleBottomRatio = PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE;
@@ -919,6 +884,7 @@ function getPlushCollectionImageBottom(item: Item) {
 }
 
 function CollectionScreen({ items, owned, selectedId, onSelect }: { items: Item[]; owned: Record<string, number>; selectedId: string; onSelect: (id: string) => void }) {
+  const { height: appHeight } = useAppLayout();
   const [mode, setMode] = useState<ItemKind>('ぬいキー');
   const [keyImageSize, setKeyImageSize] = useState<KeychainImageSize>('normal');
   const visibleItems = items;
@@ -927,22 +893,25 @@ function CollectionScreen({ items, owned, selectedId, onSelect }: { items: Item[
   const ownedCount = visibleItems.filter((item) => (owned[item.id] ?? 0) > 0).length;
   const completionPercent = Math.round((ownedCount / (mode === 'ぬいキー' ? 40 : 30)) * 100);
   const title = mode === 'ぬいキー' ? `ぬいキー（${keyImageSize === 'small' ? 'Sサイズ' : '通常サイズ'}）` : 'ぬいぐるみ';
+  const boardHeight = Math.min(640, Math.max(420, appHeight - 302));
   return (
     <View style={styles.collectionScreenBackground}>
       <View style={styles.collectionScrollContent}>
+      <View pointerEvents="none" style={[styles.collectionBoardShadow, { height: boardHeight - 10 }]} />
+      <Image source={COLLECTION_DISPLAY_BOARD} resizeMode="stretch" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
       <View style={styles.collectionHeaderBar}><Pressable onPress={() => setMode(mode === 'ぬいキー' ? 'ぬいぐるみ' : 'ぬいキー')} style={styles.backButton}><Text style={styles.backButtonText}>‹</Text></Pressable><Text style={styles.collectionHeaderTitle}>{title}</Text><View style={styles.collectionHeaderHeart}><Text>♡</Text></View></View>
       <View style={styles.collectionModeTabs}><Pressable onPress={() => setMode('ぬいキー')} style={[styles.collectionModeTab, mode === 'ぬいキー' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text></Pressable><Pressable onPress={() => setMode('ぬいぐるみ')} style={[styles.collectionModeTab, mode === 'ぬいぐるみ' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable></View>
       {mode === 'ぬいキー' ? <View style={styles.collectionKeySizeTabs}><Pressable onPress={() => setKeyImageSize('normal')} style={[styles.collectionKeySizeTab, keyImageSize === 'normal' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'normal' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'normal' && styles.collectionKeySizeTextActive]}>通常サイズ</Text></Pressable><Pressable onPress={() => setKeyImageSize('small')} style={[styles.collectionKeySizeTab, keyImageSize === 'small' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'small' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'small' && styles.collectionKeySizeTextActive]}>Sサイズ</Text></Pressable></View> : null}
-      <View style={[styles.collectionDisplay, mode === 'ぬいぐるみ' && styles.collectionDisplayPlush]}>
+      <View style={[styles.collectionDisplay, { height: COLLECTION_BOARD_TOP + boardHeight }, mode === 'ぬいぐるみ' && styles.collectionDisplayPlush]}>
         {mode === 'ぬいキー' ? (
-          <KeychainGrid items={displayItems} owned={owned} selectedId={selectedId} onSelect={onSelect} imageSize={keyImageSize} />
+          <KeychainGrid items={displayItems} owned={owned} selectedId={selectedId} onSelect={onSelect} imageSize={keyImageSize} boardHeight={boardHeight} />
         ) : (
           <View style={styles.plushCollectionShelf}>
             {displayItems.map((item, index) => (
               <Pressable
                 key={`${mode}-${item?.id ?? 'locked'}-${index}`}
                 onPress={() => item && owned[item.id] ? onSelect(item.id) : undefined}
-                style={[styles.plushCollectionItem, getPlushCollectionPlacement(index)]}
+                style={[styles.plushCollectionItem, getPlushCollectionPlacement(index, boardHeight)]}
               >
                 <View style={[styles.plushCollectionBody, item && (owned[item.id] ?? 0) > 0 && styles.plushCollectionBodyOwned, item && selectedId === item.id && styles.plushCollectionSelected]}>
                   {item && (owned[item.id] ?? 0) > 0 ? (
@@ -1236,7 +1205,6 @@ export default function IndexScreen() {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [wallPlacement, setWallPlacement] = useState<Item | null>(null);
-  const [plushPlacement, setPlushPlacement] = useState<Item | null>(null);
   const [homeWallItemIds, setHomeWallItemIds] = useState(() => ITEMS.map((item) => item.id));
   const [homePlushItemIds, setHomePlushItemIds] = useState(() => ITEMS.filter((item) => item.kind === 'ぬいぐるみ').map((item) => item.id));
   const { engageBgm, playSfx } = useMobbyAudio({ bgmEnabled: appStarted && soundEnabled, sfxEnabled: soundEnabled });
@@ -1282,28 +1250,22 @@ export default function IndexScreen() {
     setNotice(`NEW! ${item.name}を${placement}に追加しました`);
   }, []);
   const placeToday = useCallback(() => {
-    setNotice('');
+    setSelectedId(today.id);
     if (today.kind === 'ぬいキー') {
+      setNotice('');
       setWallPlacement(today);
-      setPlushPlacement(null);
-    } else {
-      setPlushPlacement(today);
-      setWallPlacement(null);
+      setScreen('home');
+      return;
     }
-    setScreen('home');
-  }, [today]);
+    playSfx('place');
+    finalizePlacement(today);
+  }, [finalizePlacement, playSfx, today]);
   const completeWallPlacement = useCallback(() => {
     if (!wallPlacement) return;
     playSfx('place');
     finalizePlacement(wallPlacement);
     setWallPlacement(null);
   }, [finalizePlacement, playSfx, wallPlacement]);
-  const completePlushPlacement = useCallback(() => {
-    if (!plushPlacement) return;
-    playSfx('place');
-    finalizePlacement(plushPlacement);
-    setPlushPlacement(null);
-  }, [finalizePlacement, playSfx, plushPlacement]);
   const swapHomeWallItems = useCallback((fromIndex: number, toIndex: number) => {
     setHomeWallItemIds((current) => {
       const next = [...current];
@@ -1389,15 +1351,14 @@ export default function IndexScreen() {
                 />
               ) : null}
               <View style={styles.screenBody}>
-                {screen === 'home' ? <HomeScreen selected={selected} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.id} hiddenPlushItemId={plushPlacement?.id} wallItemIds={homeWallItemIds} plushItemIds={homePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} /> : null}
+                {screen === 'home' ? <HomeScreen selected={selected} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.id} wallItemIds={homeWallItemIds} plushItemIds={homePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} /> : null}
                 {screen === 'time' ? <MobbyTimeScreen today={today} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); }} onReveal={revealToday} onPlace={() => { playSfx('tap'); setMobbyTimeStage('placing'); }} onPlaced={placeToday} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
                 {screen === 'trade' ? <TradeScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectHomeMobby} /> : null}
               </View>
               <BottomNav screen={screen} setScreen={navigateTo} />
-              {wallPlacement ? <HomePlacementFlight item={wallPlacement} targetIndex={homeWallItemIds.indexOf(wallPlacement.id)} onComplete={completeWallPlacement} /> : null}
-              {plushPlacement ? <HomePlacementFlight item={plushPlacement} targetIndex={homePlushItemIds.indexOf(plushPlacement.id)} onComplete={completePlushPlacement} /> : null}
+              {wallPlacement ? <WallPlacementFlight item={wallPlacement} onComplete={completeWallPlacement} /> : null}
               {!appStarted ? <OpeningScreen onBegin={() => { engageBgm(); playSfx('reward'); }} onStart={() => setAppStarted(true)} /> : null}
             </View>
           </AppLayoutContext.Provider>
@@ -1413,7 +1374,7 @@ const styles = StyleSheet.create({
   appViewport: { position: 'relative', overflow: 'hidden', backgroundColor: '#E7D3BC', ...(Platform.OS === 'web' ? { boxShadow: '0 16px 48px rgba(81, 48, 54, 0.18)' } : {}) },
   appShell: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, backgroundColor: '#D8A46F', overflow: Platform.OS === 'web' ? ('clip' as any) : 'hidden', transformOrigin: 'top left' },
   appShellBackground: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', objectFit: 'cover' },
-  collectionReferenceBackground: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, height: DESIGN_MIN_HEIGHT },
+  collectionReferenceBackground: { ...StyleSheet.absoluteFillObject, width: DESIGN_WIDTH, height: '100%' },
   openingScreen: { ...StyleSheet.absoluteFillObject, zIndex: 100, overflow: 'hidden' },
   openingBackdrop: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', objectFit: 'cover' },
   openingTitleWrap: { position: 'absolute', top: 34, left: 24, right: 24, alignItems: 'center', zIndex: 8 },
@@ -1525,7 +1486,6 @@ const styles = StyleSheet.create({
   homePlushShelf: { position: 'absolute', left: '8%', right: '8%', height: '18%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', zIndex: 3 },
   homePlushItem: { width: '22%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 13, position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   homePlushItemSelected: { backgroundColor: 'rgba(255,244,196,0.32)', shadowColor: '#FFF0A8', shadowOpacity: 0.8, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
-  homePlushItemHidden: { opacity: 0 },
   homePlushImage: { width: 70, height: 80 },
   homePlushSlotBadge: { top: -5, right: -4 },
   homeSelectablePressed: { opacity: 0.74, transform: [{ scale: 0.96 }] },
@@ -1546,6 +1506,8 @@ const styles = StyleSheet.create({
   collectionHeaderBar: { position: 'absolute', top: 7, left: 10, right: 10, height: 36, borderRadius: 14, backgroundColor: 'rgba(255,253,245,0.94)', borderWidth: 1.1, borderColor: '#E8D0B3', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, zIndex: 10 },
   collectionScreenBackground: { flex: 1, backgroundColor: 'transparent' },
   collectionScrollContent: { flex: 1, position: 'relative' },
+  collectionBoardShadow: { position: 'absolute', top: 84, left: 30, width: 380, borderRadius: 36, backgroundColor: 'rgba(72,44,31,0.24)', shadowColor: '#3D281F', shadowOpacity: 0.42, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 11, zIndex: 1 },
+  collectionDisplayBoard: { position: 'absolute', top: COLLECTION_BOARD_TOP, left: 25, width: 390, borderRadius: 36, overflow: 'hidden', zIndex: 2 },
   backButton: { width: 27, height: 27, borderRadius: 10, backgroundColor: '#F9EEDC', alignItems: 'center', justifyContent: 'center' },
   backButtonText: { color: '#604664', fontSize: 25, lineHeight: 26, marginTop: -3 },
   collectionHeaderTitle: { flex: 1, color: '#5B3F57', fontSize: 14, fontWeight: '900', textAlign: 'center' },
@@ -1561,7 +1523,7 @@ const styles = StyleSheet.create({
   collectionKeySizeTabActive: { backgroundColor: '#E8C3B2' },
   collectionKeySizeText: { color: '#8C6A73', fontSize: 9, fontWeight: '900' },
   collectionKeySizeTextActive: { color: '#5E4059' },
-  collectionDisplay: { position: 'absolute', top: 0, left: 0, right: 0, height: 500, backgroundColor: 'transparent', overflow: 'visible', zIndex: 2 },
+  collectionDisplay: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'transparent', overflow: 'visible', zIndex: 3 },
   collectionDisplayPlush: { backgroundColor: 'transparent' },
   keyCollectionGrid: { ...StyleSheet.absoluteFillObject },
   collectionKeyItem: { width: 82, alignItems: 'center' },
@@ -1573,19 +1535,19 @@ const styles = StyleSheet.create({
   collectionKeyRing: { width: 13, height: 13, borderRadius: 7, borderWidth: 2, borderColor: '#77685D', backgroundColor: '#EFE1CC' },
   collectionKeyStem: { width: 3, height: 17, backgroundColor: '#77685D', borderRadius: 2, marginTop: -1 },
   collectionKeyBody: { width: 55, height: 70, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(91,64,75,0.28)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  collectionKeyBodyOwned: { width: 76, height: 90, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
+  collectionKeyBodyOwned: { width: 86, height: 101, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
   collectionKeySelected: { transform: [{ scale: 1.06 }] },
-  collectionKeyImage: { width: 76, height: 90 },
-  collectionKeyName: { width: 82, color: '#604757', fontSize: 7, fontWeight: '900', textAlign: 'center', marginTop: 1 },
+  collectionKeyImage: { width: 86, height: 101 },
+  collectionKeyName: { width: 82, color: '#604757', fontSize: 8, fontWeight: '900', textAlign: 'center', marginTop: 1, textShadowColor: 'rgba(255,248,230,0.9)', textShadowRadius: 2 },
   collectionLocked: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(96,80,94,0.52)', alignItems: 'center', justifyContent: 'center' },
   collectionLockedText: { color: '#FFF7E6', fontSize: 27, fontWeight: '900' },
   plushCollectionShelf: { ...StyleSheet.absoluteFillObject },
-  plushCollectionItem: { position: 'absolute', width: 72, height: 96, alignItems: 'center' },
-  plushCollectionBody: { width: 72, height: 80, borderRadius: 20, borderWidth: 1.4, borderColor: 'rgba(86,58,58,0.27)', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
-  plushCollectionBodyOwned: { width: 72, height: 80, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
+  plushCollectionItem: { position: 'absolute', width: 88, height: 108, alignItems: 'center' },
+  plushCollectionBody: { width: 88, height: 96, borderRadius: 24, borderWidth: 1.4, borderColor: 'rgba(86,58,58,0.27)', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
+  plushCollectionBodyOwned: { width: 88, height: 96, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
   plushCollectionSelected: { transform: [{ scale: 1.05 }] },
-  plushCollectionImage: { position: 'absolute', width: 72, height: 78 },
-  collectionPlushName: { width: 72, color: '#FFF8EA', fontSize: 7, fontWeight: '900', textAlign: 'center', textShadowColor: '#664233', textShadowRadius: 3, marginTop: 1 },
+  plushCollectionImage: { position: 'absolute', width: 88, height: 96 },
+  collectionPlushName: { width: 88, color: '#5E4055', fontSize: 8, fontWeight: '900', textAlign: 'center', textShadowColor: 'rgba(255,248,230,0.94)', textShadowRadius: 2, marginTop: 1 },
   collectionCountRow: { position: 'absolute', left: 10, right: 10, bottom: 82, minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: 'rgba(255,244,217,0.92)', borderWidth: 1, borderColor: '#E4C7A4', zIndex: 10 },
   collectionCount: { color: '#5D4257', fontSize: 21, fontWeight: '900', marginRight: 7 },
   collectionProgress: { flex: 1, marginRight: 8 },
