@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Asset } from 'expo-asset';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Animated,
+  Dimensions,
+  Easing,
   Image,
   ImageBackground,
   PanResponder,
@@ -12,14 +16,34 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
-  useWindowDimensions,
 } from 'react-native';
 
 import { MobbyPullMesh, type MobbyPullMeshHandle } from '@/components/MobbyPullMesh';
+import { useMobbyAudio } from '@/hooks/useMobbyAudio';
 
 type Screen = 'home' | 'collection' | 'time' | 'touch' | 'trade';
 type ItemKind = 'ぬいキー' | 'ぬいぐるみ';
-type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placed';
+type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placing' | 'placed';
+type HomePlacementKind = 'wall' | 'shelf';
+
+const DESIGN_WIDTH = 440;
+const DESIGN_MIN_HEIGHT = 720;
+
+type AppLayoutMetrics = {
+  width: number;
+  height: number;
+  scale: number;
+};
+
+const AppLayoutContext = createContext<AppLayoutMetrics>({
+  width: DESIGN_WIDTH,
+  height: DESIGN_MIN_HEIGHT,
+  scale: 1,
+});
+
+function useAppLayout() {
+  return useContext(AppLayoutContext);
+}
 
 type Item = {
   id: string;
@@ -33,11 +57,18 @@ type Item = {
 };
 
 const ROOM_BACKGROUND = require('../../assets/rooms/sunny-stitch-room.png');
-const HOME_WALL_BACKGROUND = require('../../assets/backgrounds/home-wall-re2.png');
+const HOME_WALL_BACKGROUND = require('../../assets/backgrounds/home-room-rich-v2.png');
+const HOME_GARLAND = require('../../assets/backgrounds/home-garland-trimmed-v1.png');
 const COLLECTION_WALL_BACKGROUND = require('../../assets/backgrounds/home-wall.png');
 const WOODEN_HOOK = require('../../assets/backgrounds/hook-transparent.png');
 const PLUSH_SHELF_BASE = require('../../assets/backgrounds/plush-base-transparent.png');
-const TOUCH_BACKGROUND = require('../../assets/backgrounds/touch-stage.png');
+const TRADE_EXCHANGE_BOARD = require('../../assets/backgrounds/trade-exchange-board.png');
+const MOBBY_TIME_BOARD = require('../../assets/backgrounds/mobby-time-board.png');
+const MOBBY_TIME_PACKAGE = require('../../assets/mobby-time-package.png');
+const MOBBY_TIME_TIMER_PLAQUE = require('../../assets/mobby-time/timer-plaque.png');
+const MOBBY_TIME_MESSAGE_PLAQUE = require('../../assets/mobby-time/message-plaque.png');
+const MOBBY_TIME_REWARD_SEAL = require('../../assets/mobby-time/reward-seal.png');
+const MOBBY_TIME_REVEAL_HALO = require('../../assets/mobby-time/reveal-halo.png');
 const BELL = require('../../assets/home-ui/icons/bell.png');
 const SPARKLES = require('../../assets/home-ui/icons/sparkles.png');
 const HOUSE = require('../../assets/home-ui/icons/house.png');
@@ -91,6 +122,32 @@ const PLUSH_VISIBLE_BOTTOM_RATIO: Record<string, number> = {
 };
 const PLUSH_CONTACT_REFERENCE = PLUSH_VISIBLE_BOTTOM_RATIO['mobiyan-plush'];
 
+// Coordinates are measured against the 440 × 720 collection artwork. The
+// collection screen starts below the 74px app header, so the Y values below
+// are screen-body coordinates. Keeping these as artwork anchors makes every
+// item follow its hook or shelf when the responsive app canvas is scaled.
+const COLLECTION_KEY_ANCHORS = [
+  { x: 139, y: 84 }, { x: 220, y: 84 }, { x: 301, y: 84 },
+  { x: 139, y: 183 }, { x: 220, y: 183 }, { x: 301, y: 183 },
+  { x: 139, y: 282 }, { x: 220, y: 282 }, { x: 301, y: 282 },
+] as const;
+
+const COLLECTION_PLUSH_ANCHORS = [
+  { x: 66, shelfY: 362 }, { x: 143, shelfY: 362 }, { x: 220, shelfY: 362 }, { x: 297, shelfY: 362 }, { x: 374, shelfY: 362 },
+  { x: 92, shelfY: 460 }, { x: 177, shelfY: 460 }, { x: 263, shelfY: 460 }, { x: 348, shelfY: 460 },
+] as const;
+
+const OPENING_KEY_DECORATIONS = [
+  { itemIndex: 1, left: 18, top: 94, size: 78, fromY: 8, toY: -8, fromRotate: '-8deg', toRotate: '5deg', layer: 2 },
+  { itemIndex: 6, left: 344, top: 88, size: 78, fromY: -7, toY: 8, fromRotate: '7deg', toRotate: '-5deg', layer: 2 },
+  { itemIndex: 2, left: 58, top: 7, size: 64, fromY: 5, toY: -9, fromRotate: '-5deg', toRotate: '7deg', layer: 2 },
+  { itemIndex: 7, left: 318, top: 12, size: 64, fromY: -8, toY: 5, fromRotate: '6deg', toRotate: '-6deg', layer: 2 },
+  { itemIndex: 3, left: -4, top: 219, size: 72, fromY: 7, toY: -6, fromRotate: '-10deg', toRotate: '4deg', layer: 5 },
+  { itemIndex: 8, left: 372, top: 222, size: 72, fromY: -6, toY: 8, fromRotate: '8deg', toRotate: '-4deg', layer: 5 },
+  { itemIndex: 4, left: 60, top: 302, size: 66, fromY: 9, toY: -5, fromRotate: '-6deg', toRotate: '8deg', layer: 5 },
+  { itemIndex: 5, left: 314, top: 296, size: 66, fromY: -7, toY: 7, fromRotate: '7deg', toRotate: '-7deg', layer: 5 },
+] as const;
+
 const INITIAL_OWNED: Record<string, number> = {
   'mobichi-key': 1,
   'mobiyan-plush': 1,
@@ -125,23 +182,252 @@ const QR_PATTERN = [
   '1111111011011110111',
 ];
 
-function Header({ onBell }: { onBell: () => void }) {
+function Header({ onBell, soundEnabled, onToggleSound }: { onBell: () => void; soundEnabled: boolean; onToggleSound: () => void }) {
   return (
     <View style={styles.header}>
       <View style={styles.brandWrap}><Text style={styles.brand}>MOBBY</Text><Text style={styles.brandSub}>collection</Text></View>
       <View style={styles.headerSpacer} />
-      <Pressable accessibilityRole="button" accessibilityLabel="お知らせ" onPress={onBell} style={styles.bellButton}>
-        <Image source={BELL} resizeMode="contain" style={styles.bellIcon} />
-        <View style={styles.bellBadge}><Text style={styles.bellBadgeText}>3</Text></View>
-      </Pressable>
+      <View style={styles.headerActions}>
+        <Pressable accessibilityRole="button" accessibilityLabel={soundEnabled ? 'サウンドをオフ' : 'サウンドをオン'} onPress={onToggleSound} style={[styles.soundButton, !soundEnabled && styles.soundButtonMuted]}>
+          <Text style={[styles.soundButtonText, !soundEnabled && styles.soundButtonTextMuted]}>{soundEnabled ? '♫' : '×'}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="お知らせ" onPress={onBell} style={styles.bellButton}>
+          <Image source={BELL} resizeMode="contain" style={styles.bellIcon} />
+          <View style={styles.bellBadge}><Text style={styles.bellBadgeText}>3</Text></View>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-function HomeScreen({ selected, onSelect }: { selected: Item; onSelect: (id: string) => void }) {
-  const { height: viewportHeight } = useWindowDimensions();
-  const compactViewport = viewportHeight < 780;
+function NotificationPopup({
+  onClose,
+  onOpenMobbyTime,
+  onOpenCollection,
+  onOpenTrade,
+}: {
+  onClose: () => void;
+  onOpenMobbyTime: () => void;
+  onOpenCollection: () => void;
+  onOpenTrade: () => void;
+}) {
+  const entrance = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(entrance, {
+      toValue: 1,
+      speed: 18,
+      bounciness: 7,
+      useNativeDriver: true,
+    }).start();
+  }, [entrance]);
+
+  return (
+    <View style={styles.notificationOverlay}>
+      <Pressable accessibilityRole="button" accessibilityLabel="お知らせを閉じる" onPress={onClose} style={styles.notificationBackdrop} />
+      <Animated.View
+        accessibilityRole="alert"
+        style={[
+          styles.notificationPopup,
+          {
+            opacity: entrance,
+            transform: [
+              { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
+              { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.notificationPointer} />
+        <View style={styles.notificationHeader}>
+          <View>
+            <Text style={styles.notificationTitle}>お知らせ</Text>
+            <Text style={styles.notificationSubtitle}>モビーの部屋から3件届いています</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} style={styles.notificationCloseButton}>
+            <Text style={styles.notificationCloseText}>×</Text>
+          </Pressable>
+        </View>
+
+        <Pressable accessibilityRole="button" accessibilityLabel="MOBBY TIMEのお知らせを開く" onPress={onOpenMobbyTime} style={({ pressed }) => [styles.notificationItem, styles.notificationItemFeatured, pressed && styles.notificationItemPressed]}>
+          <View style={[styles.notificationIcon, styles.notificationIconTime]}><Text style={styles.notificationIconText}>✦</Text></View>
+          <View style={styles.notificationCopy}>
+            <View style={styles.notificationItemHeading}><Text style={styles.notificationKicker}>MOBBY TIME</Text><View style={styles.notificationLiveBadge}><Text style={styles.notificationLiveText}>いま</Text></View></View>
+            <Text style={styles.notificationItemTitle}>モビーが届いてる…！</Text>
+            <Text style={styles.notificationItemBody}>30分以内に箱を開けてね</Text>
+          </View>
+          <Text style={styles.notificationChevron}>›</Text>
+        </Pressable>
+
+        <Pressable accessibilityRole="button" accessibilityLabel="コレクションのお知らせを開く" onPress={onOpenCollection} style={({ pressed }) => [styles.notificationItem, pressed && styles.notificationItemPressed]}>
+          <View style={[styles.notificationIcon, styles.notificationIconCollection]}><Text style={styles.notificationIconText}>♡</Text></View>
+          <View style={styles.notificationCopy}>
+            <Text style={styles.notificationKicker}>COLLECTION</Text>
+            <Text style={styles.notificationItemTitle}>新しい飾り方ができるよ</Text>
+            <Text style={styles.notificationItemBody}>壁と棚の配置を見てみよう</Text>
+          </View>
+          <Text style={styles.notificationChevron}>›</Text>
+        </Pressable>
+
+        <Pressable accessibilityRole="button" accessibilityLabel="トレードのお知らせを開く" onPress={onOpenTrade} style={({ pressed }) => [styles.notificationItem, pressed && styles.notificationItemPressed]}>
+          <View style={[styles.notificationIcon, styles.notificationIconTrade]}><Text style={styles.notificationIconText}>♧</Text></View>
+          <View style={styles.notificationCopy}>
+            <Text style={styles.notificationKicker}>TRADE</Text>
+            <Text style={styles.notificationItemTitle}>フレンドと交換しよう</Text>
+            <Text style={styles.notificationItemBody}>MOBBY TIME中は交換チャンス！</Text>
+          </View>
+          <Text style={styles.notificationChevron}>›</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () => void }) {
+  const intro = useRef(new Animated.Value(0)).current;
+  const bob = useRef(new Animated.Value(0)).current;
+  const float = useRef(new Animated.Value(0)).current;
+  const haloTurn = useRef(new Animated.Value(0)).current;
+  const startPulse = useRef(new Animated.Value(0)).current;
+  const exit = useRef(new Animated.Value(0)).current;
+  const [leaving, setLeaving] = useState(false);
+  const [assetsReady, setAssetsReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const itemAssets = ITEMS.flatMap((item) => [item.image, item.keyImage, item.smallKeyImage].filter((asset): asset is number => typeof asset === 'number'));
+    Asset.loadAsync([HOME_WALL_BACKGROUND, HOME_GARLAND, PLUSH_SHELF_BASE, WOODEN_HOOK, ...itemAssets])
+      .catch(() => undefined)
+      .finally(() => { if (mounted) setAssetsReady(true); });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    const introAnimation = Animated.timing(intro, { toValue: 1, duration: 780, easing: Easing.out(Easing.back(1.25)), useNativeDriver: true });
+    const bobLoop = Animated.loop(Animated.sequence([
+      Animated.timing(bob, { toValue: 1, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(bob, { toValue: 0, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    const floatLoop = Animated.loop(Animated.sequence([
+      Animated.timing(float, { toValue: 1, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(float, { toValue: 0, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    const haloLoop = Animated.loop(Animated.timing(haloTurn, { toValue: 1, duration: 18000, easing: Easing.linear, useNativeDriver: true }));
+    const pulseLoop = Animated.loop(Animated.sequence([
+      Animated.timing(startPulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(startPulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    introAnimation.start();
+    bobLoop.start();
+    floatLoop.start();
+    haloLoop.start();
+    pulseLoop.start();
+    return () => {
+      introAnimation.stop();
+      bobLoop.stop();
+      floatLoop.stop();
+      haloLoop.stop();
+      pulseLoop.stop();
+    };
+  }, [bob, float, haloTurn, intro, startPulse]);
+
+  const startGame = useCallback(() => {
+    if (leaving) return;
+    onBegin();
+    setLeaving(true);
+    Animated.timing(exit, { toValue: 1, duration: 430, easing: Easing.inOut(Easing.quad), useNativeDriver: true }).start(({ finished }) => {
+      if (finished) onStart();
+    });
+  }, [exit, leaving, onBegin, onStart]);
+
+  const mobbyTranslateY = Animated.add(
+    intro.interpolate({ inputRange: [0, 1], outputRange: [58, 0] }),
+    bob.interpolate({ inputRange: [0, 1], outputRange: [4, -7] }),
+  );
+  return (
+    <Animated.View style={[styles.openingScreen, { opacity: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ scale: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }] }]}>
+      <Image source={ROOM_BACKGROUND} resizeMode="cover" style={styles.openingBackdrop} />
+      <Animated.View style={[styles.openingTitleWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) }] }]}>
+        <ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} resizeMode="contain" style={styles.openingTitlePlaque}>
+          <Text style={styles.openingTitle}>MOBBY</Text>
+          <Text style={styles.openingTitleSub}>C O L L E C T I O N</Text>
+        </ImageBackground>
+        <Text style={styles.openingTagline}>モビーたちと、毎日を飾ろう。</Text>
+      </Animated.View>
+      <View style={styles.openingScene}>
+        <Animated.Image source={MOBBY_TIME_REVEAL_HALO} resizeMode="contain" style={[styles.openingHalo, { opacity: intro, transform: [{ rotate: haloTurn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }, { scale: bob.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1.03] }) }] }]} />
+        {OPENING_KEY_DECORATIONS.map((decoration, index) => {
+          const motion = index % 2 === 0 ? float : bob;
+          const item = ITEMS[decoration.itemIndex];
+          return (
+            <Animated.Image
+              key={`opening-key-${item.id}`}
+              source={item.keyImage ?? item.image}
+              resizeMode="contain"
+              style={[
+                styles.openingKeyDecoration,
+                {
+                  left: decoration.left,
+                  top: decoration.top,
+                  width: decoration.size,
+                  height: decoration.size * 1.18,
+                  zIndex: decoration.layer,
+                  opacity: intro,
+                  transform: [
+                    { translateY: motion.interpolate({ inputRange: [0, 1], outputRange: [decoration.fromY, decoration.toY] }) },
+                    { rotate: motion.interpolate({ inputRange: [0, 1], outputRange: [decoration.fromRotate, decoration.toRotate] }) },
+                    { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.58, 1] }) },
+                  ],
+                },
+              ]}
+            />
+          );
+        })}
+        <Animated.Image source={ITEMS[0].image} resizeMode="contain" style={[styles.openingMobby, { opacity: intro, transform: [{ translateY: mobbyTranslateY }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.5deg', '1.5deg'] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }] }]} />
+        <Animated.Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={[styles.openingPackage, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.6deg', '1.6deg'] }) }] }]} />
+        <Animated.Text style={[styles.openingSparkle, styles.openingSparkleOne, { opacity: float }]}>✦</Animated.Text>
+        <Animated.Text style={[styles.openingSparkle, styles.openingSparkleTwo, { opacity: bob }]}>✧</Animated.Text>
+        <Animated.Text style={[styles.openingSparkle, styles.openingSparkleThree, { opacity: float.interpolate({ inputRange: [0, 1], outputRange: [0.28, 1] }) }]}>✦</Animated.Text>
+      </View>
+      <Animated.View style={[styles.openingStartWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [25, 0] }) }, { scale: startPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }) }] }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={assetsReady ? 'タップしてスタート' : '読み込み中'} disabled={leaving || !assetsReady} onPress={startGame} style={({ pressed }) => [styles.openingStartButton, !assetsReady && styles.openingStartLoading, pressed && styles.openingStartPressed]}>
+          <ImageBackground source={MOBBY_TIME_MESSAGE_PLAQUE} resizeMode="contain" style={styles.openingStartPlaque}>
+            <Text style={styles.openingStartTitle}>{assetsReady ? 'TAP TO START' : 'LOADING…'}</Text>
+            <Text style={styles.openingStartSub}>{assetsReady ? 'モビーの部屋へ' : 'モビーたちを呼んでいます'}</Text>
+          </ImageBackground>
+        </Pressable>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+function HomeScreen({
+  selected,
+  onSelect,
+  hiddenWallItemId,
+  hiddenPlushItemId,
+  wallItemIds,
+  plushItemIds,
+  onSwapWallItems,
+  onSwapPlushItems,
+  onUiTap,
+}: {
+  selected: Item;
+  onSelect: (id: string) => void;
+  hiddenWallItemId?: string;
+  hiddenPlushItemId?: string;
+  wallItemIds: string[];
+  plushItemIds: string[];
+  onSwapWallItems: (fromIndex: number, toIndex: number) => void;
+  onSwapPlushItems: (fromIndex: number, toIndex: number) => void;
+  onUiTap: () => void;
+}) {
+  const { height: appHeight } = useAppLayout();
+  const compactViewport = appHeight < 780;
   const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editSelection, setEditSelection] = useState<{ kind: HomePlacementKind; index: number; itemId: string } | null>(null);
+  const [editFeedback, setEditFeedback] = useState('');
   const handleRoomLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     setRoomSize((previous) => {
@@ -157,59 +443,223 @@ function HomeScreen({ selected, onSelect }: { selected: Item; onSelect: (id: str
     const roomHeight = roomSize.height || 646;
     const itemWidth = roomWidth * 0.84 * 0.22;
     const shelfHeight = roomHeight * 0.18;
-    const width = Math.min(itemWidth * 0.9, shelfHeight * 0.78);
+    // Use most of each four-column slot so the plush read larger while
+    // retaining a small, even gap between neighboring characters.
+    const width = Math.min(itemWidth * 1.04, shelfHeight * 0.92);
     return { width, height: width * 1.14 };
   }, [roomSize.height, roomSize.width]);
-  const wallItems = ITEMS;
-  const plushItems = ITEMS.filter((item) => item.kind === 'ぬいぐるみ');
+  const shelfSurfaceY = useMemo(() => {
+    const roomWidth = roomSize.width || 440;
+    const roomHeight = roomSize.height || 646;
+    const renderedBaseHeight = Math.min(roomHeight, roomWidth * 1.5);
+    return roomHeight * 0.35 + renderedBaseHeight * (1112 / 1536 - 0.5);
+  }, [roomSize.height, roomSize.width]);
+  const wallItems = wallItemIds.map((id) => ITEMS.find((item) => item.id === id)).filter((item): item is Item => Boolean(item));
+  const plushItems = plushItemIds.map((id) => ITEMS.find((item) => item.id === id)).filter((item): item is Item => Boolean(item));
   const selectedIndex = Math.max(0, ITEMS.findIndex((item) => item.id === selected.id));
   const selectRelative = (offset: number) => {
     const nextIndex = (selectedIndex + offset + ITEMS.length) % ITEMS.length;
     onSelect(ITEMS[nextIndex].id);
   };
+  const toggleEditing = () => {
+    onUiTap();
+    setIsEditing((current) => !current);
+    setEditSelection(null);
+    setEditFeedback('');
+  };
+  const handleDecorationPress = (kind: HomePlacementKind, index: number, item: Item) => {
+    onUiTap();
+    if (!isEditing) {
+      onSelect(item.id);
+      return;
+    }
+    if (!editSelection || editSelection.kind !== kind) {
+      setEditSelection({ kind, index, itemId: item.id });
+      setEditFeedback('');
+      return;
+    }
+    if (editSelection.index === index) {
+      setEditSelection(null);
+      return;
+    }
+    if (kind === 'wall') onSwapWallItems(editSelection.index, index);
+    else onSwapPlushItems(editSelection.index, index);
+    setEditSelection(null);
+    setEditFeedback(kind === 'wall' ? 'ぬいキーの掛け場所を変更しました' : 'ぬいぐるみの置き場所を変更しました');
+  };
+  const editInstruction = editSelection
+    ? `${ITEMS.find((item) => item.id === editSelection.itemId)?.name ?? 'アイテム'}の${editSelection.kind === 'wall' ? '掛け先' : '置き先'}を選んでください`
+    : editFeedback || '動かしたいぬいキー・ぬいぐるみを選んでください';
   return (
     <View style={styles.homeScreenBackground}>
       <View style={styles.homeRoom} onLayout={handleRoomLayout}>
         <Image source={PLUSH_SHELF_BASE} resizeMode="contain" style={styles.homeShelfBase} />
+        <Image source={HOME_GARLAND} resizeMode="contain" style={styles.homeGarland} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isEditing ? 'ホーム編集を完了' : 'ホームを編集'}
+          onPress={toggleEditing}
+          style={({ pressed }) => [styles.homeEditButton, isEditing && styles.homeEditButtonActive, pressed && styles.homeSelectablePressed]}
+        >
+          <Text style={[styles.homeEditButtonText, isEditing && styles.homeEditButtonTextActive]}>{isEditing ? '✓ 完了' : '✎ 編集'}</Text>
+        </Pressable>
         <View style={styles.homeWallKeys}>
-          {wallItems.map((item) => {
+          {wallItems.map((item, index) => {
             const name = item.name.replace(' ぬいキー', '').replace(' ぬい', '');
+            const isEditSelected = editSelection?.kind === 'wall' && editSelection.index === index;
+            const isEditTarget = editSelection?.kind === 'wall' && editSelection.index !== index;
             return (
-              <View key={item.id} accessibilityLabel={`${name}のぬいキー`} style={styles.homeWallKey}>
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityLabel={isEditing ? `${name}、壁フック${index + 1}` : `${name}をメインモビーにする`}
+                onPress={() => handleDecorationPress('wall', index, item)}
+                style={({ pressed }) => [
+                  styles.homeWallKey,
+                  !isEditing && item.id === selected.id && styles.homeWallKeySelected,
+                  isEditing && styles.homeDecorationEditable,
+                  isEditTarget && styles.homeDecorationTarget,
+                  isEditSelected && styles.homeDecorationEditSelected,
+                  item.id === hiddenWallItemId && styles.homeWallKeyHidden,
+                  pressed && styles.homeSelectablePressed,
+                ]}
+              >
                 <Image source={WOODEN_HOOK} resizeMode="contain" style={styles.homeWallHook} />
                 <Image source={item.keyImage ?? item.image} resizeMode="contain" style={styles.homeWallKeyImage} />
-              </View>
+                {isEditing ? <View style={styles.homeSlotBadge}><Text style={styles.homeSlotBadgeText}>{index + 1}</Text></View> : null}
+              </Pressable>
             );
           })}
         </View>
-        <View style={styles.homePlushShelf}>
-          {plushItems.map((item) => (
-            <View key={item.id} accessibilityLabel={`${item.name.replace(' ぬい', '')}のぬいぐるみ`} style={styles.homePlushItem}>
-              <View pointerEvents="none" style={styles.homePlushContactShadow} />
-              <Image
-                source={item.image}
-                resizeMode="contain"
-                style={[
-                  styles.homePlushImage,
-                  plushImageSize,
-                  {
-                    transform: [{ translateY: Math.max(0, PLUSH_CONTACT_REFERENCE - (PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE)) * plushImageSize.height }],
-                  },
+        <View style={[styles.homePlushShelf, { top: shelfSurfaceY - (roomSize.height || 646) * 0.18 }]}>
+          {plushItems.map((item, index) => {
+            // All four plush source files are square. With resizeMode="contain"
+            // the actual bitmap is therefore the shorter side of this canvas.
+            const renderedImageHeight = Math.min(plushImageSize.width, plushImageSize.height);
+            const containTopInset = (plushImageSize.height - renderedImageHeight) / 2;
+            const visibleBottomRatio = PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE;
+            const visibleFootBottom = containTopInset + renderedImageHeight * visibleBottomRatio;
+            const canvasPixelsBelowFeet = plushImageSize.height - visibleFootBottom;
+            const isEditSelected = editSelection?.kind === 'shelf' && editSelection.index === index;
+            const isEditTarget = editSelection?.kind === 'shelf' && editSelection.index !== index;
+
+            return (
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityLabel={isEditing ? `${item.name.replace(' ぬい', '')}、土台${index + 1}` : `${item.name.replace(' ぬい', '')}をメインモビーにする`}
+                onPress={() => handleDecorationPress('shelf', index, item)}
+                style={({ pressed }) => [
+                  styles.homePlushItem,
+                  !isEditing && item.id === selected.id && styles.homePlushItemSelected,
+                  isEditing && styles.homeDecorationEditable,
+                  isEditTarget && styles.homeDecorationTarget,
+                  isEditSelected && styles.homeDecorationEditSelected,
+                  item.id === hiddenPlushItemId && styles.homePlushItemHidden,
+                  pressed && styles.homeSelectablePressed,
                 ]}
-              />
-            </View>
-          ))}
+              >
+                <Image
+                  source={item.image}
+                  resizeMode="contain"
+                  style={[
+                    styles.homePlushImage,
+                    plushImageSize,
+                    {
+                      // Move the image canvas down by exactly the rendered
+                      // pixels below the feet. The visible foot bottom then
+                      // lands on the shelf artwork's top edge.
+                      bottom: -canvasPixelsBelowFeet,
+                    },
+                  ]}
+                />
+                {isEditing ? <View style={[styles.homeSlotBadge, styles.homePlushSlotBadge]}><Text style={styles.homeSlotBadgeText}>{index + 1}</Text></View> : null}
+              </Pressable>
+            );
+          })}
         </View>
-        <View style={styles.homeCharacterPicker}>
-          <Pressable accessibilityRole="button" accessibilityLabel="前のモビー" onPress={() => selectRelative(-1)} style={styles.homeCharacterArrow}>
-            <Text style={styles.homeCharacterArrowText}>‹</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="次のモビー" onPress={() => selectRelative(1)} style={styles.homeCharacterArrow}>
-            <Text style={styles.homeCharacterArrowText}>›</Text>
-          </Pressable>
-        </View>
-        <Image source={selected.image} resizeMode="contain" style={[styles.homeMainCharacter, compactViewport && styles.homeMainCharacterCompact]} />
+        {!isEditing ? <View style={styles.homeCharacterPicker}>
+          <Pressable accessibilityRole="button" accessibilityLabel="前のモビー" onPress={() => selectRelative(-1)} style={styles.homeCharacterArrow}><Text style={styles.homeCharacterArrowText}>‹</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="次のモビー" onPress={() => selectRelative(1)} style={styles.homeCharacterArrow}><Text style={styles.homeCharacterArrowText}>›</Text></Pressable>
+        </View> : null}
+        <Image source={selected.image} resizeMode="contain" style={[styles.homeMainCharacter, compactViewport && styles.homeMainCharacterCompact, isEditing && styles.homeMainCharacterEditing]} />
+        {isEditing ? <View style={styles.homeEditGuide}><Text style={styles.homeEditGuideTitle}>お部屋を編集</Text><Text style={styles.homeEditGuideText}>{editInstruction}</Text></View> : null}
       </View>
+    </View>
+  );
+}
+
+function HomePlacementFlight({ item, targetIndex, onComplete }: { item: Item; targetIndex: number; onComplete: () => void }) {
+  const { width, height } = useAppLayout();
+  const progress = useRef(new Animated.Value(0)).current;
+  const onCompleteRef = useRef(onComplete);
+  const runRef = useRef(0);
+  const appWidth = width;
+  const roomHeight = Math.max(520, height - 74);
+  const isPlush = item.kind === 'ぬいぐるみ';
+  const safeTargetIndex = Math.max(0, targetIndex);
+  const wallRow = Math.floor(safeTargetIndex / 5);
+  const wallColumn = safeTargetIndex % 5;
+  const wallTargetCenterX = appWidth * (0.1431 + wallColumn * 0.17845);
+  const wallTargetCenterY = 74 + roomHeight * 0.07 + wallRow * roomHeight * 0.1849 + 53;
+  const shelfWidth = appWidth * 0.84;
+  const shelfSlotWidth = shelfWidth * 0.22;
+  const shelfGap = (shelfWidth - shelfSlotWidth * 4) / 3;
+  const plushColumn = Math.min(3, safeTargetIndex);
+  const plushWidth = Math.min(shelfSlotWidth * 1.04, roomHeight * 0.18 * 0.92);
+  const plushHeight = plushWidth * 1.14;
+  const plushRenderedHeight = Math.min(plushWidth, plushHeight);
+  const plushTopInset = (plushHeight - plushRenderedHeight) / 2;
+  const plushVisibleBottomRatio = PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE;
+  const plushPixelsBelowFeet = plushHeight - (plushTopInset + plushRenderedHeight * plushVisibleBottomRatio);
+  const renderedBaseHeight = Math.min(roomHeight, appWidth * 1.5);
+  const shelfSurfaceY = roomHeight * 0.35 + renderedBaseHeight * (1112 / 1536 - 0.5);
+  const plushTargetCenterX = appWidth * 0.08 + shelfSlotWidth / 2 + plushColumn * (shelfSlotWidth + shelfGap);
+  const plushTargetCenterY = 74 + shelfSurfaceY + plushPixelsBelowFeet - plushHeight / 2;
+  const targetCenterX = isPlush ? plushTargetCenterX : wallTargetCenterX;
+  const targetCenterY = isPlush ? plushTargetCenterY : wallTargetCenterY;
+  const flightWidth = isPlush ? plushWidth : 84;
+  const flightHeight = isPlush ? plushHeight : 92;
+  const startCenterX = appWidth / 2;
+  const startCenterY = height * 0.55;
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    progress.setValue(0);
+    const runId = ++runRef.current;
+    const animation = Animated.sequence([
+      Animated.timing(progress, { toValue: 0.18, duration: 360, useNativeDriver: true }),
+      Animated.timing(progress, { toValue: 1, duration: 1550, useNativeDriver: true }),
+      Animated.delay(650),
+    ]);
+    animation.start(({ finished }) => {
+      if (finished && runRef.current === runId) onCompleteRef.current();
+    });
+    return () => {
+      if (runRef.current === runId) runRef.current += 1;
+      animation.stop();
+    };
+  }, [progress]);
+
+  const flightX = progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [startCenterX - flightWidth / 2, startCenterX - flightWidth / 2, targetCenterX - flightWidth / 2] });
+  const flightY = progress.interpolate({ inputRange: [0, 0.18, 0.68, 1], outputRange: [startCenterY - flightHeight / 2, startCenterY - flightHeight, targetCenterY - flightHeight, targetCenterY - flightHeight / 2] });
+
+  return (
+    <View pointerEvents="none" style={styles.wallFlightOverlay}>
+      <View style={styles.wallFlightStatus}><Text style={styles.wallFlightStatusText}>{isPlush ? 'ぬいぐるみが棚へ移動中…' : 'ぬいキーが壁へ移動中…'}</Text></View>
+      <Animated.View style={[styles.wallFlightTrail, { width: flightWidth, height: flightHeight, borderRadius: flightWidth / 2, opacity: progress.interpolate({ inputRange: [0, 0.18, 0.82, 1], outputRange: [0, 0.92, 0.72, 0] }), transform: [{ translateX: flightX }, { translateY: flightY }, { scale: progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.6, 1.25, 0.85] }) }] }]} />
+      <Animated.View style={[styles.wallFlightItem, { width: flightWidth, height: flightHeight, transform: [
+        { translateX: flightX },
+        { translateY: flightY },
+        { scale: progress.interpolate({ inputRange: [0, 0.18, 0.82, 1], outputRange: [1.35, 1.55, 1.08, 1] }) },
+        { rotate: progress.interpolate({ inputRange: [0, 0.45, 0.75, 1], outputRange: ['-7deg', '8deg', '-4deg', '0deg'] }) },
+      ] }]}>
+        <Image source={isPlush ? item.image : item.keyImage ?? item.image} resizeMode="contain" style={[styles.wallFlightImage, { width: flightWidth, height: flightHeight }]} />
+      </Animated.View>
+      <Animated.View style={[styles.wallLandingBurst, { left: targetCenterX - 38, top: targetCenterY - 38, opacity: progress.interpolate({ inputRange: [0, 0.82, 1], outputRange: [0, 0, 1] }), transform: [{ scale: progress.interpolate({ inputRange: [0, 0.82, 1], outputRange: [0.3, 0.3, 1.35] }) }] }]}><Text style={styles.wallLandingBurstText}>✦</Text></Animated.View>
     </View>
   );
 }
@@ -225,6 +675,7 @@ type KeychainTileProps = {
   selectedId: string;
   onSelect: (id: string) => void;
   imageSize?: KeychainImageSize;
+  placement?: { left: number; top: number };
   gestureManaged?: boolean;
   onSwingReady?: (id: string, swing: KeychainSwing | null) => void;
   onLayout?: (event: LayoutChangeEvent) => void;
@@ -233,7 +684,7 @@ type KeychainTileProps = {
   onGestureEnd?: () => void;
 };
 
-function KeychainTile({ item, owned, selectedId, onSelect, imageSize = 'normal', gestureManaged = false, onSwingReady, onLayout, onGestureStart, onGestureMove, onGestureEnd }: KeychainTileProps) {
+function KeychainTile({ item, owned, selectedId, onSelect, imageSize = 'normal', placement, gestureManaged = false, onSwingReady, onLayout, onGestureStart, onGestureMove, onGestureEnd }: KeychainTileProps) {
   const ownedCount = item ? (owned[item.id] ?? 0) : 0;
   const rotation = useRef(new Animated.Value(0)).current;
   const swing = useCallback((direction: number) => {
@@ -281,7 +732,7 @@ function KeychainTile({ item, owned, selectedId, onSelect, imageSize = 'normal',
   const keyImage = imageSize === 'small' ? item?.smallKeyImage ?? item?.keyImage ?? item?.image : item?.keyImage ?? item?.smallKeyImage ?? item?.image;
   const localPanHandlers = !gestureManaged && item && ownedCount > 0 ? panResponder.panHandlers : {};
   return (
-    <Animated.View {...localPanHandlers} onLayout={onLayout} style={styles.collectionKeyItem}>
+    <Animated.View {...localPanHandlers} onLayout={onLayout} style={[styles.collectionKeyItem, placement && styles.collectionKeyItemAnchored, placement]}>
       <Pressable focusable={false} onPress={() => { if (item && ownedCount > 0) { onSelect(item.id); swing(1); } }} style={styles.collectionKeyPressable} accessibilityRole="button" accessibilityLabel={`${name}${imageSize === 'small' ? ' Sサイズ' : ' 通常サイズ'}を揺らす`}>
         <Animated.View style={[styles.collectionKeySwing, { transform: [{ rotate: sway }] }]}>
           <View style={[styles.collectionKeyHook, item && ownedCount > 0 && styles.collectionKeyHookOwned]}>{item && ownedCount <= 0 ? <><View style={styles.collectionKeyRing} /><View style={styles.collectionKeyStem} /></> : null}</View>
@@ -305,6 +756,7 @@ type TileFrame = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
 
 function KeychainGrid({ items, owned, selectedId, onSelect, imageSize }: KeychainGridProps) {
+  const { scale: appScale } = useAppLayout();
   const tileFrames = useRef<Record<string, TileFrame>>({});
   const tileSwings = useRef<Record<string, KeychainSwing>>({});
   const touchedTiles = useRef(new Set<string>());
@@ -339,10 +791,10 @@ function KeychainGrid({ items, owned, selectedId, onSelect, imageSize }: Keychai
     const locationX = event.nativeEvent?.locationX;
     const locationY = event.nativeEvent?.locationY;
     if (typeof pageX === 'number' && Number.isFinite(pageX) && typeof pageY === 'number' && Number.isFinite(pageY)) {
-      return { x: pageX - gridOrigin.current.x, y: pageY - gridOrigin.current.y };
+      return { x: (pageX - gridOrigin.current.x) / appScale, y: (pageY - gridOrigin.current.y) / appScale };
     }
-    return { x: locationX ?? 0, y: locationY ?? 0 };
-  }, []);
+    return { x: (locationX ?? 0) / appScale, y: (locationY ?? 0) / appScale };
+  }, [appScale]);
 
   const frameContains = useCallback((point: Point, frame: TileFrame) => {
     const padding = 18;
@@ -439,6 +891,7 @@ function KeychainGrid({ items, owned, selectedId, onSelect, imageSize }: Keychai
           selectedId={selectedId}
           onSelect={onSelect}
           imageSize={imageSize}
+          placement={{ left: COLLECTION_KEY_ANCHORS[index].x - 41, top: COLLECTION_KEY_ANCHORS[index].y }}
           onSwingReady={registerSwing}
           onLayout={item ? (event) => registerFrame(item.id, event) : undefined}
           onGestureStart={beginGesture}
@@ -448,6 +901,21 @@ function KeychainGrid({ items, owned, selectedId, onSelect, imageSize }: Keychai
       ))}
     </View>
   );
+}
+
+function getPlushCollectionPlacement(index: number) {
+  const anchor = COLLECTION_PLUSH_ANCHORS[index] ?? COLLECTION_PLUSH_ANCHORS[COLLECTION_PLUSH_ANCHORS.length - 1];
+  return { left: anchor.x - 36, top: anchor.shelfY - 80 };
+}
+
+function getPlushCollectionImageBottom(item: Item) {
+  const imageWidth = 72;
+  const imageHeight = 78;
+  const renderedImageHeight = Math.min(imageWidth, imageHeight);
+  const containTopInset = (imageHeight - renderedImageHeight) / 2;
+  const visibleBottomRatio = PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE;
+  const visibleFootBottom = containTopInset + renderedImageHeight * visibleBottomRatio;
+  return -(imageHeight - visibleFootBottom);
 }
 
 function CollectionScreen({ items, owned, selectedId, onSelect }: { items: Item[]; owned: Record<string, number>; selectedId: string; onSelect: (id: string) => void }) {
@@ -461,36 +929,78 @@ function CollectionScreen({ items, owned, selectedId, onSelect }: { items: Item[
   const title = mode === 'ぬいキー' ? `ぬいキー（${keyImageSize === 'small' ? 'Sサイズ' : '通常サイズ'}）` : 'ぬいぐるみ';
   return (
     <View style={styles.collectionScreenBackground}>
-      <ScrollView scrollEnabled={false} showsVerticalScrollIndicator={false} contentContainerStyle={styles.collectionScrollContent}>
+      <View style={styles.collectionScrollContent}>
       <View style={styles.collectionHeaderBar}><Pressable onPress={() => setMode(mode === 'ぬいキー' ? 'ぬいぐるみ' : 'ぬいキー')} style={styles.backButton}><Text style={styles.backButtonText}>‹</Text></Pressable><Text style={styles.collectionHeaderTitle}>{title}</Text><View style={styles.collectionHeaderHeart}><Text>♡</Text></View></View>
       <View style={styles.collectionModeTabs}><Pressable onPress={() => setMode('ぬいキー')} style={[styles.collectionModeTab, mode === 'ぬいキー' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text></Pressable><Pressable onPress={() => setMode('ぬいぐるみ')} style={[styles.collectionModeTab, mode === 'ぬいぐるみ' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable></View>
       {mode === 'ぬいキー' ? <View style={styles.collectionKeySizeTabs}><Pressable onPress={() => setKeyImageSize('normal')} style={[styles.collectionKeySizeTab, keyImageSize === 'normal' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'normal' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'normal' && styles.collectionKeySizeTextActive]}>通常サイズ</Text></Pressable><Pressable onPress={() => setKeyImageSize('small')} style={[styles.collectionKeySizeTab, keyImageSize === 'small' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'small' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'small' && styles.collectionKeySizeTextActive]}>Sサイズ</Text></Pressable></View> : null}
-      <View style={[styles.collectionDisplay, mode === 'ぬいぐるみ' && styles.collectionDisplayPlush]}>{mode === 'ぬいキー' ? <KeychainGrid items={displayItems} owned={owned} selectedId={selectedId} onSelect={onSelect} imageSize={keyImageSize} /> : <View style={styles.plushCollectionShelf}>{displayItems.map((item, index) => <Pressable key={`${mode}-${item?.id ?? 'locked'}-${index}`} onPress={() => item && owned[item.id] ? onSelect(item.id) : undefined} style={[styles.plushCollectionItem, { transform: [{ translateY: index < 3 ? 0 : index < 6 ? -7 : -10 }] }]}><View style={[styles.plushCollectionBody, item && (owned[item.id] ?? 0) > 0 && styles.plushCollectionBodyOwned, item && selectedId === item.id && styles.plushCollectionSelected]}>{item && (owned[item.id] ?? 0) > 0 ? <Image source={item.image} resizeMode="contain" style={styles.plushCollectionImage} /> : <View style={styles.collectionLocked}><Text style={styles.collectionLockedText}>?</Text></View>}</View><Text style={styles.collectionPlushName} numberOfLines={1}>{item ? item.name.replace(' ぬいキー', '').replace(' ぬい', '') : '未発見'}</Text></Pressable>)}</View>}</View>
+      <View style={[styles.collectionDisplay, mode === 'ぬいぐるみ' && styles.collectionDisplayPlush]}>
+        {mode === 'ぬいキー' ? (
+          <KeychainGrid items={displayItems} owned={owned} selectedId={selectedId} onSelect={onSelect} imageSize={keyImageSize} />
+        ) : (
+          <View style={styles.plushCollectionShelf}>
+            {displayItems.map((item, index) => (
+              <Pressable
+                key={`${mode}-${item?.id ?? 'locked'}-${index}`}
+                onPress={() => item && owned[item.id] ? onSelect(item.id) : undefined}
+                style={[styles.plushCollectionItem, getPlushCollectionPlacement(index)]}
+              >
+                <View style={[styles.plushCollectionBody, item && (owned[item.id] ?? 0) > 0 && styles.plushCollectionBodyOwned, item && selectedId === item.id && styles.plushCollectionSelected]}>
+                  {item && (owned[item.id] ?? 0) > 0 ? (
+                    <Image source={item.image} resizeMode="contain" style={[styles.plushCollectionImage, { bottom: getPlushCollectionImageBottom(item) }]} />
+                  ) : (
+                    <View style={styles.collectionLocked}><Text style={styles.collectionLockedText}>?</Text></View>
+                  )}
+                </View>
+                <Text style={styles.collectionPlushName} numberOfLines={1}>{item ? item.name.replace(' ぬいキー', '').replace(' ぬい', '') : '未発見'}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
       <View style={styles.collectionCountRow}><Text style={styles.collectionCount}>{ownedCount} / {mode === 'ぬいキー' ? '40' : '30'}</Text><View style={styles.collectionProgress}><Text style={styles.collectionCountHint}>★ コンプリート率 {completionPercent}%</Text><View style={styles.collectionProgressTrack}><View style={[styles.collectionProgressFill, { width: `${Math.min(100, completionPercent)}%` }]} /></View></View><View style={styles.collectionFilter}><Text style={styles.collectionFilterText}>▽ 絞り込み</Text></View></View>
-      </ScrollView>
+      </View>
     </View>
   );
 }
 
-function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onTrade, secondsLeft }: { today: Item; stage: MobbyTimeStage; onOpen: () => void; onReveal: () => void; onPlace: () => void; onTrade: () => void; secondsLeft: number }) {
+function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onPlaced, onTrade, secondsLeft }: { today: Item; stage: MobbyTimeStage; onOpen: () => void; onReveal: () => void; onPlace: () => void; onPlaced: () => void; onTrade: () => void; secondsLeft: number }) {
+  const { width: appWidth, height: appHeight } = useAppLayout();
+  const [headerHeight, setHeaderHeight] = useState(132);
   const active = secondsLeft > 0;
   const minutes = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
   const seconds = (secondsLeft % 60).toString().padStart(2, '0');
   const opening = stage === 'opening';
-  const revealed = stage === 'revealed' || stage === 'placed';
+  const placing = stage === 'placing';
+  const revealed = stage === 'revealed' || placing || stage === 'placed';
   const placed = stage === 'placed';
   const step = stage === 'arrived' || stage === 'opening' ? 1 : stage === 'revealed' ? 2 : 3;
   const packageMotion = useRef(new Animated.Value(0)).current;
   const magicGlow = useRef(new Animated.Value(0)).current;
   const revealFlash = useRef(new Animated.Value(0)).current;
+  const placementMotion = useRef(new Animated.Value(0)).current;
+  const placementBurst = useRef(new Animated.Value(0)).current;
+  const onRevealRef = useRef(onReveal);
+  const onPlacedRef = useRef(onPlaced);
+  const openingRunRef = useRef(0);
+  const placementRunRef = useRef(0);
+
+  useEffect(() => {
+    onRevealRef.current = onReveal;
+  }, [onReveal]);
+
+  useEffect(() => {
+    onPlacedRef.current = onPlaced;
+  }, [onPlaced]);
 
   useEffect(() => {
     if (!opening) {
+      openingRunRef.current += 1;
       packageMotion.setValue(0);
       magicGlow.setValue(0);
       revealFlash.setValue(0);
       return;
     }
+    const runId = ++openingRunRef.current;
     const animation = Animated.sequence([
       Animated.parallel([
         Animated.sequence([
@@ -506,15 +1016,56 @@ function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onTrade, sec
       Animated.timing(revealFlash, { toValue: 1, duration: 170, useNativeDriver: true }),
       Animated.delay(110),
     ]);
-    animation.start(({ finished }) => { if (finished) onReveal(); });
-    return () => animation.stop();
-  }, [magicGlow, onReveal, opening, packageMotion, revealFlash]);
+    animation.start(({ finished }) => {
+      if (finished && openingRunRef.current === runId) onRevealRef.current();
+    });
+    return () => {
+      if (openingRunRef.current === runId) openingRunRef.current += 1;
+      animation.stop();
+    };
+  }, [magicGlow, opening, packageMotion, revealFlash]);
+
+  useEffect(() => {
+    if (!placing) {
+      placementRunRef.current += 1;
+      placementMotion.setValue(0);
+      placementBurst.setValue(0);
+      return;
+    }
+    const runId = ++placementRunRef.current;
+    const animation = Animated.sequence([
+      Animated.parallel([
+        Animated.spring(placementMotion, { toValue: 1, speed: 8, bounciness: 12, useNativeDriver: true }),
+        Animated.timing(placementBurst, { toValue: 1, duration: 650, useNativeDriver: true }),
+      ]),
+      Animated.delay(380),
+    ]);
+    animation.start(({ finished }) => {
+      if (finished && placementRunRef.current === runId) onPlacedRef.current();
+    });
+    return () => {
+      if (placementRunRef.current === runId) placementRunRef.current += 1;
+      animation.stop();
+    };
+  }, [placementBurst, placementMotion, placing]);
 
   const startOpening = () => {
     if (!active || opening) return;
     onOpen();
   };
   const placement = today.kind === 'ぬいキー' ? '壁' : '棚';
+  const placementDistance = today.kind === 'ぬいキー' ? -68 : 34;
+  const encounterBoardBaseWidth = 370;
+  const encounterBoardBaseHeight = 555;
+  const encounterBoardScale = Math.min(
+    1,
+    (appWidth - 28) / encounterBoardBaseWidth,
+    Math.max(320, appHeight - 74 - headerHeight - 90) / encounterBoardBaseHeight,
+  );
+  const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(event.nativeEvent.layout.height);
+    setHeaderHeight((current) => current === nextHeight ? current : nextHeight);
+  }, []);
   const packageTransform = {
     transform: [
       { translateX: packageMotion.interpolate({ inputRange: [-1, 0, 1], outputRange: [-10, 0, 10] }) },
@@ -523,34 +1074,39 @@ function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onTrade, sec
     ],
   };
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.timeHeader}><Text style={styles.eyebrow}>EVERYONE, SAME TIME</Text><Text style={styles.bigTitle}>{active ? 'MOBBY TIME' : 'MOBBY TIME FINISH'}</Text><Text style={styles.timeHeaderSub}>1日1回、みんな同時にモビーがやってくる。</Text><View style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{active ? '残り' : '次回まで'}</Text><Text style={styles.bigTimerValue}>{active ? `${minutes}:${seconds}` : '明日'}</Text><Text style={styles.bigTimerUnit}>TODAY 19:30 — 20:00</Text></View></View>
-      <View style={styles.encounterCard}>
+    <View style={styles.timeScrollContent}>
+      <View onLayout={handleHeaderLayout} style={styles.timeHeader}><Text style={styles.eyebrow}>EVERYONE, SAME TIME</Text><Text style={styles.bigTitle}>{active ? 'MOBBY TIME' : 'MOBBY TIME FINISH'}</Text><Text style={styles.timeHeaderSub}>1日1回、みんな同時にモビーがやってくる。</Text><ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} resizeMode="contain" style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{active ? '残り' : '次回まで'}</Text><Text style={styles.bigTimerValue}>{active ? `${minutes}:${seconds}` : '明日'}</Text><Text style={styles.bigTimerUnit}>TODAY 19:30 — 20:00</Text></ImageBackground></View>
+      <View style={{ width: encounterBoardBaseWidth * encounterBoardScale, height: encounterBoardBaseHeight * encounterBoardScale }}>
+      <ImageBackground source={MOBBY_TIME_BOARD} resizeMode="stretch" style={[styles.encounterCard, { width: encounterBoardBaseWidth, height: encounterBoardBaseHeight, transform: [{ scale: encounterBoardScale }], transformOrigin: 'top left' }]} imageStyle={styles.encounterCardImage}>
         <View style={styles.arrivalNotice}><View style={styles.liveDotCircle} /><Text style={styles.arrivalNoticeText}>{active ? 'モビーが届いてる…！' : '今日のMOBBY TIMEは終了しました'}</Text></View>
         <View style={styles.encounterStepRow}>
           {['ひらく', 'NEW!', 'かざる'].map((label, index) => <View key={label} style={styles.timeStepWrap}><View style={index + 1 <= step ? styles.encounterStepActive : styles.encounterStep}><Text style={styles.stepNo}>0{index + 1}</Text><Text style={styles.stepText}>{label}</Text></View>{index < 2 ? <View style={[styles.stepLine, index + 1 < step && styles.stepLineDone]} /> : null}</View>)}
         </View>
         <View style={styles.encounterScene}>
-          <View style={styles.encounterGlow} />
+          {revealed && !placing ? <Image source={MOBBY_TIME_REVEAL_HALO} resizeMode="contain" style={styles.encounterHaloAsset} /> : null}
           {!revealed ? (
             <Animated.View style={[styles.packageAnimationWrap, packageTransform]}>
             <Pressable accessibilityRole="button" accessibilityLabel="届いた箱を開ける" onPress={startOpening} disabled={!active || opening} style={({ pressed }) => [styles.mobbyPackage, pressed && styles.packagePressed]}>
-              <View style={styles.packageLid}><View style={styles.packageTape} /></View><View style={styles.packageBody}><Text style={styles.packageLogo}>MOBBY</Text><Text style={styles.packageHint}>TAP TO OPEN</Text></View>
+              <Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={styles.packageAsset} />
+              <View pointerEvents="none" style={styles.packageBrandOverlay}><Text style={styles.packageLogo}>MOBBY</Text><Text style={styles.packageHint}>TAP TO OPEN</Text></View>
             </Pressable>
             </Animated.View>
-          ) : <Image source={today.keyImage ?? today.image} resizeMode="contain" style={styles.encounterKeyImage} />}
-          {opening ? <><Animated.View pointerEvents="none" style={[styles.magicRing, { opacity: magicGlow, transform: [{ scale: magicGlow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1.35] }) }] }]} /><View pointerEvents="none" style={styles.magicParticles}><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text></View><Animated.View pointerEvents="none" style={[styles.revealFlash, { opacity: revealFlash }]} /></> : null}
-          <View style={styles.encounterBubble}><Text style={styles.encounterBubbleTitle}>{!active ? 'また明日' : placed ? '飾ったよ！' : revealed ? 'NEW!' : opening ? 'OPENING…' : '届いてる…！'}</Text><Text style={styles.encounterBubbleText}>{!active ? '次回のMOBBY TIMEを待ってね' : placed ? `${today.name}を${placement}に追加` : revealed ? today.name : opening ? 'なにが出るかな…' : '箱をタップして開けよう'}</Text></View>
-          {revealed && !placed ? <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW!</Text></View> : null}
+          ) : <Animated.View style={[styles.encounterRewardWrap, placing && { transform: [{ translateY: placementMotion.interpolate({ inputRange: [0, 1], outputRange: [0, placementDistance] }) }, { scale: placementMotion.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1.16, 0.86] }) }, { rotate: placementMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '-5deg', '0deg'] }) }] }]}><Image source={today.keyImage ?? today.image} resizeMode="contain" style={styles.encounterKeyImage} /></Animated.View>}
+          {opening ? <><Animated.Image source={MOBBY_TIME_REVEAL_HALO} resizeMode="contain" style={[styles.magicRing, { opacity: magicGlow, transform: [{ scale: magicGlow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1.35] }) }] }]} /><View pointerEvents="none" style={styles.magicParticles}><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text></View><Animated.View pointerEvents="none" style={[styles.revealFlash, { opacity: revealFlash }]} /></> : null}
+          {placing ? <><Animated.Image source={MOBBY_TIME_REVEAL_HALO} resizeMode="contain" style={[styles.placementHalo, { opacity: placementBurst, transform: [{ scale: placementBurst.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1.45] }) }] }]} /><Animated.View pointerEvents="none" style={[styles.placementSparkles, { opacity: placementBurst }]}><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text><Text style={styles.placementSparkle}>★</Text><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text></Animated.View></> : null}
+          <ImageBackground source={MOBBY_TIME_MESSAGE_PLAQUE} resizeMode="contain" style={styles.encounterBubble}><Text style={styles.encounterBubbleTitle}>{!active ? 'また明日' : placed ? '飾ったよ！' : placing ? `${placement}へ…！` : revealed ? 'NEW!' : opening ? 'OPENING…' : '届いてる…！'}</Text><Text style={styles.encounterBubbleText}>{!active ? '次回のMOBBY TIMEを待ってね' : placed ? `${today.name}を${placement}に追加` : placing ? '特別な場所に飾っています' : revealed ? today.name : opening ? 'なにが出るかな…' : '箱をタップして開けよう'}</Text></ImageBackground>
+          {revealed && !placed && !placing ? <ImageBackground source={MOBBY_TIME_REWARD_SEAL} resizeMode="contain" style={styles.newBadge}><Text style={styles.newBadgeText}>NEW!</Text></ImageBackground> : null}
         </View>
-        <Text style={styles.encounterCaption}>{!active ? 'GETと交換は次のMOBBY TIMEまでお休みです。' : placed ? '追加完了。残り時間は友達との交換を楽しめます。' : revealed ? `新しい${today.kind}を${placement}に追加しよう。` : opening ? '箱の中から光があふれている…！' : '30分以内に箱を開けると、今日のモビーに会えます。'}</Text>
-        {revealed ? <Pressable accessibilityRole="button" onPress={placed ? onTrade : onPlace} disabled={!active} style={({ pressed }) => [styles.primaryButton, !active && styles.primaryButtonDone, pressed && styles.pressed]}><Image source={placed ? EXCHANGE : MOBBY_ICON} resizeMode="contain" style={styles.primaryButtonIcon} /><Text style={styles.primaryButtonText}>{placed ? '残り時間で友達と交換' : `${placement}に追加する`}</Text></Pressable> : <Text style={styles.packageTapCaption}>{opening ? '開封中…' : '箱をタップ'}</Text>}
+        <Text style={styles.encounterCaption}>{!active ? 'GETと交換は次のMOBBY TIMEまでお休みです。' : placed ? '追加完了。残り時間は友達との交換を楽しめます。' : placing ? `${today.name}を${placement}へ飾っています…` : revealed ? `新しい${today.kind}を${placement}に追加しよう。` : opening ? '箱の中から光があふれている…！' : '30分以内に箱を開けると、今日のモビーに会えます。'}</Text>
+        {revealed ? <Pressable accessibilityRole="button" onPress={placed ? onTrade : onPlace} disabled={!active || placing} style={({ pressed }) => [styles.primaryButton, styles.timePrimaryButton, (!active || placing) && styles.timePrimaryButtonInactive, pressed && styles.pressed]}><Image source={placed ? EXCHANGE : MOBBY_ICON} resizeMode="contain" style={styles.primaryButtonIcon} /><Text style={[styles.primaryButtonText, styles.timePrimaryButtonText]}>{placed ? '残り時間で友達と交換' : placing ? `${placement}へ飾り付け中…` : `${placement}に追加する`}</Text></Pressable> : <Text style={styles.packageTapCaption}>{opening ? '開封中…' : '箱をタップ'}</Text>}
+      </ImageBackground>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 function PullableMobby({ selected, onPull }: { selected: Item; onPull: () => void }) {
+  const { scale: appScale } = useAppLayout();
   const [status, setStatus] = useState<'idle' | 'pulling' | 'released'>('idle');
   const scaleX = useRef(new Animated.Value(1)).current;
   const scaleY = useRef(new Animated.Value(1)).current;
@@ -577,18 +1133,18 @@ function PullableMobby({ selected, onPull }: { selected: Item; onPull: () => voi
       scaleX.stopAnimation();
       scaleY.stopAnimation();
       setStatus('pulling');
-      meshRef.current?.begin(event.nativeEvent.locationX, event.nativeEvent.locationY);
+      meshRef.current?.begin(event.nativeEvent.locationX / appScale, event.nativeEvent.locationY / appScale);
     },
     onPanResponderMove: (_event, gesture) => {
-      const dx = Math.max(-64, Math.min(64, gesture.dx));
-      const dy = Math.max(-50, Math.min(50, gesture.dy));
+      const dx = Math.max(-64, Math.min(64, gesture.dx / appScale));
+      const dy = Math.max(-50, Math.min(50, gesture.dy / appScale));
       scaleX.setValue(1 + Math.min(0.16, Math.abs(dx) / 430));
       scaleY.setValue(1 - Math.min(0.06, Math.abs(dx) / 1100));
       meshRef.current?.update(dx, dy);
     },
-    onPanResponderRelease: (_event, gesture) => release(gesture.dx, gesture.dy),
-    onPanResponderTerminate: (_event, gesture) => release(gesture.dx, gesture.dy),
-  }), [release, scaleX, scaleY]);
+    onPanResponderRelease: (_event, gesture) => release(gesture.dx / appScale, gesture.dy / appScale),
+    onPanResponderTerminate: (_event, gesture) => release(gesture.dx / appScale, gesture.dy / appScale),
+  }), [appScale, release, scaleX, scaleY]);
 
   const meshVisible = Platform.OS === 'web' && status !== 'idle';
   return (
@@ -606,12 +1162,12 @@ function PullableMobby({ selected, onPull }: { selected: Item; onPull: () => voi
 
 function TouchScreen({ selected, onInteract, reaction }: { selected: Item; onInteract: (kind: string) => void; reaction: string }) {
   return (
-    <ImageBackground source={TOUCH_BACKGROUND} resizeMode="cover" style={styles.touchScreenBackground} imageStyle={styles.touchScreenBackgroundImage}>
+    <View style={styles.touchScreenBackground}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.touchScrollContent}>
       <View style={styles.touchTop}><Text style={styles.eyebrow}>DIGITAL PLUSH</Text><View style={styles.touchTitleRow}><Text style={styles.bigTitle}>{selected.name}</Text><View style={[styles.rarityBadge, { backgroundColor: selected.accent }]}><Text style={styles.rarityBadgeText}>{selected.rarity}</Text></View></View></View>
-      <ImageBackground source={TOUCH_BACKGROUND} resizeMode="cover" style={styles.touchStage} imageStyle={styles.touchStageImage}><PullableMobby selected={selected} onPull={() => onInteract('ほっぺ')} />{reaction ? <View style={styles.touchBubble}><Text style={styles.touchBubbleText}>{reaction}</Text></View> : null}<Text style={styles.touchHand}>☝</Text><View style={styles.touchHearts}><Text style={styles.touchHeart}>♥</Text><Text style={styles.touchHeart}>♥</Text><Text style={styles.touchHeart}>♥</Text></View></ImageBackground>
+      <View style={styles.touchStage}><PullableMobby selected={selected} onPull={() => onInteract('ほっぺ')} />{reaction ? <View style={styles.touchBubble}><Text style={styles.touchBubbleText}>{reaction}</Text></View> : null}<Text style={styles.touchHand}>☝</Text><View style={styles.touchHearts}><Text style={styles.touchHeart}>♥</Text><Text style={styles.touchHeart}>♥</Text><Text style={styles.touchHeart}>♥</Text></View></View>
       </ScrollView>
-    </ImageBackground>
+    </View>
   );
 }
 
@@ -622,13 +1178,35 @@ function QrCode() {
 function TradeScreen({ items, owned, selectedId, onSelect }: { items: Item[]; owned: Record<string, number>; selectedId: string; onSelect: (id: string) => void }) {
   const [qrVisible, setQrVisible] = useState(false);
   const [tradeState, setTradeState] = useState<'idle' | 'ready' | 'done'>('idle');
+  const { width: appWidth } = useAppLayout();
+  const tradeBoardWidth = Math.min(appWidth - 56, 370);
+  const tradeBoardHeight = tradeBoardWidth * 1.5;
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+    <View style={styles.tradeScrollContent}>
       <View style={styles.tradeHeader}><Text style={styles.eyebrow}>TRADE DURING MOBBY TIME</Text><Text style={styles.bigTitle}>友達と交換</Text><Text style={styles.tradeSub}>フレンド機能なし。QRを見せるだけ。</Text></View>
-      <View style={styles.tradeCard}><View style={styles.tradeCardTop}><View><Text style={styles.tradeCardKicker}>STEP 01</Text><Text style={styles.tradeCardTitle}>交換用QRをつなぐ</Text></View><View style={styles.liveDot}><View style={styles.liveDotCircle} /><Text style={styles.liveDotText}>LIVE</Text></View></View><View style={styles.qrStage}>{qrVisible ? <QrCode /> : <View style={styles.qrPlaceholder}><Image source={EXCHANGE} resizeMode="contain" style={styles.qrPlaceholderIcon} /><Text style={styles.qrPlaceholderText}>QRを表示して友達に見せよう</Text></View>}</View><Pressable onPress={() => setQrVisible((value) => !value)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{qrVisible ? 'QRを隠す' : 'QRを表示する'}</Text></Pressable><Text style={styles.qrExpiry}>交換成立・キャンセル・5分経過で無効になります</Text></View>
-      <View style={styles.tradeCard}><Text style={styles.tradeCardKicker}>STEP 02</Text><Text style={styles.tradeCardTitle}>交換するグッズを選ぶ</Text><View style={styles.tradeItemRow}><Pressable onPress={() => onSelect(selected.id)} style={styles.tradeItem}><View style={[styles.tradeItemImage, { backgroundColor: selected.accent }]}><Image source={selected.kind === 'ぬいキー' ? selected.keyImage ?? selected.image : selected.image} resizeMode="contain" style={styles.tradeImage} /></View><Text style={styles.tradeItemName}>{selected.name}</Text><Text style={styles.tradeItemOwner}>あなた　×{owned[selected.id] ?? 0}</Text></Pressable><View style={styles.exchangeArrow}><Text>↔</Text></View><View style={styles.partnerItem}><View style={styles.partnerImage}><Text style={styles.partnerQuestion}>?</Text></View><Text style={styles.partnerName}>相手のグッズ</Text><Text style={styles.tradeItemOwner}>QR接続待ち</Text></View></View><View style={styles.tradePicker}>{items.filter((item) => (owned[item.id] ?? 0) > 0).map((item) => <Pressable key={item.id} onPress={() => onSelect(item.id)} style={[styles.tradePickerDot, item.id === selected.id && styles.tradePickerDotSelected]}><Image source={item.kind === 'ぬいキー' ? item.keyImage ?? item.image : item.image} resizeMode="contain" style={styles.tradePickerImage} /></Pressable>)}</View><Pressable onPress={() => setTradeState(tradeState === 'ready' ? 'done' : 'ready')} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>{tradeState === 'idle' ? '交換内容を確認' : tradeState === 'ready' ? 'この内容で交換する' : '交換成立！'}</Text></Pressable></View>
-    </ScrollView>
+      <ImageBackground source={TRADE_EXCHANGE_BOARD} resizeMode="stretch" style={[styles.tradeBoardAsset, { width: tradeBoardWidth, height: tradeBoardHeight }]} imageStyle={styles.tradeBoardAssetImage}>
+        <View style={[styles.tradeCard, styles.tradeCardFirst]}>
+          <View style={styles.tradeCardTop}>
+            <View><Text style={styles.tradeCardKicker}>STEP 01</Text><Text style={styles.tradeCardTitle}>交換用QRをつなぐ</Text></View>
+            <View style={styles.liveDot}><View style={styles.liveDotCircle} /><Text style={styles.liveDotText}>LIVE</Text></View>
+          </View>
+          <View style={styles.qrStage}>{qrVisible ? <QrCode /> : <View style={styles.qrPlaceholder}><Image source={EXCHANGE} resizeMode="contain" style={styles.qrPlaceholderIcon} /><Text style={styles.qrPlaceholderText}>QRを表示して友達に見せよう</Text></View>}</View>
+          <Pressable onPress={() => setQrVisible((value) => !value)} style={({ pressed }) => [styles.primaryButton, styles.tradePrimaryButton, pressed && styles.pressed]}><Text style={[styles.primaryButtonText, styles.tradePrimaryButtonText]}>{qrVisible ? 'QRを隠す' : 'QRを表示する'}</Text></Pressable>
+          <Text style={styles.qrExpiry}>交換成立・キャンセル・5分経過で無効になります</Text>
+        </View>
+        <View style={[styles.tradeCard, styles.tradeCardSecond]}>
+          <Text style={styles.tradeCardKicker}>STEP 02</Text><Text style={styles.tradeCardTitle}>交換するグッズを選ぶ</Text>
+          <View style={styles.tradeItemRow}>
+            <Pressable onPress={() => onSelect(selected.id)} style={styles.tradeItem}><View style={[styles.tradeItemImage, { backgroundColor: selected.accent }]}><Image source={selected.kind === 'ぬいキー' ? selected.keyImage ?? selected.image : selected.image} resizeMode="contain" style={styles.tradeImage} /></View><Text style={styles.tradeItemName}>{selected.name}</Text><Text style={styles.tradeItemOwner}>あなた　×{owned[selected.id] ?? 0}</Text></Pressable>
+            <View style={styles.exchangeArrow}><Text>↔</Text></View>
+            <View style={styles.partnerItem}><View style={styles.partnerImage}><Text style={styles.partnerQuestion}>?</Text></View><Text style={styles.partnerName}>相手のグッズ</Text><Text style={styles.tradeItemOwner}>QR接続待ち</Text></View>
+          </View>
+          <View style={styles.tradePicker}>{items.filter((item) => (owned[item.id] ?? 0) > 0).map((item) => <Pressable key={item.id} onPress={() => onSelect(item.id)} style={[styles.tradePickerDot, item.id === selected.id && styles.tradePickerDotSelected]}><Image source={item.kind === 'ぬいキー' ? item.keyImage ?? item.image : item.image} resizeMode="contain" style={styles.tradePickerImage} /></Pressable>)}</View>
+          <Pressable onPress={() => setTradeState(tradeState === 'ready' ? 'done' : 'ready')} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>{tradeState === 'idle' ? '交換内容を確認' : tradeState === 'ready' ? 'この内容で交換する' : '交換成立！'}</Text></Pressable>
+        </View>
+      </ImageBackground>
+    </View>
   );
 }
 
@@ -644,6 +1222,9 @@ function BottomNav({ screen, setScreen }: { screen: Screen; setScreen: (screen: 
 }
 
 export default function IndexScreen() {
+  const safeAreaInsets = useSafeAreaInsets();
+  const [viewportSize, setViewportSize] = useState({ width: DESIGN_WIDTH, height: DESIGN_MIN_HEIGHT });
+  const [appStarted, setAppStarted] = useState(false);
   const [screen, setScreen] = useState<Screen>('home');
   const [selectedId, setSelectedId] = useState('yami-key');
   const [owned, setOwned] = useState(INITIAL_OWNED);
@@ -652,8 +1233,31 @@ export default function IndexScreen() {
   const [secondsLeft, setSecondsLeft] = useState(1421);
   const [reaction, setReaction] = useState('');
   const [notice, setNotice] = useState('');
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [wallPlacement, setWallPlacement] = useState<Item | null>(null);
+  const [plushPlacement, setPlushPlacement] = useState<Item | null>(null);
+  const [homeWallItemIds, setHomeWallItemIds] = useState(() => ITEMS.map((item) => item.id));
+  const [homePlushItemIds, setHomePlushItemIds] = useState(() => ITEMS.filter((item) => item.kind === 'ぬいぐるみ').map((item) => item.id));
+  const { engageBgm, playSfx } = useMobbyAudio({ bgmEnabled: appStarted && soundEnabled, sfxEnabled: soundEnabled });
   const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
   const today = ITEMS.find((item) => item.id === todayId) ?? ITEMS[0];
+  const viewportWidth = Math.max(1, viewportSize.width - safeAreaInsets.left - safeAreaInsets.right);
+  const viewportHeight = Math.max(1, viewportSize.height - safeAreaInsets.top - safeAreaInsets.bottom);
+  const appScale = Math.max(0.01, Math.min(1, viewportWidth / DESIGN_WIDTH, viewportHeight / DESIGN_MIN_HEIGHT));
+  const appHeight = Math.max(DESIGN_MIN_HEIGHT, viewportHeight / appScale);
+  const appViewportWidth = DESIGN_WIDTH * appScale;
+  const layoutMetrics = useMemo(() => ({ width: DESIGN_WIDTH, height: appHeight, scale: appScale }), [appHeight, appScale]);
+
+  useEffect(() => {
+    const updateViewport = ({ width, height }: { width: number; height: number }) => {
+      if (width <= 1 || height <= 1) return;
+      setViewportSize({ width, height });
+    };
+    updateViewport(Dimensions.get('window'));
+    const subscription = Dimensions.addEventListener('change', ({ window }) => updateViewport(window));
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     setTodayId(ITEMS[Math.floor(Math.random() * ITEMS.length)].id);
@@ -661,37 +1265,142 @@ export default function IndexScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const selectItem = (id: string) => { setSelectedId(id); setScreen('touch'); };
-  const revealToday = useCallback(() => setMobbyTimeStage('revealed'), []);
-  const placeToday = () => {
-    if (secondsLeft <= 0) return;
+  const selectItem = useCallback((id: string) => {
+    playSfx('tap');
+    setSelectedId(id);
+    setScreen('touch');
+  }, [playSfx]);
+  const revealToday = useCallback(() => {
+    playSfx('reward');
+    setMobbyTimeStage('revealed');
+  }, [playSfx]);
+  const finalizePlacement = useCallback((item: Item) => {
     setMobbyTimeStage('placed');
-    setOwned((current) => ({ ...current, [today.id]: (current[today.id] ?? 0) + 1 }));
-    setSelectedId(today.id);
-    const placement = today.kind === 'ぬいキー' ? '壁' : '棚';
-    setNotice(`NEW! ${today.name}を${placement}に追加しました`);
-  };
+    setOwned((current) => ({ ...current, [item.id]: (current[item.id] ?? 0) + 1 }));
+    setSelectedId(item.id);
+    const placement = item.kind === 'ぬいキー' ? '壁' : '棚';
+    setNotice(`NEW! ${item.name}を${placement}に追加しました`);
+  }, []);
+  const placeToday = useCallback(() => {
+    setNotice('');
+    if (today.kind === 'ぬいキー') {
+      setWallPlacement(today);
+      setPlushPlacement(null);
+    } else {
+      setPlushPlacement(today);
+      setWallPlacement(null);
+    }
+    setScreen('home');
+  }, [today]);
+  const completeWallPlacement = useCallback(() => {
+    if (!wallPlacement) return;
+    playSfx('place');
+    finalizePlacement(wallPlacement);
+    setWallPlacement(null);
+  }, [finalizePlacement, playSfx, wallPlacement]);
+  const completePlushPlacement = useCallback(() => {
+    if (!plushPlacement) return;
+    playSfx('place');
+    finalizePlacement(plushPlacement);
+    setPlushPlacement(null);
+  }, [finalizePlacement, playSfx, plushPlacement]);
+  const swapHomeWallItems = useCallback((fromIndex: number, toIndex: number) => {
+    setHomeWallItemIds((current) => {
+      const next = [...current];
+      [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+      return next;
+    });
+  }, []);
+  const swapHomePlushItems = useCallback((fromIndex: number, toIndex: number) => {
+    setHomePlushItemIds((current) => {
+      const next = [...current];
+      [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+      return next;
+    });
+  }, []);
 
-  const interact = (kind: string) => {
+  const openMobbyTimeNotification = useCallback(() => {
+    playSfx('tap');
+    const next = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+    setTodayId(next.id);
+    setSecondsLeft(1800);
+    setMobbyTimeStage('arrived');
+    setScreen('time');
+    setNotice('MOBBY TIME！中身は開けるまでのお楽しみ');
+    setNotificationOpen(false);
+  }, [playSfx]);
+
+  const openNotificationScreen = useCallback((nextScreen: Screen) => {
+    playSfx('tap');
+    setScreen(nextScreen);
+    setNotificationOpen(false);
+  }, [playSfx]);
+
+  const interact = useCallback((kind: string) => {
+    playSfx('tap');
     const lines: Record<string, string> = { ほっぺ: 'むむっ。ほっぺは大事。' };
     setReaction(lines[kind] ?? '？');
-  };
+  }, [playSfx]);
+
+  const navigateTo = useCallback((nextScreen: Screen) => {
+    playSfx('tap');
+    setScreen(nextScreen);
+  }, [playSfx]);
+
+  const selectHomeMobby = useCallback((id: string) => {
+    playSfx('tap');
+    setSelectedId(id);
+  }, [playSfx]);
+
+  const toggleSound = useCallback(() => {
+    if (soundEnabled) {
+      setSoundEnabled(false);
+      return;
+    }
+    engageBgm();
+    setSoundEnabled(true);
+  }, [engageBgm, soundEnabled]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.outer}>
-        <View style={styles.appShell}>
-          <Image source={screen === 'home' ? HOME_WALL_BACKGROUND : screen === 'collection' ? COLLECTION_WALL_BACKGROUND : ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />
-          <Header onBell={() => { const next = ITEMS[Math.floor(Math.random() * ITEMS.length)]; setTodayId(next.id); setSecondsLeft(1800); setMobbyTimeStage('arrived'); setScreen('time'); setNotice('MOBBY TIME！中身は開けるまでのお楽しみ'); }} />
-          {notice ? <Pressable onPress={() => setNotice('')} style={styles.noticeToast}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></Pressable> : null}
-          <View style={styles.screenBody}>
-            {screen === 'home' ? <HomeScreen selected={selected} onSelect={setSelectedId} /> : null}
-            {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} /> : null}
-            {screen === 'time' ? <MobbyTimeScreen today={today} stage={mobbyTimeStage} onOpen={() => setMobbyTimeStage('opening')} onReveal={revealToday} onPlace={placeToday} onTrade={() => setScreen('trade')} secondsLeft={secondsLeft} /> : null}
-            {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
-            {screen === 'trade' ? <TradeScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={setSelectedId} /> : null}
-          </View>
-          <BottomNav screen={screen} setScreen={setScreen} />
+        <View style={[styles.appViewport, { width: appViewportWidth, height: viewportHeight }]}>
+          <AppLayoutContext.Provider value={layoutMetrics}>
+            <View style={[styles.appShell, { height: appHeight, transform: [{ scale: appScale }] }]}>
+              {screen === 'collection' ? <>
+                <Image source={ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />
+                <Image source={COLLECTION_WALL_BACKGROUND} resizeMode="cover" style={styles.collectionReferenceBackground} />
+              </> : <Image source={screen === 'home' ? HOME_WALL_BACKGROUND : ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />}
+              <Header
+                soundEnabled={soundEnabled}
+                onToggleSound={toggleSound}
+                onBell={() => {
+                  playSfx('notification');
+                  setNotificationOpen(true);
+                }}
+              />
+              {notice ? <Pressable onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></Pressable> : null}
+              {notificationOpen ? (
+                <NotificationPopup
+                  onClose={() => { playSfx('tap'); setNotificationOpen(false); }}
+                  onOpenMobbyTime={openMobbyTimeNotification}
+                  onOpenCollection={() => openNotificationScreen('collection')}
+                  onOpenTrade={() => openNotificationScreen('trade')}
+                />
+              ) : null}
+              <View style={styles.screenBody}>
+                {screen === 'home' ? <HomeScreen selected={selected} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.id} hiddenPlushItemId={plushPlacement?.id} wallItemIds={homeWallItemIds} plushItemIds={homePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} /> : null}
+                {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} /> : null}
+                {screen === 'time' ? <MobbyTimeScreen today={today} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); }} onReveal={revealToday} onPlace={() => { playSfx('tap'); setMobbyTimeStage('placing'); }} onPlaced={placeToday} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
+                {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
+                {screen === 'trade' ? <TradeScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectHomeMobby} /> : null}
+              </View>
+              <BottomNav screen={screen} setScreen={navigateTo} />
+              {wallPlacement ? <HomePlacementFlight item={wallPlacement} targetIndex={homeWallItemIds.indexOf(wallPlacement.id)} onComplete={completeWallPlacement} /> : null}
+              {plushPlacement ? <HomePlacementFlight item={plushPlacement} targetIndex={homePlushItemIds.indexOf(plushPlacement.id)} onComplete={completePlushPlacement} /> : null}
+              {!appStarted ? <OpeningScreen onBegin={() => { engageBgm(); playSfx('reward'); }} onStart={() => setAppStarted(true)} /> : null}
+            </View>
+          </AppLayoutContext.Provider>
         </View>
       </View>
     </SafeAreaView>
@@ -700,24 +1409,80 @@ export default function IndexScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#E7D3BC' },
-  outer: { flex: 1, alignItems: 'center', backgroundColor: Platform.OS === 'web' ? '#E7D3BC' : '#FFF7EA' },
-  appShell: { flex: 1, width: '100%', maxWidth: 440, backgroundColor: 'transparent', overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 16px 48px rgba(81, 48, 54, 0.18)' } : {}) },
+  outer: { flex: 1, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', backgroundColor: Platform.OS === 'web' ? '#E7D3BC' : '#FFF7EA' },
+  appViewport: { position: 'relative', overflow: 'hidden', backgroundColor: '#E7D3BC', ...(Platform.OS === 'web' ? { boxShadow: '0 16px 48px rgba(81, 48, 54, 0.18)' } : {}) },
+  appShell: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, backgroundColor: '#D8A46F', overflow: Platform.OS === 'web' ? ('clip' as any) : 'hidden', transformOrigin: 'top left' },
   appShellBackground: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', objectFit: 'cover' },
+  collectionReferenceBackground: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, height: DESIGN_MIN_HEIGHT },
+  openingScreen: { ...StyleSheet.absoluteFillObject, zIndex: 100, overflow: 'hidden' },
+  openingBackdrop: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', objectFit: 'cover' },
+  openingTitleWrap: { position: 'absolute', top: 34, left: 24, right: 24, alignItems: 'center', zIndex: 8 },
+  openingTitlePlaque: { width: 310, height: 129, alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
+  openingTitle: { color: '#5A3A69', fontSize: 43, lineHeight: 45, fontWeight: '900', letterSpacing: 2.2, textShadowColor: 'rgba(255,249,231,0.72)', textShadowRadius: 3 },
+  openingTitleSub: { color: '#8B647E', fontSize: 9, fontWeight: '900', letterSpacing: 2.6, marginTop: 1 },
+  openingTagline: { color: '#694C5E', fontSize: 12, fontWeight: '900', marginTop: -7, textShadowColor: 'rgba(255,250,233,0.9)', textShadowRadius: 4 },
+  openingScene: { position: 'absolute', top: 176, left: 0, right: 0, height: 432 },
+  openingHalo: { position: 'absolute', top: 38, left: '50%', width: 300, height: 300, marginLeft: -150, zIndex: 1 },
+  openingMobby: { position: 'absolute', top: 69, left: '50%', width: 222, height: 252, marginLeft: -111, zIndex: 3 },
+  openingPackage: { position: 'absolute', top: 258, left: '50%', width: 180, height: 180, marginLeft: -90, zIndex: 4 },
+  openingKeyDecoration: { position: 'absolute' },
+  openingSparkle: { position: 'absolute', color: '#FFF0A5', fontSize: 27, fontWeight: '900', zIndex: 5, textShadowColor: '#D77E97', textShadowRadius: 6 },
+  openingSparkleOne: { top: 61, left: 54 },
+  openingSparkleTwo: { top: 76, right: 58, fontSize: 22 },
+  openingSparkleThree: { top: 248, right: 39, fontSize: 18 },
+  openingStartWrap: { position: 'absolute', left: 0, right: 0, bottom: 26, alignItems: 'center', zIndex: 9 },
+  openingStartButton: { width: 292, height: 126, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  openingStartLoading: { opacity: 0.78 },
+  openingStartPressed: { transform: [{ scale: 0.96 }] },
+  openingStartPlaque: { width: 292, height: 126, alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
+  openingStartTitle: { color: '#64425D', fontSize: 16, fontWeight: '900', letterSpacing: 1.7 },
+  openingStartSub: { color: '#9A707C', fontSize: 10, fontWeight: '900', marginTop: 3 },
   header: { minHeight: 74, paddingHorizontal: 13, paddingTop: 7, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent', borderBottomWidth: 0 },
   logo: { width: 103, height: 50, marginLeft: -5 },
   headerCopy: { flex: 1, marginLeft: 2 },
   headerKicker: { color: '#806174', fontSize: 9, fontWeight: '900', letterSpacing: 1.6 },
   headerDay: { color: '#49334E', fontSize: 12, fontWeight: '900', marginTop: 3 },
   headerDot: { color: '#D18A9C' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  soundButton: { width: 35, height: 35, borderRadius: 13, borderWidth: 1.2, borderColor: '#D5B48F', backgroundColor: '#FFF6DF', alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  soundButtonMuted: { backgroundColor: '#EEE4DF', borderColor: '#CCB9B6' },
+  soundButtonText: { color: '#76536F', fontSize: 19, lineHeight: 21, fontWeight: '900' },
+  soundButtonTextMuted: { color: '#9B8687', fontSize: 18 },
   bellButton: { width: 35, height: 35, borderRadius: 13, borderWidth: 1.2, borderColor: '#E1BF9D', backgroundColor: '#FFFDF6', alignItems: 'center', justifyContent: 'center' },
   bellIcon: { width: 21, height: 21 },
   bellBadge: { position: 'absolute', right: -4, top: -6, width: 17, height: 17, borderRadius: 9, backgroundColor: '#E47884', borderWidth: 1.5, borderColor: '#FFF8EC', alignItems: 'center', justifyContent: 'center' },
   bellBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
+  notificationOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 80 },
+  notificationBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(63,42,56,0.2)' },
+  notificationPopup: { position: 'absolute', top: 61, left: 12, right: 12, padding: 10, borderRadius: 23, backgroundColor: '#FFF9EC', borderWidth: 1.4, borderColor: '#DCB991', shadowColor: '#4E354A', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 14 },
+  notificationPointer: { position: 'absolute', top: -7, right: 20, width: 16, height: 16, backgroundColor: '#FFF9EC', borderLeftWidth: 1.2, borderTopWidth: 1.2, borderColor: '#DCB991', transform: [{ rotate: '45deg' }] },
+  notificationHeader: { minHeight: 49, paddingLeft: 6, paddingRight: 2, paddingBottom: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  notificationTitle: { color: '#5B3E59', fontSize: 17, lineHeight: 21, fontWeight: '900', letterSpacing: 0.5 },
+  notificationSubtitle: { color: '#9A7479', fontSize: 9, fontWeight: '800', marginTop: 2 },
+  notificationCloseButton: { width: 31, height: 31, borderRadius: 12, backgroundColor: '#F3E3D5', alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  notificationCloseText: { color: '#775568', fontSize: 23, lineHeight: 25, marginTop: -2 },
+  notificationItem: { minHeight: 72, marginTop: 7, paddingHorizontal: 9, paddingVertical: 8, borderRadius: 17, backgroundColor: '#FFFDF6', borderWidth: 1, borderColor: '#EAD9C4', flexDirection: 'row', alignItems: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  notificationItemFeatured: { backgroundColor: '#FFF3DD', borderColor: '#E3B985' },
+  notificationItemPressed: { opacity: 0.76, transform: [{ scale: 0.985 }] },
+  notificationIcon: { width: 42, height: 42, marginRight: 9, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1.2 },
+  notificationIconTime: { backgroundColor: '#F1D4A6', borderColor: '#D3A56C' },
+  notificationIconCollection: { backgroundColor: '#EAD9E6', borderColor: '#C9A8C0' },
+  notificationIconTrade: { backgroundColor: '#DDE6D5', borderColor: '#B0C29F' },
+  notificationIconText: { color: '#6A4C68', fontSize: 20, fontWeight: '900' },
+  notificationCopy: { flex: 1, minWidth: 0 },
+  notificationItemHeading: { flexDirection: 'row', alignItems: 'center' },
+  notificationKicker: { color: '#A17972', fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  notificationLiveBadge: { marginLeft: 7, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: '#E47780' },
+  notificationLiveText: { color: '#FFF9ED', fontSize: 7, fontWeight: '900' },
+  notificationItemTitle: { color: '#5B4057', fontSize: 12, lineHeight: 16, fontWeight: '900', marginTop: 2 },
+  notificationItemBody: { color: '#917276', fontSize: 9, lineHeight: 13, fontWeight: '700', marginTop: 1 },
+  notificationChevron: { color: '#A98787', fontSize: 25, lineHeight: 27, marginLeft: 5 },
   noticeToast: { position: 'absolute', zIndex: 30, top: 78, left: 15, right: 15, minHeight: 44, paddingHorizontal: 13, borderRadius: 15, backgroundColor: '#503B65', flexDirection: 'row', alignItems: 'center', shadowColor: '#3E294D', shadowOpacity: 0.23, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
   noticeToastText: { flex: 1, color: '#FFF8ED', fontSize: 11, fontWeight: '800' },
   noticeToastClose: { color: '#F5CED2', fontSize: 21, marginLeft: 8 },
   screenBody: { flex: 1 },
   scrollContent: { paddingHorizontal: 14, paddingTop: 13, paddingBottom: 105 },
+  timeScrollContent: { paddingHorizontal: 14, paddingTop: 0, alignItems: 'center' },
   homeScreenBackground: { flex: 1 },
   brandWrap: { width: 104, alignItems: 'center', justifyContent: 'center', marginLeft: -5 },
   headerSpacer: { flex: 1 },
@@ -725,10 +1490,25 @@ const styles = StyleSheet.create({
   brandSub: { color: '#806189', fontSize: 10, fontWeight: '900', letterSpacing: 2.2, marginTop: -2 },
   homeRoom: { flex: 1, position: 'relative', overflow: 'hidden' },
   homeShelfBase: { position: 'absolute', top: '-15%', left: 0, right: 0, width: '100%', height: '100%', zIndex: 0 },
+  homeGarland: { position: 'absolute', top: -27, left: 5, width: 430, height: 138, zIndex: 1, opacity: 0.86 },
+  homeEditButton: { position: 'absolute', top: 2, right: 12, zIndex: 24, minWidth: 70, height: 34, paddingHorizontal: 12, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,250,239,0.94)', borderWidth: 1.2, borderColor: '#D7B18D', shadowColor: '#624651', shadowOpacity: 0.16, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
+  homeEditButtonActive: { backgroundColor: '#6B547D', borderColor: '#EEDAE4' },
+  homeEditButtonText: { color: '#6B4A62', fontSize: 11, fontWeight: '900' },
+  homeEditButtonTextActive: { color: '#FFF9EC' },
+  homeEditGuide: { position: 'absolute', left: 16, right: 16, bottom: 82, zIndex: 24, minHeight: 54, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(83,58,101,0.95)', borderWidth: 1.2, borderColor: '#E8C9D8', shadowColor: '#3E294D', shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
+  homeEditGuideTitle: { color: '#F7D7E3', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  homeEditGuideText: { color: '#FFF9EB', fontSize: 11, fontWeight: '900', textAlign: 'center', marginTop: 2 },
   // Nine keychains are distributed over two broad rows so the center stage
   // remains clear for the selected Mobby and the shelf below.
-  homeWallKeys: { position: 'absolute', top: '7%', left: '7%', right: '7%', height: '43%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'space-between', zIndex: 2 },
-  homeWallKey: { width: '17%', height: '43%', alignItems: 'center', justifyContent: 'flex-start', borderRadius: 12, position: 'relative', overflow: 'visible' },
+  homeWallKeys: { position: 'absolute', top: '7%', left: '7%', right: '7%', height: '43%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'flex-start', zIndex: 2 },
+  homeWallKey: { width: '17%', height: '43%', alignItems: 'center', justifyContent: 'flex-start', borderRadius: 12, position: 'relative', overflow: 'visible', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  homeWallKeySelected: { backgroundColor: 'rgba(255,244,196,0.34)', shadowColor: '#FFF0A8', shadowOpacity: 0.8, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
+  homeWallKeyHidden: { opacity: 0 },
+  homeDecorationEditable: { borderWidth: 1.2, borderColor: 'rgba(107,84,125,0.48)', borderStyle: 'dashed', backgroundColor: 'rgba(255,250,232,0.18)' },
+  homeDecorationTarget: { borderColor: '#D5748B', backgroundColor: 'rgba(255,225,232,0.34)' },
+  homeDecorationEditSelected: { borderWidth: 2.5, borderStyle: 'solid', borderColor: '#6B547D', backgroundColor: 'rgba(255,244,196,0.56)', shadowColor: '#FFF0A8', shadowOpacity: 0.88, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 7 },
+  homeSlotBadge: { position: 'absolute', top: -8, right: -5, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6B547D', borderWidth: 1.5, borderColor: '#FFF9EA', zIndex: 8 },
+  homeSlotBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
   homeWallHook: { position: 'absolute', top: -25, left: '50%', width: 54, height: 81, marginLeft: -27, zIndex: 0 },
   // The hook plate's round center is the hanging point. Start each keychain
   // there so the chain visibly comes out of the center of the wood hook.
@@ -742,37 +1522,50 @@ const styles = StyleSheet.create({
   // center.  Keep the plush row a little lower so each visible foot meets the
   // wood instead of floating above it (the source images contain transparent
   // padding below the feet).
-  homePlushShelf: { position: 'absolute', top: '42.5%', left: '8%', right: '8%', height: '18%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', zIndex: 3 },
-  homePlushItem: { width: '22%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 13, position: 'relative' },
+  homePlushShelf: { position: 'absolute', left: '8%', right: '8%', height: '18%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', zIndex: 3 },
+  homePlushItem: { width: '22%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 13, position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  homePlushItemSelected: { backgroundColor: 'rgba(255,244,196,0.32)', shadowColor: '#FFF0A8', shadowOpacity: 0.8, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
+  homePlushItemHidden: { opacity: 0 },
   homePlushImage: { width: 70, height: 80 },
-  homePlushContactShadow: { position: 'absolute', bottom: -2, width: '62%', height: 7, borderRadius: 8, backgroundColor: 'rgba(84,52,33,0.2)', zIndex: 0 },
+  homePlushSlotBadge: { top: -5, right: -4 },
+  homeSelectablePressed: { opacity: 0.74, transform: [{ scale: 0.96 }] },
   homeCharacterPicker: { position: 'absolute', top: '63%', left: 14, right: 14, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
   homeCharacterArrow: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,249,237,0.92)', borderWidth: 1.2, borderColor: '#E2BF9B', shadowColor: '#684B4B', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   homeCharacterArrowText: { color: '#76516C', fontSize: 30, lineHeight: 32, marginTop: -2 },
-  homeMainCharacter: { position: 'absolute', left: '50%', bottom: 96, width: 220, height: 250, marginLeft: -110, zIndex: 8 },
-  homeMainCharacterCompact: { bottom: 42, width: 178, height: 198, marginLeft: -89 },
-  collectionHeaderBar: { height: 47, borderRadius: 16, backgroundColor: '#FFFDF5', borderWidth: 1.1, borderColor: '#E8D0B3', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 },
+  homeMainCharacter: { position: 'absolute', left: '50%', bottom: 122, width: 220, height: 250, marginLeft: -110, zIndex: 8 },
+  homeMainCharacterCompact: { bottom: 88, width: 178, height: 198, marginLeft: -89 },
+  homeMainCharacterEditing: { opacity: 0.13 },
+  wallFlightOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 60, overflow: 'hidden' },
+  wallFlightStatus: { position: 'absolute', top: 84, left: 72, right: 72, minHeight: 38, borderRadius: 18, backgroundColor: 'rgba(83,58,101,0.94)', alignItems: 'center', justifyContent: 'center', zIndex: 6, borderWidth: 1, borderColor: '#E9C7DA' },
+  wallFlightStatusText: { color: '#FFF8E9', fontSize: 12, fontWeight: '900', letterSpacing: 0.4 },
+  wallFlightItem: { position: 'absolute', left: 0, top: 0, width: 84, height: 92, alignItems: 'center', justifyContent: 'center', zIndex: 3 },
+  wallFlightImage: { width: 84, height: 92 },
+  wallFlightTrail: { position: 'absolute', left: 0, top: 0, width: 84, height: 92, borderRadius: 46, backgroundColor: 'rgba(255,242,166,0.5)', borderWidth: 4, borderColor: '#FFF1A8' },
+  wallLandingBurst: { position: 'absolute', width: 76, height: 76, borderRadius: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,244,176,0.44)', borderWidth: 3, borderColor: '#FFF4B6', zIndex: 2 },
+  wallLandingBurstText: { color: '#FFF8CA', fontSize: 42, fontWeight: '900', textShadowColor: '#C7748D', textShadowRadius: 8 },
+  collectionHeaderBar: { position: 'absolute', top: 7, left: 10, right: 10, height: 36, borderRadius: 14, backgroundColor: 'rgba(255,253,245,0.94)', borderWidth: 1.1, borderColor: '#E8D0B3', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, zIndex: 10 },
   collectionScreenBackground: { flex: 1, backgroundColor: 'transparent' },
-  collectionScrollContent: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 75 },
-  backButton: { width: 32, height: 32, borderRadius: 11, backgroundColor: '#F9EEDC', alignItems: 'center', justifyContent: 'center' },
-  backButtonText: { color: '#604664', fontSize: 28, lineHeight: 29, marginTop: -3 },
+  collectionScrollContent: { flex: 1, position: 'relative' },
+  backButton: { width: 27, height: 27, borderRadius: 10, backgroundColor: '#F9EEDC', alignItems: 'center', justifyContent: 'center' },
+  backButtonText: { color: '#604664', fontSize: 25, lineHeight: 26, marginTop: -3 },
   collectionHeaderTitle: { flex: 1, color: '#5B3F57', fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  collectionHeaderHeart: { width: 32, height: 32, borderRadius: 11, backgroundColor: '#F8E1E2', alignItems: 'center', justifyContent: 'center' },
+  collectionHeaderHeart: { width: 27, height: 27, borderRadius: 10, backgroundColor: '#F8E1E2', alignItems: 'center', justifyContent: 'center' },
   collectionHeaderHeartText: { color: '#9D6377', fontSize: 20 },
-  collectionModeTabs: { flexDirection: 'row', alignSelf: 'center', marginTop: 12, padding: 3, borderRadius: 15, backgroundColor: '#E7D9E3' },
-  collectionModeTab: { minWidth: 112, paddingHorizontal: 16, paddingVertical: 7, borderRadius: 12, alignItems: 'center' },
+  collectionModeTabs: { position: 'absolute', top: 47, left: 10, width: 204, height: 28, flexDirection: 'row', padding: 2, borderRadius: 13, backgroundColor: 'rgba(231,217,227,0.94)', zIndex: 10 },
+  collectionModeTab: { flex: 1, minWidth: 0, paddingHorizontal: 5, paddingVertical: 5, borderRadius: 11, alignItems: 'center' },
   collectionModeTabActive: { backgroundColor: '#6B547D' },
   collectionModeText: { color: '#755B73', fontSize: 10, fontWeight: '900' },
   collectionModeTextActive: { color: '#FFF8EA' },
-  collectionKeySizeTabs: { flexDirection: 'row', alignSelf: 'center', marginTop: 7, padding: 2, borderRadius: 12, backgroundColor: '#F1E7E2', borderWidth: 1, borderColor: '#E6D3CC' },
-  collectionKeySizeTab: { minWidth: 98, paddingHorizontal: 13, paddingVertical: 5, borderRadius: 9, alignItems: 'center' },
+  collectionKeySizeTabs: { position: 'absolute', top: 47, right: 10, width: 204, height: 28, flexDirection: 'row', padding: 2, borderRadius: 12, backgroundColor: 'rgba(241,231,226,0.94)', borderWidth: 1, borderColor: '#E6D3CC', zIndex: 10 },
+  collectionKeySizeTab: { flex: 1, minWidth: 0, paddingHorizontal: 4, paddingVertical: 4, borderRadius: 9, alignItems: 'center' },
   collectionKeySizeTabActive: { backgroundColor: '#E8C3B2' },
   collectionKeySizeText: { color: '#8C6A73', fontSize: 9, fontWeight: '900' },
   collectionKeySizeTextActive: { color: '#5E4059' },
-  collectionDisplay: { height: 430, marginTop: 10, backgroundColor: 'transparent', paddingHorizontal: 9, paddingTop: 15, overflow: 'visible' },
-  collectionDisplayPlush: { width: '100%', alignSelf: 'stretch', backgroundColor: 'transparent', padding: 0, height: 430 },
-  keyCollectionGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  collectionKeyItem: { width: '31%', alignItems: 'center', marginBottom: 6 },
+  collectionDisplay: { position: 'absolute', top: 0, left: 0, right: 0, height: 500, backgroundColor: 'transparent', overflow: 'visible', zIndex: 2 },
+  collectionDisplayPlush: { backgroundColor: 'transparent' },
+  keyCollectionGrid: { ...StyleSheet.absoluteFillObject },
+  collectionKeyItem: { width: 82, alignItems: 'center' },
+  collectionKeyItemAnchored: { position: 'absolute' },
   collectionKeyPressable: { alignItems: 'center', outlineColor: 'transparent', outlineWidth: 0 },
   collectionKeySwing: { alignItems: 'center', transformOrigin: '50% 0%' },
   collectionKeyHook: { height: 29, alignItems: 'center' },
@@ -780,20 +1573,20 @@ const styles = StyleSheet.create({
   collectionKeyRing: { width: 13, height: 13, borderRadius: 7, borderWidth: 2, borderColor: '#77685D', backgroundColor: '#EFE1CC' },
   collectionKeyStem: { width: 3, height: 17, backgroundColor: '#77685D', borderRadius: 2, marginTop: -1 },
   collectionKeyBody: { width: 55, height: 70, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(91,64,75,0.28)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  collectionKeyBodyOwned: { width: 84, height: 100, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
+  collectionKeyBodyOwned: { width: 76, height: 90, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
   collectionKeySelected: { transform: [{ scale: 1.06 }] },
-  collectionKeyImage: { width: 84, height: 100 },
-  collectionKeyName: { width: 64, color: '#604757', fontSize: 8, fontWeight: '900', textAlign: 'center', marginTop: 3 },
+  collectionKeyImage: { width: 76, height: 90 },
+  collectionKeyName: { width: 82, color: '#604757', fontSize: 7, fontWeight: '900', textAlign: 'center', marginTop: 1 },
   collectionLocked: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(96,80,94,0.52)', alignItems: 'center', justifyContent: 'center' },
   collectionLockedText: { color: '#FFF7E6', fontSize: 27, fontWeight: '900' },
-  plushCollectionShelf: { width: '84%', flex: 1, alignSelf: 'flex-start', marginLeft: '8%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', alignContent: 'flex-start', justifyContent: 'space-between', paddingTop: 80, paddingBottom: 0 },
-  plushCollectionItem: { width: '31%', alignItems: 'center', marginBottom: 4 },
-  plushCollectionBody: { width: 72, height: 88, borderRadius: 20, borderWidth: 1.4, borderColor: 'rgba(86,58,58,0.27)', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
-  plushCollectionBodyOwned: { width: 84, height: 90, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
+  plushCollectionShelf: { ...StyleSheet.absoluteFillObject },
+  plushCollectionItem: { position: 'absolute', width: 72, height: 96, alignItems: 'center' },
+  plushCollectionBody: { width: 72, height: 80, borderRadius: 20, borderWidth: 1.4, borderColor: 'rgba(86,58,58,0.27)', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
+  plushCollectionBodyOwned: { width: 72, height: 80, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
   plushCollectionSelected: { transform: [{ scale: 1.05 }] },
-  plushCollectionImage: { width: 84, height: 88 },
-  collectionPlushName: { color: '#FFF8EA', fontSize: 8, fontWeight: '900', textShadowColor: '#664233', textShadowRadius: 3, marginTop: 1 },
-  collectionCountRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 19, marginTop: 8, backgroundColor: 'rgba(255,244,217,0.9)', borderWidth: 1, borderColor: '#E4C7A4' },
+  plushCollectionImage: { position: 'absolute', width: 72, height: 78 },
+  collectionPlushName: { width: 72, color: '#FFF8EA', fontSize: 7, fontWeight: '900', textAlign: 'center', textShadowColor: '#664233', textShadowRadius: 3, marginTop: 1 },
+  collectionCountRow: { position: 'absolute', left: 10, right: 10, bottom: 82, minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: 'rgba(255,244,217,0.92)', borderWidth: 1, borderColor: '#E4C7A4', zIndex: 10 },
   collectionCount: { color: '#5D4257', fontSize: 21, fontWeight: '900', marginRight: 7 },
   collectionProgress: { flex: 1, marginRight: 8 },
   collectionCountHint: { color: '#9A777A', fontSize: 9, fontWeight: '900' },
@@ -859,17 +1652,18 @@ const styles = StyleSheet.create({
   tileMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
   tileRarity: { color: '#B07C8B', fontSize: 9, fontWeight: '900' },
   tileCount: { color: '#8D6A6D', fontSize: 9, fontWeight: '900' },
-  timeHeader: { alignItems: 'center', paddingTop: 9, paddingBottom: 17 },
+  timeHeader: { alignSelf: 'stretch', alignItems: 'center', paddingTop: 0, paddingBottom: 5 },
   bigTitle: { color: '#4D3455', fontSize: 29, fontWeight: '900', letterSpacing: 1.2, marginTop: 3 },
-  timeHeaderSub: { color: '#946F7D', fontSize: 11, fontWeight: '800', marginTop: 4, textAlign: 'center' },
-  bigTimer: { marginTop: 13, minWidth: 172, paddingHorizontal: 19, paddingVertical: 8, borderRadius: 18, backgroundColor: '#5B4672', alignItems: 'center' },
-  bigTimerLabel: { color: '#E7D9E0', fontSize: 10, fontWeight: '800' },
-  bigTimerValue: { color: '#FFF7EA', fontSize: 30, fontWeight: '900', letterSpacing: 2 },
-  bigTimerUnit: { color: '#E7D9E0', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  encounterCard: { padding: 13, borderRadius: 24, backgroundColor: '#FFFDF6', borderWidth: 1.3, borderColor: '#E8D0B3', shadowColor: '#78535E', shadowOpacity: 0.12, shadowRadius: 7, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
-  arrivalNotice: { minHeight: 38, marginBottom: 12, borderRadius: 14, backgroundColor: '#F5E5E6', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  timeHeaderSub: { color: '#946F7D', fontSize: 11, fontWeight: '800', marginTop: 2, textAlign: 'center' },
+  bigTimer: { marginTop: 3, width: 178, height: 62, alignItems: 'center', justifyContent: 'center', paddingTop: 2 },
+  bigTimerLabel: { color: '#806073', fontSize: 8, lineHeight: 9, fontWeight: '900' },
+  bigTimerValue: { color: '#5A3C55', fontSize: 23, lineHeight: 25, fontWeight: '900', letterSpacing: 2 },
+  bigTimerUnit: { color: '#96727E', fontSize: 6, lineHeight: 7, fontWeight: '900', letterSpacing: 0.8 },
+  encounterCard: { alignSelf: 'center', paddingTop: 56, paddingHorizontal: 43, paddingBottom: 22 },
+  encounterCardImage: { borderRadius: 24 },
+  arrivalNotice: { minHeight: 36, marginBottom: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   arrivalNoticeText: { color: '#68465F', fontSize: 13, fontWeight: '900' },
-  encounterStepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 11 },
+  encounterStepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 3 },
   timeStepWrap: { flexDirection: 'row', alignItems: 'flex-start' },
   encounterStep: { alignItems: 'center', opacity: 0.48 },
   encounterStepActive: { alignItems: 'center' },
@@ -877,46 +1671,50 @@ const styles = StyleSheet.create({
   stepText: { color: '#5C3E54', fontSize: 10, fontWeight: '900', marginTop: 2 },
   stepLine: { width: 36, height: 1.5, backgroundColor: '#DFC7B0', marginHorizontal: 8, marginTop: 9 },
   stepLineDone: { backgroundColor: '#8E687D' },
-  encounterScene: { height: 280, borderRadius: 19, overflow: 'hidden', backgroundColor: '#E6D1BE', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  encounterGlow: { position: 'absolute', width: 245, height: 245, borderRadius: 130, backgroundColor: 'rgba(255,242,204,0.62)' },
+  encounterScene: { height: 300, borderRadius: 26, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  encounterHaloAsset: { position: 'absolute', width: 252, height: 252, zIndex: 2 },
   packageAnimationWrap: { zIndex: 3, alignItems: 'center', justifyContent: 'center' },
-  mobbyPackage: { width: 166, height: 150, alignItems: 'center', justifyContent: 'flex-end', transform: [{ rotate: '-2deg' }] },
+  mobbyPackage: { width: 210, height: 210, alignItems: 'center', justifyContent: 'center', position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   packagePressed: { transform: [{ rotate: '1deg' }, { scale: 0.96 }] },
-  packageLid: { width: 174, height: 31, borderRadius: 7, backgroundColor: '#B88058', borderWidth: 3, borderColor: '#74503E', zIndex: 2, alignItems: 'center' },
-  packageTape: { width: 42, height: '100%', backgroundColor: '#E6C98D', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#B38B5A' },
-  packageBody: { width: 156, height: 118, marginTop: -3, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, backgroundColor: '#C99266', borderWidth: 3, borderColor: '#74503E', alignItems: 'center', justifyContent: 'center' },
-  packageLogo: { color: '#FFF3D7', fontSize: 25, fontWeight: '900', letterSpacing: 2 },
-  packageHint: { color: '#704B3B', fontSize: 9, fontWeight: '900', letterSpacing: 1.4, marginTop: 7 },
-  packageTapCaption: { color: '#7B5A6B', fontSize: 11, fontWeight: '900', textAlign: 'center', marginTop: 10 },
-  magicRing: { position: 'absolute', width: 190, height: 190, borderRadius: 100, borderWidth: 8, borderColor: '#FFF4B0', backgroundColor: 'rgba(255,248,190,0.3)', zIndex: 2 },
+  packageAsset: { position: 'absolute', width: 210, height: 210 },
+  packageBrandOverlay: { position: 'absolute', top: 125, left: 46, right: 46, height: 40, alignItems: 'center', justifyContent: 'center' },
+  packageLogo: { color: '#68465F', fontSize: 15, lineHeight: 17, fontWeight: '900', letterSpacing: 1.6 },
+  packageHint: { color: '#8B6774', fontSize: 6, fontWeight: '900', letterSpacing: 1.1, marginTop: 2 },
+  packageTapCaption: { color: '#7B5A6B', fontSize: 11, fontWeight: '900', textAlign: 'center', marginTop: 6 },
+  magicRing: { position: 'absolute', width: 238, height: 238, zIndex: 2 },
   magicParticles: { ...StyleSheet.absoluteFillObject, zIndex: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 28 },
   magicParticle: { color: '#FFF7B8', fontSize: 32, fontWeight: '900', textShadowColor: '#D98FA0', textShadowRadius: 8 },
   revealFlash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFBE8', zIndex: 7 },
+  encounterRewardWrap: { width: 218, height: 238, alignItems: 'center', justifyContent: 'center', zIndex: 3 },
   encounterKeyImage: { width: 218, height: 238 },
-  newBadge: { position: 'absolute', left: 14, bottom: 14, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: '#E16F83', transform: [{ rotate: '-7deg' }], borderWidth: 2, borderColor: '#FFF7EA' },
-  newBadgeText: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+  placementHalo: { position: 'absolute', width: 226, height: 226, zIndex: 2 },
+  placementSparkles: { ...StyleSheet.absoluteFillObject, zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 18 },
+  placementSparkle: { color: '#FFF4A8', fontSize: 27, fontWeight: '900', textShadowColor: '#C96F8B', textShadowRadius: 7 },
+  newBadge: { position: 'absolute', left: 7, bottom: 4, width: 72, height: 72, alignItems: 'center', justifyContent: 'center', paddingBottom: 12, transform: [{ rotate: '-7deg' }], zIndex: 5 },
+  newBadgeText: { color: '#FFF8ED', fontSize: 11, fontWeight: '900', letterSpacing: 0.6, textShadowColor: 'rgba(91,58,76,0.34)', textShadowRadius: 2 },
   encounterSilhouette: { width: 154, height: 194, borderRadius: 75, alignItems: 'center', justifyContent: 'center', opacity: 0.64, borderWidth: 4, borderColor: 'rgba(67,55,69,0.26)' },
   silhouetteEyes: { color: '#5D5367', fontSize: 30, letterSpacing: 20, marginLeft: 17 },
   silhouetteQuestion: { color: '#5D5367', fontSize: 54, fontWeight: '900', marginTop: 13 },
   encounterImage: { width: 208, height: 246 },
-  encounterBubble: { position: 'absolute', top: 13, right: 12, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 14, backgroundColor: '#FFFDF4', borderWidth: 1, borderColor: '#E3CBAF', transform: [{ rotate: '2deg' }] },
-  encounterBubbleTitle: { color: '#8E5D84', fontSize: 14, fontWeight: '900' },
-  encounterBubbleText: { color: '#6D5662', fontSize: 9, fontWeight: '800', marginTop: 2 },
-  encounterCaption: { color: '#99777E', fontSize: 10, fontWeight: '700', textAlign: 'center', marginVertical: 10 },
+  encounterBubble: { position: 'absolute', top: 4, right: 2, width: 138, height: 66, paddingHorizontal: 23, paddingTop: 15, alignItems: 'center', transform: [{ rotate: '2deg' }], zIndex: 6 },
+  encounterBubbleTitle: { color: '#76506E', fontSize: 12, lineHeight: 14, fontWeight: '900' },
+  encounterBubbleText: { color: '#6D5662', fontSize: 7, lineHeight: 9, fontWeight: '800', marginTop: 1, textAlign: 'center' },
+  encounterCaption: { color: '#99777E', fontSize: 10, fontWeight: '700', textAlign: 'center', marginVertical: 6 },
   primaryButton: { minHeight: 49, borderRadius: 17, backgroundColor: '#6B547D', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 17 },
   primaryButtonDone: { backgroundColor: '#9A8491' },
   primaryButtonIcon: { width: 22, height: 22, marginRight: 5 },
   primaryButtonText: { color: '#FFF9EC', fontSize: 13, fontWeight: '900' },
+  timePrimaryButton: { backgroundColor: 'transparent', borderRadius: 0, minHeight: 48 },
+  timePrimaryButtonInactive: { opacity: 0.58 },
+  timePrimaryButtonText: { color: '#5B3D54', textShadowColor: 'rgba(255,251,232,0.62)', textShadowRadius: 2 },
   touchTop: { paddingTop: 7, paddingBottom: 12 },
   touchTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   touchSub: { color: '#987480', fontSize: 11, fontWeight: '700', marginTop: 3 },
   rarityBadge: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10, marginLeft: 6 },
   rarityBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '900' },
-  touchScreenBackground: { flex: 1 },
-  touchScreenBackgroundImage: { opacity: 0.3 },
+  touchScreenBackground: { flex: 1, backgroundColor: 'transparent' },
   touchScrollContent: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 105 },
-  touchStage: { height: 500, borderRadius: 28, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1.4, borderColor: 'rgba(91,64,92,0.22)' },
-  touchStageImage: { opacity: 0.98 },
+  touchStage: { height: 500, borderRadius: 28, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   pullableWrap: { width: 332, height: 365, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   pullableStage: { width: 320, height: 320, position: 'relative' },
   // PanResponder turns this view into an accessible button on web. Suppress
@@ -937,42 +1735,49 @@ const styles = StyleSheet.create({
   tipMobbyIcon: { width: 35, height: 35, marginRight: 7 },
   touchTipText: { flex: 1, color: '#906D77', fontSize: 10, fontWeight: '800', lineHeight: 14 },
   touchFooter: { color: '#AC8284', fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 13 },
-  tradeHeader: { paddingTop: 7, paddingBottom: 16 },
-  tradeSub: { color: '#987480', fontSize: 11, fontWeight: '700', marginTop: 3 },
-  tradeCard: { padding: 14, borderRadius: 23, backgroundColor: '#FFFDF6', borderWidth: 1.3, borderColor: '#E8D0B3', marginBottom: 13 },
+  tradeScrollContent: { paddingHorizontal: 14, paddingTop: 0, alignItems: 'center' },
+  tradeHeader: { alignSelf: 'stretch', paddingTop: 0, paddingBottom: 5 },
+  tradeSub: { color: '#987480', fontSize: 10, fontWeight: '700', marginTop: 1 },
+  tradeBoardAsset: { alignSelf: 'center', paddingTop: 72, paddingHorizontal: 36 },
+  tradeBoardAssetImage: { borderRadius: 28 },
+  tradeCard: { backgroundColor: 'transparent' },
+  tradeCardFirst: { minHeight: 0, paddingHorizontal: 20 },
+  tradeCardSecond: { marginTop: 24, paddingHorizontal: 20 },
   tradeCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  tradeCardKicker: { color: '#A47887', fontSize: 9, fontWeight: '900', letterSpacing: 1.4 },
-  tradeCardTitle: { color: '#5B3D54', fontSize: 17, fontWeight: '900', marginTop: 3 },
-  liveDot: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, backgroundColor: '#F6DFDE' },
-  liveDotCircle: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#E37A84', marginRight: 4 },
-  liveDotText: { color: '#A66070', fontSize: 9, fontWeight: '900' },
-  qrStage: { height: 192, borderRadius: 17, marginTop: 13, backgroundColor: '#F5E9DC', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#EBD4B8' },
+  tradeCardKicker: { color: '#A47887', fontSize: 7, fontWeight: '900', letterSpacing: 1.1 },
+  tradeCardTitle: { color: '#5B3D54', fontSize: 13, fontWeight: '900', marginTop: 1 },
+  liveDot: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 5, paddingVertical: 3, borderRadius: 8, backgroundColor: '#F6DFDE' },
+  liveDotCircle: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#E37A84', marginRight: 3 },
+  liveDotText: { color: '#A66070', fontSize: 7, fontWeight: '900' },
+  qrStage: { height: 92, borderRadius: 12, marginTop: 5, backgroundColor: 'rgba(255,250,239,0.48)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(177,128,106,0.32)' },
   qrPlaceholder: { alignItems: 'center' },
-  qrPlaceholderIcon: { width: 48, height: 48, opacity: 0.72 },
-  qrPlaceholderText: { color: '#967783', fontSize: 11, fontWeight: '800', marginTop: 8 },
-  qrCode: { padding: 11, backgroundColor: '#FFF', borderRadius: 5, borderWidth: 1, borderColor: '#E2D8D1' },
-  qrRow: { height: 5, flexDirection: 'row' },
-  qrCell: { width: 5, height: 5, backgroundColor: '#FFF' },
+  qrPlaceholderIcon: { width: 30, height: 30, opacity: 0.72 },
+  qrPlaceholderText: { color: '#967783', fontSize: 9, fontWeight: '800', marginTop: 3 },
+  qrCode: { padding: 5, backgroundColor: '#FFF', borderRadius: 5, borderWidth: 1, borderColor: '#E2D8D1' },
+  qrRow: { height: 4, flexDirection: 'row' },
+  qrCell: { width: 4, height: 4, backgroundColor: '#FFF' },
   qrCellOn: { backgroundColor: '#3C3142' },
-  qrExpiry: { color: '#AE8A8A', fontSize: 9, fontWeight: '700', textAlign: 'center', marginTop: 8 },
-  tradeItemRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
+  tradePrimaryButton: { minHeight: 34, borderRadius: 12 },
+  tradePrimaryButtonText: { fontSize: 11 },
+  qrExpiry: { color: '#AE8A8A', fontSize: 7, fontWeight: '700', textAlign: 'center', marginTop: 3 },
+  tradeItemRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
   tradeItem: { flex: 1, alignItems: 'center' },
-  tradeItemImage: { width: 88, height: 93, borderRadius: 21, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  tradeImage: { width: 84, height: 90 },
-  tradeItemName: { color: '#5D3F56', fontSize: 10, fontWeight: '900', marginTop: 5, textAlign: 'center' },
-  tradeItemOwner: { color: '#A57E83', fontSize: 9, fontWeight: '800', marginTop: 2 },
-  exchangeArrow: { width: 37, height: 37, borderRadius: 19, backgroundColor: '#F2DFE3', alignItems: 'center', justifyContent: 'center', marginHorizontal: 7 },
+  tradeItemImage: { width: 60, height: 64, borderRadius: 15, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  tradeImage: { width: 57, height: 61 },
+  tradeItemName: { color: '#5D3F56', fontSize: 8, fontWeight: '900', marginTop: 2, textAlign: 'center' },
+  tradeItemOwner: { color: '#A57E83', fontSize: 7, fontWeight: '800', marginTop: 1 },
+  exchangeArrow: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F2DFE3', alignItems: 'center', justifyContent: 'center', marginHorizontal: 4 },
   exchangeArrowText: { color: '#86617A', fontSize: 22 },
   partnerItem: { flex: 1, alignItems: 'center' },
-  partnerImage: { width: 88, height: 93, borderRadius: 21, backgroundColor: '#EFE5DC', borderWidth: 1.5, borderColor: '#D8C3B5', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  partnerQuestion: { color: '#B59E9D', fontSize: 35, fontWeight: '900' },
-  partnerName: { color: '#7B5D69', fontSize: 10, fontWeight: '900', marginTop: 5 },
-  tradePicker: { flexDirection: 'row', justifyContent: 'center', marginTop: 13 },
-  tradePickerDot: { width: 39, height: 39, borderRadius: 13, marginHorizontal: 3, backgroundColor: '#F0DED7', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E8C7B7' },
+  partnerImage: { width: 60, height: 64, borderRadius: 15, backgroundColor: '#EFE5DC', borderWidth: 1.5, borderColor: '#D8C3B5', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  partnerQuestion: { color: '#B59E9D', fontSize: 24, fontWeight: '900' },
+  partnerName: { color: '#7B5D69', fontSize: 8, fontWeight: '900', marginTop: 2 },
+  tradePicker: { flexDirection: 'row', justifyContent: 'center', marginTop: 5 },
+  tradePickerDot: { width: 27, height: 27, borderRadius: 9, marginHorizontal: 1, backgroundColor: '#F0DED7', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E8C7B7' },
   tradePickerDotSelected: { borderColor: '#76547D', borderWidth: 2.5, backgroundColor: '#F4E6EC' },
-  tradePickerImage: { width: 35, height: 35 },
-  secondaryButton: { minHeight: 45, borderRadius: 16, backgroundColor: '#F0D8D7', alignItems: 'center', justifyContent: 'center', marginTop: 13 },
-  secondaryButtonText: { color: '#724E66', fontSize: 12, fontWeight: '900' },
+  tradePickerImage: { width: 24, height: 24 },
+  secondaryButton: { minHeight: 34, borderRadius: 12, backgroundColor: '#F0D8D7', alignItems: 'center', justifyContent: 'center', marginTop: 5 },
+  secondaryButtonText: { color: '#724E66', fontSize: 10, fontWeight: '900' },
   bottomNav: { position: 'absolute', left: 10, right: 10, bottom: Platform.OS === 'web' ? 12 : 5, height: 70, paddingHorizontal: 4, paddingVertical: 5, borderRadius: 25, backgroundColor: 'rgba(255,248,236,0.97)', borderWidth: 1.4, borderColor: '#E1BD9D', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#624651', shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
   navTab: { flex: 1, height: 58, borderRadius: 19, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   navTabActive: { backgroundColor: '#F3DDE0' },
