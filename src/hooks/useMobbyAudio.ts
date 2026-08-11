@@ -1,11 +1,12 @@
 import { useCallback, useEffect } from 'react';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 
-export type MobbySfx = 'tap' | 'notification' | 'boxOpen' | 'reward' | 'place';
+export type MobbySfx = 'tap' | 'notification' | 'boxOpen' | 'reward' | 'place' | 'keyJingle';
 
 const BGM = require('../../assets/audio/bgm-cozy-room.wav');
 const TAP = require('../../assets/audio/sfx-tap.wav');
 const NOTIFICATION = require('../../assets/audio/sfx-notification.wav');
+const KEY_JINGLE = require('../../assets/audio/sfx-keychain-jingle.wav');
 const BOX_OPEN = require('../../assets/audio/sfx-box-open.wav');
 const REWARD = require('../../assets/audio/sfx-reward.wav');
 const PLACE = require('../../assets/audio/sfx-place.wav');
@@ -20,6 +21,7 @@ export function useMobbyAudio({
   const bgmPlayer = useAudioPlayer(BGM);
   const tapPlayer = useAudioPlayer(TAP, { keepAudioSessionActive: true });
   const notificationPlayer = useAudioPlayer(NOTIFICATION, { keepAudioSessionActive: true });
+  const keyJinglePlayer = useAudioPlayer(KEY_JINGLE, { keepAudioSessionActive: true });
   const boxOpenPlayer = useAudioPlayer(BOX_OPEN, { keepAudioSessionActive: true });
   const rewardPlayer = useAudioPlayer(REWARD, { keepAudioSessionActive: true });
   const placePlayer = useAudioPlayer(PLACE, { keepAudioSessionActive: true });
@@ -37,10 +39,11 @@ export function useMobbyAudio({
     bgmPlayer.volume = 0.18;
     tapPlayer.volume = 0.34;
     notificationPlayer.volume = 0.42;
+    keyJinglePlayer.volume = 0.24;
     boxOpenPlayer.volume = 0.46;
     rewardPlayer.volume = 0.42;
     placePlayer.volume = 0.44;
-  }, [bgmPlayer, boxOpenPlayer, notificationPlayer, placePlayer, rewardPlayer, tapPlayer]);
+  }, [bgmPlayer, boxOpenPlayer, keyJinglePlayer, notificationPlayer, placePlayer, rewardPlayer, tapPlayer]);
 
   useEffect(() => {
     if (bgmEnabled) bgmPlayer.play();
@@ -59,6 +62,8 @@ export function useMobbyAudio({
       ? tapPlayer
       : sound === 'notification'
         ? notificationPlayer
+        : sound === 'keyJingle'
+          ? keyJinglePlayer
         : sound === 'boxOpen'
           ? boxOpenPlayer
           : sound === 'reward'
@@ -68,7 +73,7 @@ export function useMobbyAudio({
     void player.seekTo(0)
       .then(() => player.play())
       .catch(() => player.play());
-  }, [boxOpenPlayer, notificationPlayer, placePlayer, rewardPlayer, sfxEnabled, tapPlayer]);
+  }, [boxOpenPlayer, keyJinglePlayer, notificationPlayer, placePlayer, rewardPlayer, sfxEnabled, tapPlayer]);
 
   return { engageBgm, playSfx };
 }

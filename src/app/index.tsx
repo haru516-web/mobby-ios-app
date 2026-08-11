@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Asset } from 'expo-asset';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -27,6 +28,7 @@ type Screen = 'home' | 'collection' | 'time' | 'touch' | 'trade';
 type ItemKind = 'ぬいキー' | 'ぬいぐるみ';
 type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placing' | 'placed';
 type HomePlacementKind = 'wall' | 'shelf';
+type OnboardingStep = 'none' | 'favorite' | 'mobbyTime' | 'opening' | 'place' | 'wallFlight' | 'home' | 'collection' | 'time' | 'trade';
 
 const DESIGN_WIDTH = 440;
 const DESIGN_MIN_HEIGHT = 720;
@@ -68,16 +70,24 @@ const PLUSH_SHELF_BASE = require('../../assets/backgrounds/plush-base-transparen
 const TRADE_EXCHANGE_BOARD = require('../../assets/backgrounds/trade-exchange-board.png');
 const MOBBY_TIME_BOARD = require('../../assets/backgrounds/mobby-time-board.png');
 const MOBBY_TIME_PACKAGE = require('../../assets/mobby-time-package.png');
+const MOBBY_TIME_OPENED_BOX = require('../../assets/mobby-time-opened-box.png');
 const MOBBY_TIME_TIMER_PLAQUE = require('../../assets/mobby-time/timer-plaque.png');
 const MOBBY_TIME_MESSAGE_PLAQUE = require('../../assets/mobby-time/message-plaque.png');
 const MOBBY_TIME_REWARD_SEAL = require('../../assets/mobby-time/reward-seal.png');
 const MOBBY_TIME_REVEAL_HALO = require('../../assets/mobby-time/reveal-halo.png');
+const MOBBY_LOGO_RAINBOW = require('../../assets/home-ui/logo/mobby-logo-rainbow.webp');
 const BELL = require('../../assets/home-ui/icons/bell.png');
 const SPARKLES = require('../../assets/home-ui/icons/sparkles.png');
 const HOUSE = require('../../assets/home-ui/icons/house.png');
 const EXCHANGE = require('../../assets/home-ui/icons/exchange.png');
 const MOBBY_ICON = require('../../assets/home-ui/icons/mobby.png');
 const FRIEND = require('../../assets/home-ui/icons/friend.png');
+const MOBIYAN_LOADING = require('../../assets/loading/mobiyan-loading.webp');
+const HOME_DECOR_PLANT = require('../../assets/furniture/plant-sage.png');
+const HOME_DECOR_CUSHIONS = require('../../assets/furniture/cushion-pile.png');
+const STORAGE_TUTORIAL_COMPLETE = '@mobby/tutorial-complete-v2';
+const STORAGE_FAVORITE = '@mobby/favorite-v1';
+const STORAGE_OWNED = '@mobby/owned-v1';
 const KEYCHAIN = {
   reomoby: require('../../assets/mobby-keychains/reomoby-key.png'),
   mobichi: require('../../assets/mobby-keychains/mobichi-key.png'),
@@ -108,46 +118,200 @@ const PULL_REACTION_FRAMES: Partial<Record<MobbyId, readonly number[]>> = {
     require('../../assets/mobies/reactions/mobibou_pull_reaction_02_hold_cheek.webp'),
     require('../../assets/mobies/reactions/mobibou_pull_reaction_03_angry_protest.webp'),
     require('../../assets/mobies/reactions/mobibou_pull_reaction_04_sulking.webp'),
+    require('../../assets/mobies/reactions/mobibou_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/mobibou_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/mobibou_tease_reaction_03_swatt.webp'),
+    require('../../assets/mobies/reactions/mobibou_tease_reaction_04_stomp.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/mobibou_extra_reaction_20_ultimate_enough.webp'),
   ],
   mobiyura: [
     require('../../assets/mobies/reactions/mobiyura_pull_reaction_01_startled.webp'),
     require('../../assets/mobies/reactions/mobiyura_pull_reaction_02_hold_cheek.webp'),
     require('../../assets/mobies/reactions/mobiyura_pull_reaction_03_dramatic_protest.webp'),
     require('../../assets/mobies/reactions/mobiyura_pull_reaction_04_haughty_sulk.webp'),
+    require('../../assets/mobies/reactions/mobiyura_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/mobiyura_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/mobiyura_tease_reaction_03_swatt.webp'),
+    require('../../assets/mobies/reactions/mobiyura_tease_reaction_04_dramatic_stomp.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/mobiyura_extra_reaction_20_ultimate_enough.webp'),
   ],
   reomoby: [
     require('../../assets/mobies/reactions/reomoby_pull_reaction_01_startled.webp'),
     require('../../assets/mobies/reactions/reomoby_pull_reaction_02_hold_cheek.webp'),
     require('../../assets/mobies/reactions/reomoby_pull_reaction_03_aristocratic_protest.webp'),
     require('../../assets/mobies/reactions/reomoby_pull_reaction_04_haughty_sulk.webp'),
+    require('../../assets/mobies/reactions/reomoby_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/reomoby_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/reomoby_tease_reaction_03_swatt.webp'),
+    require('../../assets/mobies/reactions/reomoby_tease_reaction_04_royal_stomp.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/reomoby_extra_reaction_20_ultimate_enough.webp'),
   ],
   mobirin: [
     require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_01_startled.webp'),
     require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_02_hold_cheek.webp'),
     require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_03_indignant_protest.webp'),
     require('../../assets/mobies/reactions/mobirin_mobirin_pull_reaction_04_dignified_sulk.webp'),
+    require('../../assets/mobies/reactions/mobirin_mobirin_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/mobirin_mobirin_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/mobirin_mobirin_tease_reaction_03_swatt.webp'),
+    require('../../assets/mobies/reactions/mobirin_mobirin_tease_reaction_04_gentlemanly_stomp.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/mobirin_extra_reaction_20_ultimate_enough.webp'),
   ],
   potemoby: [
     require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_01_sleepy_startled.webp'),
     require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_02_hold_cheek.webp'),
     require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_03_lazy_protest.webp'),
     require('../../assets/mobies/reactions/potemoby_pote_pull_reaction_04_lazy_sulk.webp'),
+    require('../../assets/mobies/reactions/potemoby_pote_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/potemoby_pote_tease_reaction_02_lazy_escape.webp'),
+    require('../../assets/mobies/reactions/potemoby_pote_tease_reaction_03_lazy_swatt.webp'),
+    require('../../assets/mobies/reactions/potemoby_pote_tease_reaction_04_heavy_stomp.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/potemoby_extra_reaction_20_ultimate_enough.webp'),
   ],
   babumoby: [
     require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_01_startled.webp'),
     require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_02_hold_cheek.webp'),
     require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_03_baby_protest.webp'),
     require('../../assets/mobies/reactions/babumoby_babu_pull_reaction_04_sulking.webp'),
+    require('../../assets/mobies/reactions/babumoby_babu_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/babumoby_babu_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/babumoby_babu_tease_reaction_03_push_away.webp'),
+    require('../../assets/mobies/reactions/babumoby_babu_tease_reaction_04_tantrum.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/babumoby_extra_reaction_20_ultimate_enough.webp'),
   ],
   mobichi: [
     require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_01_startled.webp'),
     require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_02_hold_cheek.webp'),
     require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_03_indignant_protest.webp'),
     require('../../assets/mobies/reactions/mobichi_mobichi_pull_reaction_04_dignified_sulk.webp'),
+    require('../../assets/mobies/reactions/mobichi_mobichi_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/mobichi_mobichi_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/mobichi_mobichi_tease_reaction_03_swatt.webp'),
+    require('../../assets/mobies/reactions/mobichi_mobichi_tease_reaction_04_gentlemanly_stomp.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/mobichi_extra_reaction_20_ultimate_enough.webp'),
+  ],
+  mobiyan: [
+    require('../../assets/mobies/reactions/mobiyan_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/mobiyan_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/mobiyan_pull_reaction_03_indignant_protest.webp'),
+    require('../../assets/mobies/reactions/mobiyan_pull_reaction_04_dignified_sulk.webp'),
+    require('../../assets/mobies/reactions/mobiyan_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/mobiyan_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/mobiyan_tease_reaction_03_swatt.webp'),
+    require('../../assets/mobies/reactions/mobiyan_tease_reaction_04_stomp.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/mobiyan_extra_reaction_20_ultimate_enough.webp'),
+  ],
+  yami: [
+    require('../../assets/mobies/reactions/yami_pull_reaction_01_startled.webp'),
+    require('../../assets/mobies/reactions/yami_pull_reaction_02_hold_cheek.webp'),
+    require('../../assets/mobies/reactions/yami_pull_reaction_03_indignant_protest.webp'),
+    require('../../assets/mobies/reactions/yami_pull_reaction_04_dignified_sulk.webp'),
+    require('../../assets/mobies/reactions/yami_tease_reaction_01_notice.webp'),
+    require('../../assets/mobies/reactions/yami_tease_reaction_02_escape.webp'),
+    require('../../assets/mobies/reactions/yami_tease_reaction_03_swatt.webp'),
+    require('../../assets/mobies/reactions/yami_tease_reaction_04_stomp.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_09_bawling_waterfall.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_10_defensive_curl.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_11_frantic_no.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_12_dramatic_faint.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_13_furious_stomp.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_14_backward_escape.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_15_cheek_shield.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_16_floor_cling.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_17_starfish_tantrum.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_18_offended_turnaway.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_19_tiny_rage_shake.webp'),
+    require('../../assets/mobies/reactions/yami_extra_reaction_20_ultimate_enough.webp'),
   ],
 };
-const DEFAULT_PULL_REACTION_PATTERN: 'single' | 'sequence' = 'single';
-
 const ITEMS: Item[] = [
   { id: 'mobichi-key', name: 'もびち ぬいキー', kind: 'ぬいキー', rarity: 'R', image: require('../../assets/mobies/mobichi.webp'), keyImage: KEYCHAIN.mobichi, smallKeyImage: KEYCHAIN_SMALL.mobichi, accent: '#E79AA7' },
   { id: 'mobiyan-plush', name: 'もびやん ぬい', kind: 'ぬいぐるみ', rarity: 'SR', image: require('../../assets/mobies/mobiyan.webp'), keyImage: KEYCHAIN.mobiyan, smallKeyImage: KEYCHAIN_SMALL.mobiyan, accent: '#83B8C4' },
@@ -172,6 +336,11 @@ const ITEM_MOBBY_IDS: Record<string, MobbyId> = {
   'babu-key': 'babumoby',
 };
 
+function toStarterKeyItem(item: Item): Item {
+  const characterName = item.name.replace(' ぬいキー', '').replace(' ぬい', '');
+  return { ...item, name: `${characterName} ぬいキー`, kind: 'ぬいキー' };
+}
+
 // The source illustrations have slightly different transparent padding below
 // their feet. Normalize that padding so every plush touches the same shelf
 // edge instead of making some characters appear to float.
@@ -192,14 +361,14 @@ const COLLECTION_KEY_ROW_RATIOS = [0.149, 0.396, 0.665] as const;
 const COLLECTION_PLUSH_SHELF_RATIOS = [0.324, 0.6, 0.871] as const;
 
 const OPENING_KEY_DECORATIONS = [
-  { itemIndex: 1, left: 18, top: 94, size: 78, fromY: 8, toY: -8, fromRotate: '-8deg', toRotate: '5deg', layer: 2 },
-  { itemIndex: 6, left: 344, top: 88, size: 78, fromY: -7, toY: 8, fromRotate: '7deg', toRotate: '-5deg', layer: 2 },
-  { itemIndex: 2, left: 58, top: 7, size: 64, fromY: 5, toY: -9, fromRotate: '-5deg', toRotate: '7deg', layer: 2 },
-  { itemIndex: 7, left: 318, top: 12, size: 64, fromY: -8, toY: 5, fromRotate: '6deg', toRotate: '-6deg', layer: 2 },
-  { itemIndex: 3, left: -4, top: 219, size: 72, fromY: 7, toY: -6, fromRotate: '-10deg', toRotate: '4deg', layer: 5 },
-  { itemIndex: 8, left: 372, top: 222, size: 72, fromY: -6, toY: 8, fromRotate: '8deg', toRotate: '-4deg', layer: 5 },
-  { itemIndex: 4, left: 60, top: 302, size: 66, fromY: 9, toY: -5, fromRotate: '-6deg', toRotate: '8deg', layer: 5 },
-  { itemIndex: 5, left: 314, top: 296, size: 66, fromY: -7, toY: 7, fromRotate: '7deg', toRotate: '-7deg', layer: 5 },
+  { itemIndex: 1, left: 18, top: 94, size: 117, fromY: 8, toY: -8, fromRotate: '-8deg', toRotate: '5deg', layer: 2 },
+  { itemIndex: 6, left: 323, top: 88, size: 117, fromY: -7, toY: 8, fromRotate: '7deg', toRotate: '-5deg', layer: 2 },
+  { itemIndex: 2, left: 58, top: 7, size: 96, fromY: 5, toY: -9, fromRotate: '-5deg', toRotate: '7deg', layer: 2 },
+  { itemIndex: 7, left: 318, top: 12, size: 96, fromY: -8, toY: 5, fromRotate: '6deg', toRotate: '-6deg', layer: 2 },
+  { itemIndex: 3, left: 0, top: 219, size: 108, fromY: 7, toY: -6, fromRotate: '-10deg', toRotate: '4deg', layer: 5 },
+  { itemIndex: 8, left: 332, top: 222, size: 108, fromY: -6, toY: 8, fromRotate: '8deg', toRotate: '-4deg', layer: 5 },
+  { itemIndex: 4, left: 42, top: 302, size: 99, fromY: 9, toY: -5, fromRotate: '-6deg', toRotate: '8deg', layer: 5 },
+  { itemIndex: 5, left: 314, top: 296, size: 99, fromY: -7, toY: 7, fromRotate: '7deg', toRotate: '-7deg', layer: 5 },
 ] as const;
 
 const INITIAL_OWNED: Record<string, number> = {
@@ -337,11 +506,159 @@ function NotificationPopup({
   );
 }
 
+function LoadingMascot({ compact = false }: { compact?: boolean }) {
+  const motion = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(motion, { toValue: 1, duration: 520, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(motion, { toValue: 0, duration: 520, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [motion]);
+
+  return (
+    <View pointerEvents="none" style={[styles.loadingMascotWrap, compact && styles.loadingMascotWrapCompact]}>
+      <Animated.Image
+        source={MOBIYAN_LOADING}
+        resizeMode="contain"
+        style={[
+          styles.loadingMascotImage,
+          compact && styles.loadingMascotImageCompact,
+          {
+            transform: [
+              { translateY: motion.interpolate({ inputRange: [0, 1], outputRange: [4, -7] }) },
+              { rotate: motion.interpolate({ inputRange: [0, 1], outputRange: ['-2deg', '2deg'] }) },
+            ],
+          },
+        ]}
+      />
+      <View style={styles.loadingDots}>
+        {[0, 1, 2].map((index) => (
+          <Animated.View
+            key={index}
+            style={[
+              styles.loadingDot,
+              {
+                opacity: motion.interpolate({
+                  inputRange: [0, 0.33, 0.66, 1],
+                  outputRange: index === 0 ? [1, 0.28, 0.28, 1] : index === 1 ? [0.28, 1, 0.28, 0.28] : [0.28, 0.28, 1, 0.28],
+                }),
+              },
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function LoadingOverlay() {
+  return (
+    <View accessibilityRole="progressbar" accessibilityLabel="読み込み中" style={styles.loadingOverlay}>
+      <View style={styles.loadingCard}>
+        <LoadingMascot />
+        <Text style={styles.loadingTitle}>お部屋を準備中</Text>
+        <Text style={styles.loadingText}>もびやんがグッズを運んでいます</Text>
+      </View>
+    </View>
+  );
+}
+
+function FavoriteMobbyPicker({
+  selectedId,
+  onSelect,
+  onConfirm,
+}: {
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onConfirm: () => void;
+}) {
+  const entrance = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(entrance, { toValue: 1, speed: 18, bounciness: 7, useNativeDriver: true }).start();
+  }, [entrance]);
+
+  return (
+    <View style={styles.onboardingOverlay}>
+      <View style={styles.onboardingBackdrop} />
+      <Animated.View style={[styles.favoriteCard, { opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }]}>
+        <Text style={styles.onboardingKicker}>WELCOME TO MOBBY</Text>
+        <Text style={styles.favoriteTitle}>お気に入りのモビーは？</Text>
+        <Text style={styles.favoriteLead}>最初の相棒をひとり選んでね。あとからいつでも変えられます。</Text>
+        <View style={styles.favoriteGrid}>
+          {ITEMS.map((item) => {
+            const active = item.id === selectedId;
+            return (
+              <Pressable
+                key={item.id}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
+                onPress={() => onSelect(item.id)}
+                style={({ pressed }) => [styles.favoriteOption, active && { borderColor: item.accent, backgroundColor: `${item.accent}33` }, pressed && styles.favoriteOptionPressed]}
+              >
+                <Image source={item.image} resizeMode="contain" style={styles.favoriteImage} />
+                <Text style={styles.favoriteName} numberOfLines={1}>{item.name.replace(' ぬいキー', '').replace(' ぬい', '')}</Text>
+                {active ? <View style={[styles.favoriteCheck, { backgroundColor: item.accent }]}><Text style={styles.favoriteCheckText}>✓</Text></View> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+        <Pressable accessibilityRole="button" onPress={onConfirm} style={({ pressed }) => [styles.onboardingPrimaryButton, pressed && styles.onboardingPrimaryButtonPressed]}>
+          <Text style={styles.onboardingPrimaryText}>この子と始める</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+type OnboardingCopy = {
+  step: string;
+  title: string;
+  body: string;
+  action?: string;
+  navIndex?: number;
+};
+
+const ONBOARDING_COPY: Partial<Record<OnboardingStep, OnboardingCopy>> = {
+  mobbyTime: { step: '最初のグッズ', title: '箱をタップして受け取ろう', body: '選んだモビーのぬいキーが必ず入っています。中央の箱をタップしてね。' },
+  opening: { step: '開封中', title: '最初のぬいキーがもうすぐ登場', body: '開封が終わるまで少しだけ待ってね。' },
+  place: { step: '受け取り', title: '「壁に追加する」を押そう', body: 'このボタンを押すとホームへ移動し、ぬいキーが壁へ飾られるところまで見られます。' },
+  wallFlight: { step: '飾り付け中', title: 'ぬいキーを壁へ運んでいます', body: 'フックに掛かったら、アプリ全体の短いチュートリアルが始まります。' },
+  home: { step: '1 / 4', title: 'ホーム：モビーと部屋で遊ぶ', body: 'メインモビーを引っ張ると表情・セリフ・リアクションが変化。壁のぬいキーはなぞって揺らせて、「編集」から並べ替えできます。', action: 'コレクションへ', navIndex: 0 },
+  collection: { step: '2 / 4', title: 'コレクション：集めたグッズを見る', body: 'ぬいキー／ぬいぐるみを切り替えて一覧を確認。ぬいキーは通常・Sサイズを選べ、指で触れると揺れて音が鳴ります。', action: 'MOBBY TIMEへ', navIndex: 1 },
+  time: { step: '3 / 4', title: 'MOBBY TIME：新しいグッズと出会う', body: '届いた箱を開けてグッズを獲得し、ホームへ飾る場所。開催中は残り時間もここで確認できます。', action: 'TRADEへ', navIndex: 2 },
+  trade: { step: '4 / 4', title: 'TRADE：友達とグッズを交換', body: '交換したいグッズを選び、QRを見せ合って交換します。ホームではモビーを引っ張って遊べます。', action: '遊び始める', navIndex: 3 },
+};
+
+function OnboardingGuide({ step, onNext, onSkip }: { step: OnboardingStep; onNext: () => void; onSkip: () => void }) {
+  const copy = ONBOARDING_COPY[step];
+  if (!copy) return null;
+  const interactive = Boolean(copy.action);
+  const cardAtTop = !interactive || typeof copy.navIndex === 'number';
+  return (
+    <View pointerEvents="box-none" style={styles.guideOverlay}>
+      {typeof copy.navIndex === 'number' ? <View pointerEvents="none" style={[styles.guideNavHighlight, { left: 14 + copy.navIndex * 80.4 }]}><View style={styles.guideNavHighlightInner} /></View> : null}
+      <View pointerEvents={interactive ? 'auto' : 'none'} style={[styles.guideCard, cardAtTop ? styles.guideCardTop : styles.guideCardBottom]}>
+        <View style={styles.guideHeadingRow}>
+          <Text style={styles.guideStep}>{copy.step}</Text>
+          {interactive ? <Pressable accessibilityRole="button" onPress={onSkip} hitSlop={10}><Text style={styles.guideSkip}>スキップ</Text></Pressable> : null}
+        </View>
+        <Text style={styles.guideTitle}>{copy.title}</Text>
+        <Text style={styles.guideBody}>{copy.body}</Text>
+        {copy.action ? <Pressable accessibilityRole="button" onPress={onNext} style={({ pressed }) => [styles.guideButton, pressed && styles.onboardingPrimaryButtonPressed]}><Text style={styles.guideButtonText}>{copy.action}</Text></Pressable> : null}
+      </View>
+    </View>
+  );
+}
+
 function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () => void }) {
+  const { height: appHeight } = useAppLayout();
   const intro = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
-  const haloTurn = useRef(new Animated.Value(0)).current;
   const startPulse = useRef(new Animated.Value(0)).current;
   const exit = useRef(new Animated.Value(0)).current;
   const [leaving, setLeaving] = useState(false);
@@ -350,7 +667,7 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
   useEffect(() => {
     let mounted = true;
     const itemAssets = ITEMS.flatMap((item) => [item.image, item.keyImage, item.smallKeyImage].filter((asset): asset is number => typeof asset === 'number'));
-    Asset.loadAsync([HOME_WALL_BACKGROUND, HOME_GARLAND, PLUSH_SHELF_BASE, WOODEN_HOOK, ...itemAssets])
+    Asset.loadAsync([HOME_WALL_BACKGROUND, HOME_GARLAND, PLUSH_SHELF_BASE, WOODEN_HOOK, MOBBY_TIME_OPENED_BOX, MOBBY_TIME_PACKAGE, ...itemAssets])
       .catch(() => undefined)
       .finally(() => { if (mounted) setAssetsReady(true); });
     return () => { mounted = false; };
@@ -366,7 +683,6 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
       Animated.timing(float, { toValue: 1, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       Animated.timing(float, { toValue: 0, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
     ]));
-    const haloLoop = Animated.loop(Animated.timing(haloTurn, { toValue: 1, duration: 18000, easing: Easing.linear, useNativeDriver: true }));
     const pulseLoop = Animated.loop(Animated.sequence([
       Animated.timing(startPulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       Animated.timing(startPulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -374,16 +690,14 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
     introAnimation.start();
     bobLoop.start();
     floatLoop.start();
-    haloLoop.start();
     pulseLoop.start();
     return () => {
       introAnimation.stop();
       bobLoop.stop();
       floatLoop.stop();
-      haloLoop.stop();
       pulseLoop.stop();
     };
-  }, [bob, float, haloTurn, intro, startPulse]);
+  }, [bob, float, intro, startPulse]);
 
   const startGame = useCallback(() => {
     if (leaving) return;
@@ -398,18 +712,37 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
     intro.interpolate({ inputRange: [0, 1], outputRange: [58, 0] }),
     bob.interpolate({ inputRange: [0, 1], outputRange: [4, -7] }),
   );
+  const compactOpeningGroup = appHeight < 840;
+  // Keep the start plaque comfortably inside the scaled app shell while
+  // leaving enough vertical room for the unopened package above it.
+  const openingStartWidth = compactOpeningGroup ? 320 : Math.min(390, Math.max(360, appHeight - 360));
+  const openingStartHeight = openingStartWidth * (126 / 292);
+  // The opened box, mascot, keychains, and unopened package share one
+  // composition whose midpoint stays on the screen midpoint.
+  const openingCoreHeight = compactOpeningGroup ? 360 : 428;
+  const openingPackageTop = 322;
+  const openingPackageSize = compactOpeningGroup ? 110 : 140;
+  const openingCompositionHeight = Math.max(openingCoreHeight, openingPackageTop + openingPackageSize);
+  const openingSceneTop = Math.max(0, (appHeight - openingCompositionHeight) / 2);
   return (
     <Animated.View style={[styles.openingScreen, { opacity: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ scale: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }] }]}>
       <Image source={ROOM_BACKGROUND} resizeMode="cover" style={styles.openingBackdrop} />
-      <Animated.View style={[styles.openingTitleWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) }] }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={assetsReady ? '画面をタップしてスタート' : '読み込み中'}
+        disabled={leaving || !assetsReady}
+        onPress={startGame}
+        style={styles.openingTapSurface}
+      />
+      <Animated.View pointerEvents="none" style={[styles.openingTitleWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) }] }]}>
         <ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} resizeMode="contain" style={styles.openingTitlePlaque}>
-          <Text style={styles.openingTitle}>MOBBY</Text>
+          <Image source={MOBBY_LOGO_RAINBOW} resizeMode="contain" style={styles.openingLogoImage} />
           <Text style={styles.openingTitleSub}>C O L L E C T I O N</Text>
         </ImageBackground>
         <Text style={styles.openingTagline}>モビーたちと、毎日を飾ろう。</Text>
       </Animated.View>
-      <View style={styles.openingScene}>
-        <Animated.Image source={MOBBY_TIME_REVEAL_HALO} resizeMode="contain" style={[styles.openingHalo, { opacity: intro, transform: [{ rotate: haloTurn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }, { scale: bob.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1.03] }) }] }]} />
+      <View pointerEvents="none" style={[styles.openingScene, { top: openingSceneTop, height: openingCompositionHeight }]}>
+        <Animated.Image source={MOBBY_TIME_OPENED_BOX} resizeMode="contain" style={[styles.openingOpenedBox, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.76, 1] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1deg', '1deg'] }) }] }]} />
         {OPENING_KEY_DECORATIONS.map((decoration, index) => {
           const motion = index % 2 === 0 ? float : bob;
           const item = ITEMS[decoration.itemIndex];
@@ -422,7 +755,7 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
                 styles.openingKeyDecoration,
                 {
                   left: decoration.left,
-                  top: decoration.top,
+                  top: decoration.top + (compactOpeningGroup && index >= 6 ? -70 : 0),
                   width: decoration.size,
                   height: decoration.size * 1.18,
                   zIndex: decoration.layer,
@@ -438,14 +771,12 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
           );
         })}
         <Animated.Image source={ITEMS[0].image} resizeMode="contain" style={[styles.openingMobby, { opacity: intro, transform: [{ translateY: mobbyTranslateY }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.5deg', '1.5deg'] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }] }]} />
-        <Animated.Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={[styles.openingPackage, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.6deg', '1.6deg'] }) }] }]} />
-        <Animated.Text style={[styles.openingSparkle, styles.openingSparkleOne, { opacity: float }]}>✦</Animated.Text>
-        <Animated.Text style={[styles.openingSparkle, styles.openingSparkleTwo, { opacity: bob }]}>✧</Animated.Text>
-        <Animated.Text style={[styles.openingSparkle, styles.openingSparkleThree, { opacity: float.interpolate({ inputRange: [0, 1], outputRange: [0.28, 1] }) }]}>✦</Animated.Text>
+        <Animated.Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={[styles.openingUnopenedPackage, { top: openingPackageTop, width: openingPackageSize, height: openingPackageSize, marginLeft: -openingPackageSize / 2, opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.4deg', '1.4deg'] }) }] }]} />
       </View>
-      <Animated.View style={[styles.openingStartWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [25, 0] }) }, { scale: startPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }) }] }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={assetsReady ? 'タップしてスタート' : '読み込み中'} disabled={leaving || !assetsReady} onPress={startGame} style={({ pressed }) => [styles.openingStartButton, !assetsReady && styles.openingStartLoading, pressed && styles.openingStartPressed]}>
-          <ImageBackground source={MOBBY_TIME_MESSAGE_PLAQUE} resizeMode="contain" style={styles.openingStartPlaque}>
+      <Animated.View pointerEvents="box-none" style={[styles.openingStartWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [25, 0] }) }, { scale: startPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }) }] }]}>
+        {!assetsReady ? <LoadingMascot compact /> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={assetsReady ? 'タップしてスタート' : '読み込み中'} disabled={leaving || !assetsReady} onPress={startGame} style={({ pressed }) => [styles.openingStartButton, { width: openingStartWidth, height: openingStartHeight }, !assetsReady && styles.openingStartLoading, pressed && styles.openingStartPressed]}>
+          <ImageBackground source={MOBBY_TIME_MESSAGE_PLAQUE} resizeMode="contain" style={[styles.openingStartPlaque, { width: openingStartWidth, height: openingStartHeight }]}>
             <Text style={styles.openingStartTitle}>{assetsReady ? 'TAP TO START' : 'LOADING…'}</Text>
             <Text style={styles.openingStartSub}>{assetsReady ? 'モビーの部屋へ' : 'モビーたちを呼んでいます'}</Text>
           </ImageBackground>
@@ -455,8 +786,187 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
   );
 }
 
+function HomeWallKeychain({
+  item,
+  index,
+  selectedId,
+  ownedCount,
+  hidden,
+  isEditing,
+  isEditSelected,
+  isEditTarget,
+  onPress,
+  onSwing,
+  gestureManaged = false,
+  onSwingReady,
+  onLayout,
+}: {
+  item: Item;
+  index: number;
+  selectedId: string;
+  ownedCount: number;
+  hidden: boolean;
+  isEditing: boolean;
+  isEditSelected: boolean;
+  isEditTarget: boolean;
+  onPress: () => void;
+  onSwing: () => void;
+  gestureManaged?: boolean;
+  onSwingReady?: (id: string, swing: KeychainSwing | null) => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
+}) {
+  const isOwned = ownedCount > 0;
+  const rotation = useRef(new Animated.Value(0)).current;
+  const settle = useCallback((direction: number) => {
+    Animated.sequence([
+      Animated.timing(rotation, { toValue: -direction * 0.72, duration: 125, useNativeDriver: true }),
+      Animated.timing(rotation, { toValue: direction * 0.5, duration: 105, useNativeDriver: true }),
+      Animated.timing(rotation, { toValue: -direction * 0.28, duration: 95, useNativeDriver: true }),
+      Animated.spring(rotation, { toValue: 0, speed: 17, bounciness: 5, useNativeDriver: true }),
+    ]).start();
+  }, [rotation]);
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_event, gesture) => isOwned && !isEditing && (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 5),
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => isOwned && !isEditing && (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 5),
+    onPanResponderGrant: () => {
+      rotation.stopAnimation();
+      onSwing();
+    },
+    onPanResponderMove: (_event, gesture) => rotation.setValue(Math.max(-1, Math.min(1, gesture.dx / 42))),
+    onPanResponderRelease: (_event, gesture) => settle(gesture.dx < 0 ? -1 : 1),
+    onPanResponderTerminate: (_event, gesture) => settle(gesture.dx < 0 ? -1 : 1),
+  }), [isEditing, isOwned, onSwing, rotation, settle]);
+  const swing = useCallback((direction: number) => {
+    onSwing();
+    settle(direction);
+  }, [onSwing, settle]);
+  useEffect(() => {
+    if (!onSwingReady) return undefined;
+    if (!isOwned) {
+      onSwingReady(item.id, null);
+      return undefined;
+    }
+    onSwingReady(item.id, swing);
+    return () => onSwingReady(item.id, null);
+  }, [isOwned, item.id, onSwingReady, swing]);
+  const sway = rotation.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-20deg', '0deg', '20deg'] });
+  const name = item.name.replace(' ぬいキー', '').replace(' ぬい', '');
+  const localPanHandlers = !gestureManaged && !isEditing && isOwned ? panResponder.panHandlers : {};
+  const canPress = isOwned || isEditing;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={isEditing ? `${name}、壁フック${index + 1}` : isOwned ? `${name}を揺らす` : `未所持の壁フック${index + 1}`}
+      onPress={() => {
+        if (!canPress) return;
+        onPress();
+        if (!isEditing && isOwned) {
+          rotation.stopAnimation();
+          settle(1);
+          onSwing();
+        }
+      }}
+      style={({ pressed }) => [
+        styles.homeWallKey,
+        !isEditing && isOwned && item.id === selectedId && styles.homeWallKeySelected,
+        isEditing && styles.homeDecorationEditable,
+        isEditTarget && styles.homeDecorationTarget,
+        isEditSelected && styles.homeDecorationEditSelected,
+        hidden && styles.homeWallKeyHidden,
+        pressed && styles.homeSelectablePressed,
+      ]}
+      onLayout={onLayout}
+    >
+      <Image source={WOODEN_HOOK} resizeMode="contain" style={styles.homeWallHook} />
+      {isOwned ? (
+        <Animated.View {...localPanHandlers} style={[styles.homeWallKeySwing, { transform: [{ rotate: sway }] }]}>
+          <Image source={item.keyImage ?? item.image} resizeMode="contain" style={styles.homeWallKeyImage} />
+        </Animated.View>
+      ) : null}
+      {isEditing ? <View style={styles.homeSlotBadge}><Text style={styles.homeSlotBadgeText}>{index + 1}</Text></View> : null}
+    </Pressable>
+  );
+}
+
+function HomeShelfPlush({
+  item,
+  index,
+  selectedId,
+  isEditing,
+  isEditSelected,
+  isEditTarget,
+  plushImageSize,
+  canvasPixelsBelowFeet,
+  onPress,
+  onSwing,
+}: {
+  item: Item;
+  index: number;
+  selectedId: string;
+  isEditing: boolean;
+  isEditSelected: boolean;
+  isEditTarget: boolean;
+  plushImageSize: { width: number; height: number };
+  canvasPixelsBelowFeet: number;
+  onPress: () => void;
+  onSwing: () => void;
+}) {
+  const rotation = useRef(new Animated.Value(0)).current;
+  const settle = useCallback((direction: number) => {
+    Animated.sequence([
+      Animated.timing(rotation, { toValue: -direction * 0.34, duration: 95, useNativeDriver: true }),
+      Animated.timing(rotation, { toValue: direction * 0.22, duration: 105, useNativeDriver: true }),
+      Animated.timing(rotation, { toValue: -direction * 0.12, duration: 90, useNativeDriver: true }),
+      Animated.spring(rotation, { toValue: 0, speed: 18, bounciness: 6, useNativeDriver: true }),
+    ]).start();
+  }, [rotation]);
+  const sway = rotation.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-8deg', '0deg', '8deg'] });
+  const name = item.name.replace(' ぬい', '');
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={isEditing ? `${name}、土台${index + 1}` : `${name}を揺らす`}
+      onPress={() => {
+        onPress();
+        if (!isEditing) {
+          rotation.stopAnimation();
+          settle(1);
+          onSwing();
+        }
+      }}
+      style={({ pressed }) => [
+        styles.homePlushItem,
+        !isEditing && item.id === selectedId && styles.homePlushItemSelected,
+        isEditing && styles.homeDecorationEditable,
+        isEditTarget && styles.homeDecorationTarget,
+        isEditSelected && styles.homeDecorationEditSelected,
+        pressed && styles.homeSelectablePressed,
+      ]}
+    >
+      <Animated.View style={[styles.homePlushSwing, { transform: [{ rotate: sway }] }]}>
+        <Image
+          source={item.image}
+          resizeMode="contain"
+          style={[
+            styles.homePlushImage,
+            plushImageSize,
+            {
+              bottom: -canvasPixelsBelowFeet,
+            },
+          ]}
+        />
+      </Animated.View>
+      {isEditing ? <View style={[styles.homeSlotBadge, styles.homePlushSlotBadge]}><Text style={styles.homeSlotBadgeText}>{index + 1}</Text></View> : null}
+    </Pressable>
+  );
+}
+
 function HomeScreen({
   selected,
+  owned = EMPTY_OWNED,
   onSelect,
   hiddenWallItemId,
   wallItemIds,
@@ -465,25 +975,128 @@ function HomeScreen({
   onSwapPlushItems,
   onUiTap,
   onInteract,
+  onKeychainSwing,
   reaction,
 }: {
   selected: Item;
+  owned?: Record<string, number>;
   onSelect: (id: string) => void;
   hiddenWallItemId?: string;
   wallItemIds: string[];
   plushItemIds: string[];
-  onSwapWallItems: (fromIndex: number, toIndex: number) => void;
-  onSwapPlushItems: (fromIndex: number, toIndex: number) => void;
+  onSwapWallItems: (fromId: string, toId: string) => void;
+  onSwapPlushItems: (fromId: string, toId: string) => void;
   onUiTap: () => void;
-  onInteract: (kind: string) => void;
+  onInteract: (kind: string) => number;
+  onKeychainSwing: () => void;
   reaction: string;
 }) {
-  const { height: appHeight } = useAppLayout();
+  const { height: appHeight, scale: appScale } = useAppLayout();
   const compactViewport = appHeight < 780;
   const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
   const [isEditing, setIsEditing] = useState(false);
   const [editSelection, setEditSelection] = useState<{ kind: HomePlacementKind; index: number; itemId: string } | null>(null);
   const [editFeedback, setEditFeedback] = useState('');
+  const wallTileFrames = useRef<Record<string, TileFrame>>({});
+  const wallTileSwings = useRef<Record<string, KeychainSwing>>({});
+  const wallTouchedTiles = useRef(new Set<string>());
+  const wallPreviousPoint = useRef<Point | null>(null);
+  const wallPointerActive = useRef(false);
+  const wallMouseActive = useRef(false);
+  const wallGridOrigin = useRef<Point>({ x: 0, y: 0 });
+  const wallGridRef = useRef<View>(null);
+  const registerWallSwing = useCallback((id: string, swing: KeychainSwing | null) => {
+    if (swing) wallTileSwings.current[id] = swing;
+    else delete wallTileSwings.current[id];
+  }, []);
+  const registerWallFrame = useCallback((id: string, event: LayoutChangeEvent) => {
+    wallTileFrames.current[id] = event.nativeEvent.layout;
+  }, []);
+  const updateWallGridOrigin = useCallback(() => {
+    wallGridRef.current?.measureInWindow((x, y) => {
+      wallGridOrigin.current = { x, y };
+    });
+  }, []);
+  useEffect(() => {
+    updateWallGridOrigin();
+  }, [updateWallGridOrigin]);
+  const wallPointFromEvent = useCallback((event: KeychainPanEvent): Point => {
+    const nativeEvent = event.nativeEvent ?? event;
+    const pageX = nativeEvent.pageX ?? event.pageX ?? event.clientX;
+    const pageY = nativeEvent.pageY ?? event.pageY ?? event.clientY;
+    const locationX = event.nativeEvent?.locationX;
+    const locationY = event.nativeEvent?.locationY;
+    if (typeof pageX === 'number' && Number.isFinite(pageX) && typeof pageY === 'number' && Number.isFinite(pageY)) {
+      return { x: (pageX - wallGridOrigin.current.x) / appScale, y: (pageY - wallGridOrigin.current.y) / appScale };
+    }
+    return { x: (locationX ?? 0) / appScale, y: (locationY ?? 0) / appScale };
+  }, [appScale]);
+  const wallFrameContains = useCallback((point: Point, frame: TileFrame) => {
+    const padding = 18;
+    return point.x >= frame.x - padding && point.x <= frame.x + frame.width + padding && point.y >= frame.y - padding && point.y <= frame.y + frame.height + padding;
+  }, []);
+  const wallSegmentTouchesFrame = useCallback((from: Point, to: Point, frame: TileFrame) => {
+    const padding = 18;
+    const left = frame.x - padding;
+    const right = frame.x + frame.width + padding;
+    const top = frame.y - padding;
+    const bottom = frame.y + frame.height + padding;
+    return Math.max(from.x, to.x) >= left && Math.min(from.x, to.x) <= right && Math.max(from.y, to.y) >= top && Math.min(from.y, to.y) <= bottom;
+  }, []);
+  const animateWallTouched = useCallback((from: Point | null, to: Point, direction: number) => {
+    Object.entries(wallTileFrames.current).forEach(([id, frame]) => {
+      if (wallTouchedTiles.current.has(id)) return;
+      const touched = wallFrameContains(to, frame) || (from ? wallSegmentTouchesFrame(from, to, frame) : false);
+      if (!touched) return;
+      wallTouchedTiles.current.add(id);
+      wallTileSwings.current[id]?.(direction);
+    });
+  }, [wallFrameContains, wallSegmentTouchesFrame]);
+  const resetWallGesture = useCallback(() => {
+    wallTouchedTiles.current.clear();
+    wallPreviousPoint.current = null;
+  }, []);
+  const beginWallGesture = useCallback((event: KeychainPanEvent) => {
+    if (isEditing) return;
+    wallTouchedTiles.current.clear();
+    updateWallGridOrigin();
+    wallPreviousPoint.current = wallPointFromEvent(event);
+  }, [isEditing, updateWallGridOrigin, wallPointFromEvent]);
+  const moveWallGesture = useCallback((event: KeychainPanEvent) => {
+    if (isEditing) return;
+    const point = wallPointFromEvent(event);
+    const previous = wallPreviousPoint.current;
+    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) > 2) {
+      animateWallTouched(previous, point, point.x < previous.x ? -1 : 1);
+    }
+    wallPreviousPoint.current = point;
+  }, [animateWallTouched, isEditing, wallPointFromEvent]);
+  const handleWallPointerDown = useCallback((event: KeychainPanEvent) => {
+    if (isEditing) return;
+    wallPointerActive.current = true;
+    beginWallGesture(event);
+  }, [beginWallGesture, isEditing]);
+  const handleWallPointerMove = useCallback((event: KeychainPanEvent) => {
+    if (!wallPointerActive.current) return;
+    moveWallGesture(event);
+  }, [moveWallGesture]);
+  const handleWallPointerEnd = useCallback(() => {
+    wallPointerActive.current = false;
+    resetWallGesture();
+  }, [resetWallGesture]);
+  const handleWallMouseDown = useCallback((event: KeychainPanEvent) => {
+    if (isEditing) return;
+    wallMouseActive.current = true;
+    beginWallGesture(event);
+  }, [beginWallGesture, isEditing]);
+  const handleWallMouseMove = useCallback((event: KeychainPanEvent) => {
+    if (!wallMouseActive.current) return;
+    moveWallGesture(event);
+  }, [moveWallGesture]);
+  const handleWallMouseEnd = useCallback(() => {
+    wallMouseActive.current = false;
+    resetWallGesture();
+  }, [resetWallGesture]);
   const handleRoomLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     setRoomSize((previous) => {
@@ -512,10 +1125,15 @@ function HomeScreen({
   }, [roomSize.height, roomSize.width]);
   const wallItems = wallItemIds.map((id) => ITEMS.find((item) => item.id === id)).filter((item): item is Item => Boolean(item));
   const plushItems = plushItemIds.map((id) => ITEMS.find((item) => item.id === id)).filter((item): item is Item => Boolean(item));
-  const selectedIndex = Math.max(0, ITEMS.findIndex((item) => item.id === selected.id));
-  const selectRelative = (offset: number) => {
-    const nextIndex = (selectedIndex + offset + ITEMS.length) % ITEMS.length;
-    onSelect(ITEMS[nextIndex].id);
+  const [characterPickerOpen, setCharacterPickerOpen] = useState(false);
+  const selectedMobby = getMobby(ITEM_MOBBY_IDS[selected.id] ?? 'mobichi');
+  const toggleCharacterPicker = () => {
+    onUiTap();
+    setCharacterPickerOpen((current) => !current);
+  };
+  const chooseCharacter = (item: Item) => {
+    setCharacterPickerOpen(false);
+    onSelect(item.id);
   };
   const toggleEditing = () => {
     onUiTap();
@@ -525,10 +1143,7 @@ function HomeScreen({
   };
   const handleDecorationPress = (kind: HomePlacementKind, index: number, item: Item) => {
     onUiTap();
-    if (!isEditing) {
-      onSelect(item.id);
-      return;
-    }
+    if (!isEditing) return;
     if (!editSelection || editSelection.kind !== kind) {
       setEditSelection({ kind, index, itemId: item.id });
       setEditFeedback('');
@@ -538,8 +1153,8 @@ function HomeScreen({
       setEditSelection(null);
       return;
     }
-    if (kind === 'wall') onSwapWallItems(editSelection.index, index);
-    else onSwapPlushItems(editSelection.index, index);
+    if (kind === 'wall') onSwapWallItems(editSelection.itemId, item.id);
+    else onSwapPlushItems(editSelection.itemId, item.id);
     setEditSelection(null);
     setEditFeedback(kind === 'wall' ? 'ぬいキーの掛け場所を変更しました' : 'ぬいぐるみの置き場所を変更しました');
   };
@@ -551,6 +1166,8 @@ function HomeScreen({
       <View style={styles.homeRoom} onLayout={handleRoomLayout}>
         <Image source={PLUSH_SHELF_BASE} resizeMode="contain" style={styles.homeShelfBase} />
         <Image source={HOME_GARLAND} resizeMode="contain" style={styles.homeGarland} />
+        <View pointerEvents="none" style={styles.homeDecorPlant}><Image source={HOME_DECOR_PLANT} resizeMode="contain" style={styles.homeDecorAsset} /></View>
+        <View pointerEvents="none" style={styles.homeDecorCushions}><Image source={HOME_DECOR_CUSHIONS} resizeMode="contain" style={styles.homeDecorAsset} /></View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={isEditing ? 'ホーム編集を完了' : 'ホームを編集'}
@@ -559,31 +1176,38 @@ function HomeScreen({
         >
           <Text style={[styles.homeEditButtonText, isEditing && styles.homeEditButtonTextActive]}>{isEditing ? '✓ 完了' : '✎ 編集'}</Text>
         </Pressable>
-        <View style={styles.homeWallKeys}>
+        <View
+          ref={wallGridRef}
+          onLayout={updateWallGridOrigin}
+          onPointerDown={handleWallPointerDown}
+          onPointerMove={handleWallPointerMove}
+          onPointerUp={handleWallPointerEnd}
+          onPointerCancel={handleWallPointerEnd}
+          onPointerLeave={handleWallPointerEnd}
+          {...(Platform.OS !== 'web' ? { onTouchStart: handleWallPointerDown, onTouchMove: handleWallPointerMove, onTouchEnd: handleWallPointerEnd, onTouchCancel: handleWallPointerEnd } as any : {})}
+          {...(Platform.OS === 'web' ? { onMouseDown: handleWallMouseDown, onMouseMove: handleWallMouseMove, onMouseUp: handleWallMouseEnd, onMouseLeave: handleWallMouseEnd } as any : {})}
+          style={styles.homeWallKeys}
+        >
           {wallItems.map((item, index) => {
-            const name = item.name.replace(' ぬいキー', '').replace(' ぬい', '');
             const isEditSelected = editSelection?.kind === 'wall' && editSelection.index === index;
             const isEditTarget = editSelection?.kind === 'wall' && editSelection.index !== index;
             return (
-              <Pressable
+              <HomeWallKeychain
                 key={item.id}
-                accessibilityRole="button"
-                accessibilityLabel={isEditing ? `${name}、壁フック${index + 1}` : `${name}をメインモビーにする`}
+                item={item}
+                index={index}
+                selectedId={selected.id}
+                ownedCount={owned[item.id] ?? 0}
+                hidden={item.id === hiddenWallItemId}
+                isEditing={isEditing}
+                isEditSelected={isEditSelected}
+                isEditTarget={isEditTarget}
                 onPress={() => handleDecorationPress('wall', index, item)}
-                style={({ pressed }) => [
-                  styles.homeWallKey,
-                  !isEditing && item.id === selected.id && styles.homeWallKeySelected,
-                  isEditing && styles.homeDecorationEditable,
-                  isEditTarget && styles.homeDecorationTarget,
-                  isEditSelected && styles.homeDecorationEditSelected,
-                  item.id === hiddenWallItemId && styles.homeWallKeyHidden,
-                  pressed && styles.homeSelectablePressed,
-                ]}
-              >
-                <Image source={WOODEN_HOOK} resizeMode="contain" style={styles.homeWallHook} />
-                <Image source={item.keyImage ?? item.image} resizeMode="contain" style={styles.homeWallKeyImage} />
-                {isEditing ? <View style={styles.homeSlotBadge}><Text style={styles.homeSlotBadgeText}>{index + 1}</Text></View> : null}
-              </Pressable>
+                onSwing={onKeychainSwing}
+                gestureManaged={!isEditing}
+                onSwingReady={registerWallSwing}
+                onLayout={(event) => registerWallFrame(item.id, event)}
+              />
             );
           })}
         </View>
@@ -600,48 +1224,52 @@ function HomeScreen({
             const isEditTarget = editSelection?.kind === 'shelf' && editSelection.index !== index;
 
             return (
-              <Pressable
+              <HomeShelfPlush
                 key={item.id}
-                accessibilityRole="button"
-                accessibilityLabel={isEditing ? `${item.name.replace(' ぬい', '')}、土台${index + 1}` : `${item.name.replace(' ぬい', '')}をメインモビーにする`}
+                item={item}
+                index={index}
+                selectedId={selected.id}
+                isEditing={isEditing}
+                isEditSelected={isEditSelected}
+                isEditTarget={isEditTarget}
+                plushImageSize={plushImageSize}
+                canvasPixelsBelowFeet={canvasPixelsBelowFeet}
                 onPress={() => handleDecorationPress('shelf', index, item)}
-                style={({ pressed }) => [
-                  styles.homePlushItem,
-                  !isEditing && item.id === selected.id && styles.homePlushItemSelected,
-                  isEditing && styles.homeDecorationEditable,
-                  isEditTarget && styles.homeDecorationTarget,
-                  isEditSelected && styles.homeDecorationEditSelected,
-                  pressed && styles.homeSelectablePressed,
-                ]}
-              >
-                <Image
-                  source={item.image}
-                  resizeMode="contain"
-                  style={[
-                    styles.homePlushImage,
-                    plushImageSize,
-                    {
-                      // Move the image canvas down by exactly the rendered
-                      // pixels below the feet. The visible foot bottom then
-                      // lands on the shelf artwork's top edge.
-                      bottom: -canvasPixelsBelowFeet,
-                    },
-                  ]}
-                />
-                {isEditing ? <View style={[styles.homeSlotBadge, styles.homePlushSlotBadge]}><Text style={styles.homeSlotBadgeText}>{index + 1}</Text></View> : null}
-              </Pressable>
+                onSwing={onKeychainSwing}
+              />
             );
           })}
         </View>
-        {!isEditing ? <View style={[styles.homeCharacterPicker, compactViewport && styles.homeCharacterPickerCompact]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="前のモビー" onPress={() => selectRelative(-1)} style={styles.homeCharacterArrow}><Text style={styles.homeCharacterArrowText}>‹</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="次のモビー" onPress={() => selectRelative(1)} style={styles.homeCharacterArrow}><Text style={styles.homeCharacterArrowText}>›</Text></Pressable>
-        </View> : null}
+        {!isEditing ? <>
+          {characterPickerOpen ? (
+            <View pointerEvents="box-none" style={styles.homeCharacterPickerOverlay}>
+              <Pressable accessibilityRole="button" accessibilityLabel="メインモビー選択を閉じる" onPress={() => setCharacterPickerOpen(false)} style={styles.homeCharacterPickerBackdrop} />
+              <View style={[styles.homeCharacterPickerMenu, compactViewport && styles.homeCharacterPickerMenuCompact]}>
+                <View style={styles.homeCharacterPickerMenuHeader}>
+                  <Text style={styles.homeCharacterPickerTitle}>メインモビーを選ぶ</Text>
+                  <Pressable accessibilityRole="button" accessibilityLabel="メインモビー選択を閉じる" onPress={() => setCharacterPickerOpen(false)} style={styles.homeCharacterPickerClose}><Text style={styles.homeCharacterPickerCloseText}>×</Text></Pressable>
+                </View>
+                <View style={styles.homeCharacterOptions}>
+                  {ITEMS.map((item) => {
+                    const mobby = getMobby(ITEM_MOBBY_IDS[item.id] ?? 'mobichi');
+                    const isSelected = item.id === selected.id;
+                    return (
+                      <Pressable key={`main-mobby-${item.id}`} accessibilityRole="button" accessibilityLabel={`${mobby.name}をメインモビーにする`} onPress={() => chooseCharacter(item)} style={({ pressed }) => [styles.homeCharacterOption, isSelected && styles.homeCharacterOptionSelected, pressed && styles.homeSelectablePressed]}>
+                        <Image source={item.image} resizeMode="contain" style={styles.homeCharacterOptionImage} />
+                        <Text style={styles.homeCharacterOptionName} numberOfLines={1}>{mobby.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </> : null}
         {isEditing ? (
           <Image source={selected.image} resizeMode="contain" style={[styles.homeMainCharacter, compactViewport && styles.homeMainCharacterCompact, styles.homeMainCharacterEditing]} />
         ) : (
           <View style={[styles.homeMainCharacter, styles.homeMainCharacterPullable, compactViewport && styles.homeMainCharacterCompact]}>
-            <PullableMobby selected={selected} size={compactViewport ? 178 : 220} onPull={() => onInteract('ほっぺ')} />
+            <PullableMobby selected={selected} selectedMobbyName={selectedMobby.name} onCharacterPickerPress={toggleCharacterPicker} specialCentering size={compactViewport ? 178 : 220} onPull={() => onInteract('ほっぺ')} />
           </View>
         )}
         {!isEditing && reaction ? <View pointerEvents="none" style={[styles.homeReactionBubble, { top: shelfSurfaceY + 4 }]}><View style={styles.homeReactionTailBorder} /><View style={styles.homeReactionTail} /><Text style={styles.homeReactionBubbleText}>{reaction}</Text></View> : null}
@@ -654,6 +1282,7 @@ function HomeScreen({
 function WallPlacementFlight({ item, onComplete }: { item: Item; onComplete: () => void }) {
   const { width, height } = useAppLayout();
   const progress = useRef(new Animated.Value(0)).current;
+  const onCompleteRef = useRef(onComplete);
   const appWidth = width;
   const roomHeight = Math.max(520, height - 74);
   const itemIndex = Math.max(0, ITEMS.findIndex((candidate) => candidate.id === item.id));
@@ -665,14 +1294,32 @@ function WallPlacementFlight({ item, onComplete }: { item: Item; onComplete: () 
   const startCenterY = height * 0.55;
 
   useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
     const animation = Animated.sequence([
       Animated.timing(progress, { toValue: 0.18, duration: 360, useNativeDriver: true }),
       Animated.timing(progress, { toValue: 1, duration: 1550, useNativeDriver: true }),
       Animated.delay(650),
     ]);
-    animation.start(({ finished }) => { if (finished) onComplete(); });
-    return () => animation.stop();
-  }, [onComplete, progress]);
+    let completed = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    const completeFlight = () => {
+      if (completed) return;
+      completed = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      onCompleteRef.current();
+    };
+    // Keep the flight animation, but never leave the transparent overlay
+    // blocking the home screen if an animation completion callback is lost.
+    fallbackTimer = setTimeout(completeFlight, 3200);
+    animation.start(({ finished }) => { if (finished) completeFlight(); });
+    return () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      animation.stop();
+    };
+  }, [progress]);
 
   const flightX = progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [startCenterX - 42, startCenterX - 42, targetCenterX - 42] });
   const flightY = progress.interpolate({ inputRange: [0, 0.18, 0.68, 1], outputRange: [startCenterY - 46, startCenterY - 92, targetCenterY - 92, targetCenterY - 46] });
@@ -712,19 +1359,21 @@ type KeychainTileProps = {
   onGestureStart?: (event: KeychainPanEvent) => void;
   onGestureMove?: (event: KeychainPanEvent, gesture: KeychainGesture) => void;
   onGestureEnd?: () => void;
+  onSwing?: () => void;
 };
 
-function KeychainTile({ item, owned, selectedId, onSelect, imageSize = 'normal', placement, gestureManaged = false, onSwingReady, onLayout, onGestureStart, onGestureMove, onGestureEnd }: KeychainTileProps) {
+function KeychainTile({ item, owned, selectedId, onSelect, imageSize = 'normal', placement, gestureManaged = false, onSwingReady, onLayout, onGestureStart, onGestureMove, onGestureEnd, onSwing }: KeychainTileProps) {
   const ownedCount = item ? (owned[item.id] ?? 0) : 0;
   const rotation = useRef(new Animated.Value(0)).current;
   const swing = useCallback((direction: number) => {
+    onSwing?.();
     Animated.sequence([
       Animated.timing(rotation, { toValue: direction, duration: 70, useNativeDriver: true }),
       Animated.timing(rotation, { toValue: -direction * 0.82, duration: 130, useNativeDriver: true }),
       Animated.timing(rotation, { toValue: direction * 0.58, duration: 110, useNativeDriver: true }),
       Animated.spring(rotation, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 8 }),
     ]).start();
-  }, [rotation]);
+  }, [onSwing, rotation]);
   useEffect(() => {
     if (!item || !onSwingReady) return undefined;
     onSwingReady(item.id, swing);
@@ -781,12 +1430,15 @@ type KeychainGridProps = {
   onSelect: (id: string) => void;
   imageSize: KeychainImageSize;
   boardHeight: number;
+  onSwing: () => void;
 };
+
+const EMPTY_OWNED: Record<string, number> = Object.fromEntries(ITEMS.map((item) => [item.id, 0]));
 
 type TileFrame = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
 
-function KeychainGrid({ items, owned, selectedId, onSelect, imageSize, boardHeight }: KeychainGridProps) {
+function KeychainGrid({ items, owned, selectedId, onSelect, imageSize, boardHeight, onSwing }: KeychainGridProps) {
   const { scale: appScale } = useAppLayout();
   const tileFrames = useRef<Record<string, TileFrame>>({});
   const tileSwings = useRef<Record<string, KeychainSwing>>({});
@@ -931,6 +1583,7 @@ function KeychainGrid({ items, owned, selectedId, onSelect, imageSize, boardHeig
           onGestureStart={beginGesture}
           onGestureMove={moveGesture}
           onGestureEnd={resetGesture}
+          onSwing={onSwing}
         />
       ))}
     </View>
@@ -954,7 +1607,7 @@ function getPlushCollectionImageBottom(item: Item) {
   return -(imageHeight - visibleFootBottom);
 }
 
-function CollectionScreen({ items, owned, selectedId, onSelect }: { items: Item[]; owned: Record<string, number>; selectedId: string; onSelect: (id: string) => void }) {
+function CollectionScreen({ items, owned, selectedId, onSelect, onKeychainSwing }: { items: Item[]; owned: Record<string, number>; selectedId: string; onSelect: (id: string) => void; onKeychainSwing: () => void }) {
   const { height: appHeight } = useAppLayout();
   const [mode, setMode] = useState<ItemKind>('ぬいキー');
   const [keyImageSize, setKeyImageSize] = useState<KeychainImageSize>('normal');
@@ -975,7 +1628,7 @@ function CollectionScreen({ items, owned, selectedId, onSelect }: { items: Item[
       {mode === 'ぬいキー' ? <View style={styles.collectionKeySizeTabs}><Pressable onPress={() => setKeyImageSize('normal')} style={[styles.collectionKeySizeTab, keyImageSize === 'normal' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'normal' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'normal' && styles.collectionKeySizeTextActive]}>通常サイズ</Text></Pressable><Pressable onPress={() => setKeyImageSize('small')} style={[styles.collectionKeySizeTab, keyImageSize === 'small' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'small' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'small' && styles.collectionKeySizeTextActive]}>Sサイズ</Text></Pressable></View> : null}
       <View style={[styles.collectionDisplay, { height: COLLECTION_BOARD_TOP + boardHeight }, mode === 'ぬいぐるみ' && styles.collectionDisplayPlush]}>
         {mode === 'ぬいキー' ? (
-          <KeychainGrid items={displayItems} owned={owned} selectedId={selectedId} onSelect={onSelect} imageSize={keyImageSize} boardHeight={boardHeight} />
+          <KeychainGrid items={displayItems} owned={owned} selectedId={selectedId} onSelect={onSelect} imageSize={keyImageSize} boardHeight={boardHeight} onSwing={onKeychainSwing} />
         ) : (
           <View style={styles.plushCollectionShelf}>
             {displayItems.map((item, index) => (
@@ -1080,11 +1733,25 @@ function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onPlaced, on
       ]),
       Animated.delay(380),
     ]);
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let completed = false;
+    const completePlacement = () => {
+      if (completed || placementRunRef.current !== runId) return;
+      completed = true;
+      placementRunRef.current += 1;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      onPlacedRef.current();
+    };
+    // Animated callbacks can be skipped when the web/native animation driver
+    // is interrupted. Keep a bounded fallback so the placement action always
+    // reaches the parent and can navigate to the home screen.
+    fallbackTimer = setTimeout(completePlacement, 1800);
     animation.start(({ finished }) => {
-      if (finished && placementRunRef.current === runId) onPlacedRef.current();
+      if (finished) completePlacement();
     });
     return () => {
       if (placementRunRef.current === runId) placementRunRef.current += 1;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       animation.stop();
     };
   }, [placementBurst, placementMotion, placing]);
@@ -1145,19 +1812,20 @@ function MobbyTimeScreen({ today, stage, onOpen, onReveal, onPlace, onPlaced, on
   );
 }
 
-function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPull: () => void; size?: number }) {
+function PullableMobby({ selected, onPull, size = 320, onCharacterPickerPress, selectedMobbyName, specialCentering = false }: { selected: Item; onPull: () => number; size?: number; onCharacterPickerPress?: () => void; selectedMobbyName?: string; specialCentering?: boolean }) {
   const { scale: appScale } = useAppLayout();
   const mobbyId = itemMobbyId(selected.id);
   const pullAsset = PULL_ASSETS[mobbyId];
   const reactionFrames = PULL_REACTION_FRAMES[mobbyId];
   const [status, setStatus] = useState<'idle' | 'pulling' | 'released' | 'reacting'>('idle');
   const [reactionFrame, setReactionFrame] = useState<number | null>(null);
-  const [reactionPattern, setReactionPattern] = useState<'single' | 'sequence'>(DEFAULT_PULL_REACTION_PATTERN);
+  const [isSpecialReaction, setIsSpecialReaction] = useState(false);
   const [eyeIndex, setEyeIndex] = useState(-1);
   const [mouthIndex, setMouthIndex] = useState(-1);
   const scaleX = useRef(new Animated.Value(1)).current;
   const scaleY = useRef(new Animated.Value(1)).current;
   const reactionMotion = useRef(new Animated.Value(0)).current;
+  const specialMotion = useRef(new Animated.Value(0)).current;
   const reactionAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
   const lastSingleReactionRef = useRef(-1);
   const meshRef = useRef<MobbyPullMeshHandle>(null);
@@ -1186,18 +1854,11 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
   useEffect(() => {
     clearReactionTimers();
     setReactionFrame(null);
+    setIsSpecialReaction(false);
     setStatus('idle');
+    specialMotion.setValue(0);
     resetExpression();
-  }, [clearReactionTimers, mobbyId, resetExpression]);
-
-  const toggleReactionPattern = useCallback(() => {
-    clearReactionTimers();
-    setReactionFrame(null);
-    setStatus('idle');
-    reactionMotion.setValue(0);
-    resetExpression();
-    setReactionPattern((current) => current === 'single' ? 'sequence' : 'single');
-  }, [clearReactionTimers, reactionMotion, resetExpression]);
+  }, [clearReactionTimers, mobbyId, resetExpression, specialMotion]);
 
   const release = useCallback((dx: number, dy: number) => {
     if (Math.hypot(dx, dy) < 4) {
@@ -1205,7 +1866,7 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
       return;
     }
     meshRef.current?.release();
-    onPull();
+    const pullCount = onPull();
     Animated.parallel([
       Animated.spring(scaleX, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 13 }),
       Animated.spring(scaleY, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 13 }),
@@ -1216,38 +1877,58 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
       resetExpression();
       setStatus('reacting');
       reactionMotion.setValue(0);
+      specialMotion.setValue(0);
 
-      if (reactionPattern === 'single') {
-        const previous = lastSingleReactionRef.current;
-        const nextFrame = previous < 0
-          ? Math.floor(Math.random() * reactionFrames.length)
-          : (previous + 1 + Math.floor(Math.random() * (reactionFrames.length - 1))) % reactionFrames.length;
-        lastSingleReactionRef.current = nextFrame;
-        setReactionFrame(nextFrame);
-        reactionAnimationRef.current = Animated.timing(reactionMotion, {
-          toValue: 1,
-          duration: [760, 900, 920, 1500][nextFrame],
-          easing: Easing.linear,
-          useNativeDriver: true,
-        });
-      } else {
-        setReactionFrame(0);
-        [220, 620, 1120].forEach((at, index) => {
-          reactionTimersRef.current.push(setTimeout(() => setReactionFrame(index + 1), at));
-        });
-        reactionAnimationRef.current = Animated.sequence([
-          Animated.timing(reactionMotion, {
-            toValue: 1,
-            duration: 2100,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-          Animated.delay(600),
+      if (pullCount > 0 && pullCount % 10 === 0) {
+        const specialFrame = reactionFrames.length >= 20 ? 19 : reactionFrames.length - 1;
+        setIsSpecialReaction(true);
+        setReactionFrame(null);
+        reactionTimersRef.current.push(setTimeout(() => setReactionFrame(specialFrame), 300));
+        reactionAnimationRef.current = Animated.parallel([
+          Animated.sequence([
+            Animated.timing(specialMotion, { toValue: 0.16, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.timing(specialMotion, { toValue: 0.48, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(specialMotion, { toValue: 0.62, duration: 170, easing: Easing.out(Easing.back(1.8)), useNativeDriver: true }),
+            Animated.timing(specialMotion, { toValue: 0.82, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.delay(650),
+            Animated.timing(specialMotion, { toValue: 1, duration: 460, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.delay(300),
+            Animated.timing(reactionMotion, { toValue: 1, duration: 2550, easing: Easing.linear, useNativeDriver: true }),
+          ]),
         ]);
+        reactionAnimationRef.current.start(({ finished }) => {
+          if (!finished) return;
+          setReactionFrame(null);
+          setIsSpecialReaction(false);
+          setStatus('idle');
+          reactionMotion.setValue(0);
+          specialMotion.setValue(0);
+          reactionTimersRef.current = [];
+          reactionAnimationRef.current = null;
+        });
+        return;
       }
+
+      setIsSpecialReaction(false);
+
+      const previous = lastSingleReactionRef.current;
+      const nextFrame = previous < 0
+        ? Math.floor(Math.random() * reactionFrames.length)
+        : (previous + 1 + Math.floor(Math.random() * (reactionFrames.length - 1))) % reactionFrames.length;
+      lastSingleReactionRef.current = nextFrame;
+      setReactionFrame(nextFrame);
+      reactionAnimationRef.current = Animated.timing(reactionMotion, {
+        toValue: 1,
+        duration: [760, 900, 920, 1500][nextFrame] ?? 1100,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      });
       reactionAnimationRef.current.start(({ finished }) => {
         if (!finished) return;
         setReactionFrame(null);
+        setIsSpecialReaction(false);
         setStatus('idle');
         reactionMotion.setValue(0);
         reactionTimersRef.current = [];
@@ -1262,7 +1943,7 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
       resetExpression();
       reactionTimersRef.current = [];
     }, 550));
-  }, [clearReactionTimers, onPull, reactionFrames, reactionMotion, reactionPattern, resetExpression, scaleX, scaleY]);
+  }, [clearReactionTimers, onPull, reactionFrames, reactionMotion, resetExpression, scaleX, scaleY, specialMotion]);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -1270,6 +1951,8 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
     onPanResponderGrant: (event) => {
       clearReactionTimers();
       setReactionFrame(null);
+      setIsSpecialReaction(false);
+      specialMotion.setValue(0);
       scaleX.stopAnimation();
       scaleY.stopAnimation();
       setStatus('pulling');
@@ -1289,7 +1972,7 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
     },
     onPanResponderRelease: (_event, gesture) => release(gesture.dx / appScale, gesture.dy / appScale),
     onPanResponderTerminate: (_event, gesture) => release(gesture.dx / appScale, gesture.dy / appScale),
-  }), [appScale, clearReactionTimers, pullAsset, release, scaleX, scaleY, size]);
+  }), [appScale, clearReactionTimers, pullAsset, release, scaleX, scaleY, size, specialMotion]);
 
   const meshVisible = Platform.OS === 'web' && (status === 'pulling' || status === 'released');
   const isPullReaction = Boolean(reactionFrames && reactionFrame !== null);
@@ -1331,15 +2014,34 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
   const singleScaleX = reactionMotion.interpolate({ inputRange: [0, 0.12, 0.28, 1], outputRange: [0.95, 1.035, 1, 1] });
   const singleScaleY = reactionMotion.interpolate({ inputRange: [0, 0.12, 0.28, 1], outputRange: [0.91, 1.045, 1, 1] });
   const singleRotate = reactionMotion.interpolate({ inputRange: [0, 0.18, 0.36, 0.58, 1], outputRange: ['0deg', '-1.5deg', '1.5deg', '-0.7deg', '0deg'] });
-  const activeReactionTranslateX = reactionPattern === 'single' ? singleTranslateX : reactionTranslateX;
-  const activeReactionTranslateY = reactionPattern === 'single' ? singleTranslateY : reactionTranslateY;
-  const activeReactionScaleX = reactionPattern === 'single' ? singleScaleX : reactionScaleX;
-  const activeReactionScaleY = reactionPattern === 'single' ? singleScaleY : reactionScaleY;
-  const activeReactionRotate = reactionPattern === 'single' ? singleRotate : reactionRotate;
+  const activeReactionTranslateX = singleTranslateX;
+  const activeReactionTranslateY = singleTranslateY;
+  const activeReactionScaleX = singleScaleX;
+  const activeReactionScaleY = singleScaleY;
+  const activeReactionRotate = singleRotate;
+  const pullableExtraHeight = size >= 300 ? 45 : 12;
+  const specialPeakScale = size >= 300 ? 1.72 : 1.9;
+  const specialHoldScale = size >= 300 ? 1.58 : 1.72;
+  // The home character starts low in the room. During the large special
+  // reaction, carry it toward the visual center instead of scaling in place.
+  const specialLift = specialCentering ? -150 : (size >= 300 ? -38 : -30);
+  const specialScale = specialMotion.interpolate({
+    inputRange: [0, 0.16, 0.48, 0.62, 0.82, 0.9, 1],
+    outputRange: [1, 0.9, specialPeakScale, specialPeakScale * 0.96, specialHoldScale, specialHoldScale, 1],
+  });
+  const specialTranslateX = specialMotion.interpolate({
+    inputRange: [0, 0.42, 0.48, 0.54, 0.62, 0.7, 0.82, 1],
+    outputRange: [0, 0, -10, 10, -7, 5, 0, 0],
+  });
+  const specialTranslateY = specialMotion.interpolate({
+    inputRange: [0, 0.16, 0.48, 0.62, 0.82, 0.9, 1],
+    outputRange: [0, 6, specialLift - 8, specialLift, specialLift, specialLift, 0],
+  });
+  const reactionEffectKind = !isSpecialReaction && reactionFrame !== null && reactionFrame < 4 ? reactionFrame : -1;
   return (
-    <View style={[styles.pullableWrap, { width: size, height: size + (size >= 300 ? 45 : 12) }]}>
-      <View style={[styles.pullableStage, { width: size, height: size }]}>
-        {reactionFrames ? <Pressable accessibilityRole="button" accessibilityLabel={`リアクションを${reactionPattern === 'single' ? '4種連続' : '単発'}に切り替える`} onPress={toggleReactionPattern} style={({ pressed }) => [styles.reactionPatternButton, size >= 300 ? styles.reactionPatternButtonLarge : styles.reactionPatternButtonCompact, pressed && styles.reactionPatternButtonPressed]}><Text style={styles.reactionPatternCaption}>反応</Text><Text style={styles.reactionPatternValue}>{reactionPattern === 'single' ? '単発' : '4連続'}</Text></Pressable> : null}
+    <View style={[styles.pullableWrap, { width: size, height: size + pullableExtraHeight }]}>
+      <Animated.View style={[styles.pullableStage, { width: size, height: size, transform: [{ translateX: specialTranslateX }, { translateY: specialTranslateY }, { scale: specialScale }] }]}>
+        {onCharacterPickerPress ? <Pressable accessibilityRole="button" accessibilityLabel={`メインモビーを選ぶ（現在：${selectedMobbyName ?? selected.name}）`} onPress={onCharacterPickerPress} style={({ pressed }) => [styles.characterPickerButton, size >= 300 ? styles.characterPickerButtonLarge : styles.characterPickerButtonCompact, pressed && styles.characterPickerButtonPressed]}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></Pressable> : null}
         <Animated.View {...panResponder.panHandlers} accessibilityRole="button" accessibilityLabel="モビーのほっぺを引っ張る" style={[styles.pullableSlot, { width: size, height: size, opacity: meshVisible || isPullReaction ? 0 : 1, transform: [{ scaleX }, { scaleY }] }]}>
           <Image source={pullAsset.body} resizeMode="contain" style={[styles.pullableBody, { width: size, height: size }]} />
         </Animated.View>
@@ -1352,13 +2054,13 @@ function PullableMobby({ selected, onPull, size = 320 }: { selected: Item; onPul
           opacity: isPullReaction ? 1 : 0,
           transform: [{ translateX: activeReactionTranslateX }, { translateY: activeReactionTranslateY }, { rotate: activeReactionRotate }, { scaleX: activeReactionScaleX }, { scaleY: activeReactionScaleY }],
         }]}>{reactionFrames.map((frame, index) => <Image key={index} source={frame} resizeMode="contain" fadeDuration={0} style={[styles.pullableReactionFrame, { width: size, height: size, opacity: reactionFrame === index ? 1 : 0 }]} />)}</Animated.View> : null}
-        {isPullReaction ? <Animated.View pointerEvents="none" style={[styles.pullableReactionBurst, { opacity: burstOpacity, transform: [{ scale: burstScale }] }]} /> : null}
-        {reactionFrame === 0 ? <View pointerEvents="none" style={styles.animeEffectLayer}>{Array.from({ length: 8 }, (_, index) => <Animated.View key={index} style={[styles.animeBurstRayWrap, { opacity: burstOpacity, transform: [{ rotate: `${index * 45}deg` }, { scale: burstScale }] }]}><View style={[styles.animeBurstRay, { height: size * 0.11, left: size / 2 - 1.5, top: size * 0.025 }]} /></Animated.View>)}</View> : null}
-        {reactionFrame === 1 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: reactionPattern === 'single' ? singleEffectOpacity : cheekEffectOpacity, transform: [{ translateX: cheekEffectShift }] }]}><Text style={[styles.animeCheekLine, styles.animeCheekLineLeft]}>)))</Text><Text style={[styles.animeCheekLine, styles.animeCheekLineRight]}>(((</Text></Animated.View> : null}
-        {reactionFrame === 2 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: reactionPattern === 'single' ? singleEffectOpacity : protestEffectOpacity, transform: [{ translateX: protestEffectShift }] }]}><View style={[styles.animeSpeedGroup, styles.animeSpeedGroupLeft]}><View style={[styles.animeSpeedLine, { width: size * 0.16 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.11 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.07 }]} /></View><View style={[styles.animeSpeedGroup, styles.animeSpeedGroupRight]}><View style={[styles.animeSpeedLine, { width: size * 0.16 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.11 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.07 }]} /></View><Text style={styles.animeAngerMark}>〽</Text></Animated.View> : null}
-        {reactionFrame === 3 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: reactionPattern === 'single' ? singleEffectOpacity : sulkEffectOpacity, transform: [{ translateY: sulkEffectDrop }] }]}><View style={styles.animeGloomLines}><View style={styles.animeGloomLine} /><View style={[styles.animeGloomLine, styles.animeGloomLineShort]} /><View style={styles.animeGloomLine} /></View><Text style={styles.animeSigh}>≈</Text></Animated.View> : null}
-      </View>
-      {status !== 'idle' ? <View pointerEvents="none" style={styles.pullStatus}><Text style={styles.pullStatusText}>{status === 'pulling' ? 'のびてる……' : 'びよーん！'}</Text></View> : null}
+        {reactionEffectKind === 0 ? <Animated.View pointerEvents="none" style={[styles.pullableReactionBurst, { opacity: burstOpacity, transform: [{ scale: burstScale }] }]} /> : null}
+        {reactionEffectKind === 0 ? <View pointerEvents="none" style={styles.animeEffectLayer}>{Array.from({ length: 8 }, (_, index) => <Animated.View key={index} style={[styles.animeBurstRayWrap, { opacity: burstOpacity, transform: [{ rotate: `${index * 45}deg` }, { scale: burstScale }] }]}><View style={[styles.animeBurstRay, { height: size * 0.11, left: size / 2 - 1.5, top: size * 0.025 }]} /></Animated.View>)}</View> : null}
+        {reactionEffectKind === 1 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: singleEffectOpacity, transform: [{ translateX: cheekEffectShift }] }]}><View style={[styles.animeCheekTrail, styles.animeCheekTrailLeft]}><View style={[styles.animeCheekStroke, { width: size * 0.13 }]} /><View style={[styles.animeCheekStroke, { width: size * 0.09 }]} /><View style={[styles.animeCheekStroke, { width: size * 0.055 }]} /></View><View style={[styles.animeCheekTrail, styles.animeCheekTrailRight]}><View style={[styles.animeCheekStroke, { width: size * 0.13 }]} /><View style={[styles.animeCheekStroke, { width: size * 0.09 }]} /><View style={[styles.animeCheekStroke, { width: size * 0.055 }]} /></View></Animated.View> : null}
+        {reactionEffectKind === 2 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: singleEffectOpacity, transform: [{ translateX: protestEffectShift }] }]}><View style={[styles.animeSpeedGroup, styles.animeSpeedGroupLeft]}><View style={[styles.animeSpeedLine, { width: size * 0.16 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.11 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.07 }]} /></View><View style={[styles.animeSpeedGroup, styles.animeSpeedGroupRight]}><View style={[styles.animeSpeedLine, { width: size * 0.16 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.11 }]} /><View style={[styles.animeSpeedLine, { width: size * 0.07 }]} /></View></Animated.View> : null}
+        {reactionEffectKind === 3 ? <Animated.View pointerEvents="none" style={[styles.animeEffectLayer, { opacity: singleEffectOpacity, transform: [{ translateY: sulkEffectDrop }] }]}><View style={styles.animeGloomLines}><View style={styles.animeGloomLine} /><View style={[styles.animeGloomLine, styles.animeGloomLineShort]} /><View style={styles.animeGloomLine} /></View></Animated.View> : null}
+      </Animated.View>
+      {status !== 'idle' ? <View pointerEvents="none" style={styles.pullStatus}><Text style={styles.pullStatusText}>{status === 'pulling' ? 'のびてる……' : isSpecialReaction ? '10回目のスペシャル反応！' : 'びよーん！'}</Text></View> : null}
     </View>
   );
 }
@@ -1412,7 +2114,7 @@ function selectPullExpression(
   };
 }
 
-function TouchScreen({ selected, onInteract, reaction }: { selected: Item; onInteract: (kind: string) => void; reaction: string }) {
+function TouchScreen({ selected, onInteract, reaction }: { selected: Item; onInteract: (kind: string) => number; reaction: string }) {
   return (
     <View style={styles.touchScreenBackground}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.touchScrollContent}>
@@ -1467,7 +2169,6 @@ function BottomNav({ screen, setScreen }: { screen: Screen; setScreen: (screen: 
     { id: 'home', label: 'ホーム', icon: HOUSE },
     { id: 'collection', label: 'コレクション', icon: MOBBY_ICON },
     { id: 'time', label: 'MOBBY TIME', icon: SPARKLES },
-    { id: 'touch', label: 'TOUCH', icon: MOBBY_ICON },
     { id: 'trade', label: 'TRADE', icon: FRIEND },
   ];
   return <View style={styles.bottomNav}>{tabs.map((tab) => <Pressable key={tab.id} onPress={() => setScreen(tab.id)} style={({ pressed }) => [styles.navTab, screen === tab.id && styles.navTabActive, pressed && styles.pressed]}><Image source={tab.icon} resizeMode="contain" style={[styles.navIcon, screen === tab.id && styles.navIconActive]} /><Text style={[styles.navLabel, screen === tab.id && styles.navLabelActive]}>{tab.label}</Text>{screen === tab.id ? <View style={styles.navDot} /> : null}</Pressable>)}</View>;
@@ -1490,10 +2191,18 @@ export default function IndexScreen() {
   const [wallPlacement, setWallPlacement] = useState<Item | null>(null);
   const [homeWallItemIds, setHomeWallItemIds] = useState(() => ITEMS.map((item) => item.id));
   const [homePlushItemIds, setHomePlushItemIds] = useState(() => ITEMS.filter((item) => item.kind === 'ぬいぐるみ').map((item) => item.id));
+  const [storageReady, setStorageReady] = useState(false);
+  const [tutorialComplete, setTutorialComplete] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('none');
+  const [favoriteDraftId, setFavoriteDraftId] = useState(ITEMS[0].id);
   const pullReactionIndexRef = useRef<Record<string, number>>({});
+  const lastKeyJingleRef = useRef(0);
+  const placementHandledIdRef = useRef<string | null>(null);
   const { engageBgm, playSfx } = useMobbyAudio({ bgmEnabled: appStarted && soundEnabled, sfxEnabled: soundEnabled });
   const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
-  const today = ITEMS.find((item) => item.id === todayId) ?? ITEMS[0];
+  const baseToday = ITEMS.find((item) => item.id === todayId) ?? ITEMS[0];
+  const tutorialRewardActive = !tutorialComplete && ['mobbyTime', 'opening', 'place', 'wallFlight'].includes(onboardingStep);
+  const today = tutorialRewardActive ? toStarterKeyItem(baseToday) : baseToday;
   const viewportWidth = Math.max(1, viewportSize.width - safeAreaInsets.left - safeAreaInsets.right);
   const viewportHeight = Math.max(1, viewportSize.height - safeAreaInsets.top - safeAreaInsets.bottom);
   const appScale = Math.max(0.01, Math.min(1, viewportWidth / DESIGN_WIDTH, viewportHeight / DESIGN_MIN_HEIGHT));
@@ -1512,6 +2221,46 @@ export default function IndexScreen() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    AsyncStorage.multiGet([STORAGE_TUTORIAL_COMPLETE, STORAGE_FAVORITE, STORAGE_OWNED])
+      .then((entries) => {
+        if (!mounted) return;
+        const values = Object.fromEntries(entries);
+        const completed = values[STORAGE_TUTORIAL_COMPLETE] === 'true';
+        const favoriteValue = values[STORAGE_FAVORITE] ?? ITEMS[0].id;
+        const storedFavorite = ITEMS.some((item) => item.id === favoriteValue) ? favoriteValue : ITEMS[0].id;
+        let storedOwned = completed ? INITIAL_OWNED : EMPTY_OWNED;
+        if (completed && values[STORAGE_OWNED]) {
+          try {
+            const parsed = JSON.parse(values[STORAGE_OWNED]) as Record<string, number>;
+            storedOwned = Object.fromEntries(ITEMS.map((item) => [item.id, Math.max(0, Number(parsed[item.id]) || 0)]));
+          } catch {
+            storedOwned = INITIAL_OWNED;
+          }
+        }
+        setTutorialComplete(completed);
+        setFavoriteDraftId(storedFavorite);
+        setSelectedId(storedFavorite);
+        setOwned(storedOwned);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setOwned(EMPTY_OWNED);
+      })
+      .finally(() => { if (mounted) setStorageReady(true); });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady || !tutorialComplete) return;
+    AsyncStorage.multiSet([
+      [STORAGE_TUTORIAL_COMPLETE, 'true'],
+      [STORAGE_FAVORITE, selectedId],
+      [STORAGE_OWNED, JSON.stringify(owned)],
+    ]).catch(() => undefined);
+  }, [owned, selectedId, storageReady, tutorialComplete]);
+
+  useEffect(() => {
     setTodayId(ITEMS[Math.floor(Math.random() * ITEMS.length)].id);
     const timer = setInterval(() => setSecondsLeft((value) => value > 0 ? value - 1 : 0), 1000);
     return () => clearInterval(timer);
@@ -1521,53 +2270,88 @@ export default function IndexScreen() {
     playSfx('tap');
     setReaction('');
     setSelectedId(id);
-    setScreen('touch');
   }, [playSfx]);
   const revealToday = useCallback(() => {
     playSfx('reward');
     setMobbyTimeStage('revealed');
-  }, [playSfx]);
+    if (onboardingStep === 'opening' || onboardingStep === 'mobbyTime') setOnboardingStep('place');
+  }, [onboardingStep, playSfx]);
   const finalizePlacement = useCallback((item: Item) => {
     setMobbyTimeStage('placed');
     setOwned((current) => ({ ...current, [item.id]: (current[item.id] ?? 0) + 1 }));
     setSelectedId(item.id);
     const placement = item.kind === 'ぬいキー' ? '壁' : '棚';
     setNotice(`NEW! ${item.name}を${placement}に追加しました`);
-  }, []);
+    if (['place', 'opening', 'mobbyTime', 'wallFlight'].includes(onboardingStep)) {
+      setScreen('home');
+      setOnboardingStep('home');
+    }
+  }, [onboardingStep]);
   const placeToday = useCallback(() => {
+    if (placementHandledIdRef.current === today.id) return;
+    placementHandledIdRef.current = today.id;
     setSelectedId(today.id);
     if (today.kind === 'ぬいキー') {
       setNotice('');
       setWallPlacement(today);
       setScreen('home');
+      if (onboardingStep === 'place') setOnboardingStep('wallFlight');
       return;
     }
     playSfx('place');
     finalizePlacement(today);
-  }, [finalizePlacement, playSfx, today]);
+  }, [finalizePlacement, onboardingStep, playSfx, today]);
+  const startPlacement = useCallback(() => {
+    playSfx('tap');
+    // Wall rewards need to enter the home flow immediately. The wall-flight
+    // overlay then provides the visual handoff and owns its own safe fallback.
+    if (today.kind === 'ぬいキー') {
+      placeToday();
+      return;
+    }
+    setMobbyTimeStage('placing');
+  }, [placeToday, playSfx, today.kind]);
   const completeWallPlacement = useCallback(() => {
     if (!wallPlacement) return;
     playSfx('place');
     finalizePlacement(wallPlacement);
     setWallPlacement(null);
   }, [finalizePlacement, playSfx, wallPlacement]);
-  const swapHomeWallItems = useCallback((fromIndex: number, toIndex: number) => {
+  const swapHomeWallItems = useCallback((fromId: string, toId: string) => {
     setHomeWallItemIds((current) => {
       const next = [...current];
+      const fromIndex = next.indexOf(fromId);
+      const toIndex = next.indexOf(toId);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return current;
       [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
       return next;
     });
   }, []);
-  const swapHomePlushItems = useCallback((fromIndex: number, toIndex: number) => {
+  const swapHomePlushItems = useCallback((fromId: string, toId: string) => {
     setHomePlushItemIds((current) => {
       const next = [...current];
+      const fromIndex = next.indexOf(fromId);
+      const toIndex = next.indexOf(toId);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return current;
       [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
       return next;
     });
   }, []);
 
+  const visibleHomeWallItemIds = useMemo(() => {
+    // Keep every wall slot in the layout. HomeWallKeychain renders only the
+    // wooden hook for items the user does not own, so empty positions stay
+    // anchored to their intended locations without showing placeholder art.
+    return homeWallItemIds;
+  }, [homeWallItemIds]);
+  const visibleHomePlushItemIds = useMemo(
+    () => homePlushItemIds.filter((id) => (owned[id] ?? 0) > 0),
+    [homePlushItemIds, owned],
+  );
+
   const openMobbyTimeNotification = useCallback(() => {
     playSfx('tap');
+    placementHandledIdRef.current = null;
     const next = ITEMS[Math.floor(Math.random() * ITEMS.length)];
     setTodayId(next.id);
     setSecondsLeft(1800);
@@ -1584,17 +2368,27 @@ export default function IndexScreen() {
   }, [playSfx]);
 
   const interact = useCallback((kind: string) => {
-    playSfx('tap');
     if (kind !== 'ほっぺ') {
+      playSfx('tap');
       setReaction('？');
-      return;
+      return 0;
     }
     const mobby = getMobby(ITEM_MOBBY_IDS[selected.id] ?? 'mobichi');
     const lines = mobby.lines.tease;
     const currentIndex = pullReactionIndexRef.current[selected.id] ?? 0;
     setReaction(lines[currentIndex % lines.length]);
-    pullReactionIndexRef.current[selected.id] = currentIndex + 1;
+    const nextCount = currentIndex + 1;
+    pullReactionIndexRef.current[selected.id] = nextCount;
+    playSfx(nextCount % 10 === 0 ? 'reward' : 'tap');
+    return nextCount;
   }, [playSfx, selected.id]);
+
+  const playKeychainJingle = useCallback(() => {
+    const now = Date.now();
+    if (now - lastKeyJingleRef.current < 90) return;
+    lastKeyJingleRef.current = now;
+    playSfx('keyJingle');
+  }, [playSfx]);
 
   const navigateTo = useCallback((nextScreen: Screen) => {
     playSfx('tap');
@@ -1615,6 +2409,53 @@ export default function IndexScreen() {
     engageBgm();
     setSoundEnabled(true);
   }, [engageBgm, soundEnabled]);
+
+  const startApp = useCallback(() => {
+    setAppStarted(true);
+    setScreen('home');
+    if (!tutorialComplete) setOnboardingStep('favorite');
+  }, [tutorialComplete]);
+
+  const confirmFavorite = useCallback(() => {
+    playSfx('reward');
+    placementHandledIdRef.current = null;
+    setSelectedId(favoriteDraftId);
+    setTodayId(favoriteDraftId);
+    setOwned(EMPTY_OWNED);
+    setSecondsLeft(1800);
+    setMobbyTimeStage('arrived');
+    setScreen('time');
+    setNotice('最初のグッズが届きました。箱をタップして受け取ろう！');
+    setOnboardingStep('mobbyTime');
+  }, [favoriteDraftId, playSfx]);
+
+  const finishOnboarding = useCallback(() => {
+    playSfx('reward');
+    setTutorialComplete(true);
+    setOnboardingStep('none');
+    setScreen('home');
+    setNotice('チュートリアル完了！あとは自由にモビーと遊べます');
+  }, [playSfx]);
+
+  const advanceOnboarding = useCallback(() => {
+    playSfx('tap');
+    if (onboardingStep === 'home') {
+      setScreen('collection');
+      setOnboardingStep('collection');
+      return;
+    }
+    if (onboardingStep === 'collection') {
+      setScreen('time');
+      setOnboardingStep('time');
+      return;
+    }
+    if (onboardingStep === 'time') {
+      setScreen('trade');
+      setOnboardingStep('trade');
+      return;
+    }
+    if (onboardingStep === 'trade') finishOnboarding();
+  }, [finishOnboarding, onboardingStep, playSfx]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -1644,15 +2485,18 @@ export default function IndexScreen() {
                 />
               ) : null}
               <View style={styles.screenBody}>
-                {screen === 'home' ? <HomeScreen selected={selected} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.id} wallItemIds={homeWallItemIds} plushItemIds={homePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} onInteract={interact} reaction={reaction} /> : null}
-                {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} /> : null}
-                {screen === 'time' ? <MobbyTimeScreen today={today} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); }} onReveal={revealToday} onPlace={() => { playSfx('tap'); setMobbyTimeStage('placing'); }} onPlaced={placeToday} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
+                {screen === 'home' ? <HomeScreen selected={selected} owned={owned} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.id} wallItemIds={visibleHomeWallItemIds} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} /> : null}
+                {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} /> : null}
+                {screen === 'time' ? <MobbyTimeScreen today={today} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); if (onboardingStep === 'mobbyTime') setOnboardingStep('opening'); }} onReveal={revealToday} onPlace={startPlacement} onPlaced={placeToday} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
                 {screen === 'trade' ? <TradeScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectHomeMobby} /> : null}
               </View>
-              <BottomNav screen={screen} setScreen={navigateTo} />
+              {!['favorite', 'mobbyTime', 'opening', 'place', 'wallFlight'].includes(onboardingStep) ? <BottomNav screen={screen} setScreen={navigateTo} /> : null}
               {wallPlacement ? <WallPlacementFlight item={wallPlacement} onComplete={completeWallPlacement} /> : null}
-              {!appStarted ? <OpeningScreen onBegin={() => { engageBgm(); playSfx('reward'); }} onStart={() => setAppStarted(true)} /> : null}
+              {onboardingStep !== 'none' && onboardingStep !== 'favorite' ? <OnboardingGuide step={onboardingStep} onNext={advanceOnboarding} onSkip={finishOnboarding} /> : null}
+              {onboardingStep === 'favorite' ? <FavoriteMobbyPicker selectedId={favoriteDraftId} onSelect={(id) => { playSfx('tap'); setFavoriteDraftId(id); }} onConfirm={confirmFavorite} /> : null}
+              {!appStarted ? <OpeningScreen onBegin={() => { engageBgm(); playSfx('reward'); }} onStart={startApp} /> : null}
+              {!storageReady ? <LoadingOverlay /> : null}
             </View>
           </AppLayoutContext.Provider>
         </View>
@@ -1666,25 +2510,62 @@ const styles = StyleSheet.create({
   outer: { flex: 1, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', backgroundColor: Platform.OS === 'web' ? '#E7D3BC' : '#FFF7EA' },
   appViewport: { position: 'relative', overflow: 'hidden', backgroundColor: '#E7D3BC', ...(Platform.OS === 'web' ? { boxShadow: '0 16px 48px rgba(81, 48, 54, 0.18)' } : {}) },
   appShell: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, backgroundColor: '#D8A46F', overflow: Platform.OS === 'web' ? ('clip' as any) : 'hidden', transformOrigin: 'top left' },
-  appShellBackground: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', objectFit: 'cover' },
+  appShellBackground: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   collectionReferenceBackground: { ...StyleSheet.absoluteFillObject, width: DESIGN_WIDTH, height: '100%' },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 140, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(76,53,71,0.36)' },
+  loadingCard: { width: 286, minHeight: 290, paddingHorizontal: 24, paddingTop: 15, paddingBottom: 22, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF8E9', borderWidth: 1.5, borderColor: '#DDBA94', shadowColor: '#4D3246', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 14 },
+  loadingMascotWrap: { width: 210, height: 198, alignItems: 'center', justifyContent: 'flex-end' },
+  loadingMascotWrapCompact: { width: 90, height: 62, marginBottom: -9 },
+  loadingMascotImage: { width: 185, height: 175 },
+  loadingMascotImageCompact: { width: 68, height: 58 },
+  loadingDots: { height: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  loadingDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#735574' },
+  loadingTitle: { color: '#5D405B', fontSize: 18, lineHeight: 23, fontWeight: '900', marginTop: 2 },
+  loadingText: { color: '#98737E', fontSize: 10, lineHeight: 15, fontWeight: '800', marginTop: 4 },
+  onboardingOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 115, alignItems: 'center', justifyContent: 'center' },
+  onboardingBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(67,44,61,0.48)' },
+  favoriteCard: { position: 'absolute', top: 32, left: 14, right: 14, bottom: 24, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 16, borderRadius: 30, alignItems: 'center', backgroundColor: '#FFF9EC', borderWidth: 1.6, borderColor: '#DDB892', shadowColor: '#4D3246', shadowOpacity: 0.32, shadowRadius: 19, shadowOffset: { width: 0, height: 10 }, elevation: 16 },
+  onboardingKicker: { color: '#A0797F', fontSize: 8, fontWeight: '900', letterSpacing: 1.8 },
+  favoriteTitle: { color: '#553B59', fontSize: 23, lineHeight: 29, fontWeight: '900', marginTop: 4 },
+  favoriteLead: { width: 320, color: '#8D6C76', fontSize: 10, lineHeight: 15, fontWeight: '800', textAlign: 'center', marginTop: 4, marginBottom: 10 },
+  favoriteGrid: { flex: 1, width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'space-between', gap: 7 },
+  favoriteOption: { width: '31.5%', minHeight: 103, paddingHorizontal: 3, paddingTop: 4, paddingBottom: 5, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7EEE4', borderWidth: 1.5, borderColor: '#E7D5C2', position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  favoriteOptionPressed: { opacity: 0.76, transform: [{ scale: 0.96 }] },
+  favoriteImage: { width: 76, height: 76 },
+  favoriteName: { color: '#654A61', fontSize: 9, lineHeight: 12, fontWeight: '900', maxWidth: '94%' },
+  favoriteCheck: { position: 'absolute', top: 4, right: 4, width: 19, height: 19, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#FFF9EB' },
+  favoriteCheckText: { color: '#FFF', fontSize: 10, lineHeight: 12, fontWeight: '900' },
+  onboardingPrimaryButton: { width: '100%', minHeight: 48, marginTop: 10, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6B547D', borderWidth: 1.2, borderColor: '#E3C7D5', shadowColor: '#4E365B', shadowOpacity: 0.2, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  onboardingPrimaryButtonPressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
+  onboardingPrimaryText: { color: '#FFF9EC', fontSize: 13, fontWeight: '900', letterSpacing: 0.4 },
+  guideOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 100 },
+  guideNavHighlight: { position: 'absolute', bottom: Platform.OS === 'web' ? 17 : 10, width: 76, height: 60, padding: 3, borderRadius: 20, borderWidth: 2, borderColor: '#C9778B', backgroundColor: 'rgba(255,240,225,0.18)', zIndex: 104, shadowColor: '#6A4158', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 10 },
+  guideNavHighlightInner: { flex: 1, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,247,228,0.92)' },
+  guideCard: { position: 'absolute', left: 14, right: 14, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 24, backgroundColor: 'rgba(255,249,236,0.98)', borderWidth: 1.5, borderColor: '#DDB991', shadowColor: '#4E3449', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 11 },
+  guideCardBottom: { bottom: 84, minHeight: 132 },
+  guideCardTop: { top: 78, minHeight: 104 },
+  guideHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  guideStep: { color: '#A3727E', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  guideSkip: { color: '#91717B', fontSize: 9, fontWeight: '900', textDecorationLine: 'underline' },
+  guideTitle: { color: '#5C405B', fontSize: 15, lineHeight: 20, fontWeight: '900', marginTop: 3 },
+  guideBody: { color: '#876872', fontSize: 10, lineHeight: 15, fontWeight: '800', marginTop: 3 },
+  guideButton: { alignSelf: 'flex-end', minWidth: 100, height: 34, marginTop: 9, paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6B547D' },
+  guideButtonText: { color: '#FFF9EC', fontSize: 10, fontWeight: '900' },
   openingScreen: { ...StyleSheet.absoluteFillObject, zIndex: 100, overflow: 'hidden' },
-  openingBackdrop: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', objectFit: 'cover' },
+  openingBackdrop: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  openingTapSurface: { ...StyleSheet.absoluteFillObject, zIndex: 6, backgroundColor: 'transparent' },
   openingTitleWrap: { position: 'absolute', top: 34, left: 24, right: 24, alignItems: 'center', zIndex: 8 },
   openingTitlePlaque: { width: 310, height: 129, alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
+  openingLogoImage: { width: 280, height: 99 },
   openingTitle: { color: '#5A3A69', fontSize: 43, lineHeight: 45, fontWeight: '900', letterSpacing: 2.2, textShadowColor: 'rgba(255,249,231,0.72)', textShadowRadius: 3 },
   openingTitleSub: { color: '#8B647E', fontSize: 9, fontWeight: '900', letterSpacing: 2.6, marginTop: 1 },
   openingTagline: { color: '#694C5E', fontSize: 12, fontWeight: '900', marginTop: -7, textShadowColor: 'rgba(255,250,233,0.9)', textShadowRadius: 4 },
-  openingScene: { position: 'absolute', top: 176, left: 0, right: 0, height: 432 },
-  openingHalo: { position: 'absolute', top: 38, left: '50%', width: 300, height: 300, marginLeft: -150, zIndex: 1 },
-  openingMobby: { position: 'absolute', top: 69, left: '50%', width: 222, height: 252, marginLeft: -111, zIndex: 3 },
-  openingPackage: { position: 'absolute', top: 258, left: '50%', width: 180, height: 180, marginLeft: -90, zIndex: 4 },
+  openingScene: { position: 'absolute', top: 0, left: 0, right: 0, height: 428 },
+  openingOpenedBox: { position: 'absolute', top: 0, left: '50%', width: 360, height: 360, marginLeft: -180, zIndex: 1 },
   openingKeyDecoration: { position: 'absolute' },
-  openingSparkle: { position: 'absolute', color: '#FFF0A5', fontSize: 27, fontWeight: '900', zIndex: 5, textShadowColor: '#D77E97', textShadowRadius: 6 },
-  openingSparkleOne: { top: 61, left: 54 },
-  openingSparkleTwo: { top: 76, right: 58, fontSize: 22 },
-  openingSparkleThree: { top: 248, right: 39, fontSize: 18 },
-  openingStartWrap: { position: 'absolute', left: 0, right: 0, bottom: 26, alignItems: 'center', zIndex: 9 },
+  openingMobby: { position: 'absolute', top: 69, left: '50%', width: 222, height: 252, marginLeft: -111, zIndex: 3 },
+  openingUnopenedPackage: { position: 'absolute', left: '50%', zIndex: 4 },
+  openingStartWrap: { position: 'absolute', left: 18, right: 18, bottom: 18, alignItems: 'center', zIndex: 9 },
   openingStartButton: { width: 292, height: 126, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   openingStartLoading: { opacity: 0.78 },
   openingStartPressed: { transform: [{ scale: 0.96 }] },
@@ -1745,6 +2626,9 @@ const styles = StyleSheet.create({
   homeRoom: { flex: 1, position: 'relative', overflow: 'hidden' },
   homeShelfBase: { position: 'absolute', top: '-15%', left: 0, right: 0, width: '100%', height: '100%', zIndex: 0 },
   homeGarland: { position: 'absolute', top: -27, left: 5, width: 430, height: 138, zIndex: 1, opacity: 0.86 },
+  homeDecorPlant: { position: 'absolute', left: -5, bottom: 63, width: 108, height: 144, zIndex: 4, opacity: 0.9 },
+  homeDecorCushions: { position: 'absolute', right: 5, bottom: 78, width: 112, height: 74, zIndex: 5, opacity: 0.9 },
+  homeDecorAsset: { width: '100%', height: '100%' },
   homeEditButton: { position: 'absolute', top: 2, right: 12, zIndex: 24, minWidth: 70, height: 34, paddingHorizontal: 12, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,250,239,0.94)', borderWidth: 1.2, borderColor: '#D7B18D', shadowColor: '#624651', shadowOpacity: 0.16, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
   homeEditButtonActive: { backgroundColor: '#6B547D', borderColor: '#EEDAE4' },
   homeEditButtonText: { color: '#6B4A62', fontSize: 11, fontWeight: '900' },
@@ -1764,9 +2648,10 @@ const styles = StyleSheet.create({
   homeSlotBadge: { position: 'absolute', top: -8, right: -5, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6B547D', borderWidth: 1.5, borderColor: '#FFF9EA', zIndex: 8 },
   homeSlotBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
   homeWallHook: { position: 'absolute', top: -25, left: '50%', width: 54, height: 81, marginLeft: -27, zIndex: 0 },
+  homeWallKeySwing: { alignItems: 'center', transformOrigin: '50% 0%', marginTop: 11 },
   // The hook plate's round center is the hanging point. Start each keychain
   // there so the chain visibly comes out of the center of the wood hook.
-  homeWallKeyImage: { width: 76, height: 84, marginTop: 11 },
+  homeWallKeyImage: { width: 76, height: 84 },
   // The wall image has its first wooden shelf directly below the key pegs.
   // Keep the plush feet on that shelf board instead of letting them fall onto
   // the rug at the bottom of the room.
@@ -1778,14 +2663,30 @@ const styles = StyleSheet.create({
   // padding below the feet).
   homePlushShelf: { position: 'absolute', left: '8%', right: '8%', height: '18%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', zIndex: 3 },
   homePlushItem: { width: '22%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 13, position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  homePlushSwing: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', transformOrigin: '50% 100%' },
   homePlushItemSelected: { backgroundColor: 'rgba(255,244,196,0.32)', shadowColor: '#FFF0A8', shadowOpacity: 0.8, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
   homePlushImage: { width: 70, height: 80 },
   homePlushSlotBadge: { top: -5, right: -4 },
   homeSelectablePressed: { opacity: 0.74, transform: [{ scale: 0.96 }] },
-  homeCharacterPicker: { position: 'absolute', left: 14, right: 14, bottom: 82, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
+  homeCharacterPicker: { position: 'absolute', left: 14, right: 14, bottom: 82, alignItems: 'center', zIndex: 24 },
   homeCharacterPickerCompact: { bottom: 52 },
-  homeCharacterArrow: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,249,237,0.92)', borderWidth: 1.2, borderColor: '#E2BF9B', shadowColor: '#684B4B', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
-  homeCharacterArrowText: { color: '#76516C', fontSize: 30, lineHeight: 32, marginTop: -2 },
+  homeCharacterSelectButton: { minWidth: 152, minHeight: 47, paddingHorizontal: 17, paddingVertical: 6, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,249,237,0.95)', borderWidth: 1.2, borderColor: '#DDB997', shadowColor: '#684B4B', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 4, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  homeCharacterSelectEyebrow: { color: '#A07B78', fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  homeCharacterSelectName: { color: '#6B4A62', fontSize: 13, fontWeight: '900', marginTop: 1, maxWidth: 170 },
+  homeCharacterSelectHint: { color: '#9C7774', fontSize: 8, fontWeight: '800', marginTop: 1 },
+  homeCharacterPickerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 70 },
+  homeCharacterPickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(54,36,54,0.24)', zIndex: 30 },
+  homeCharacterPickerMenu: { position: 'absolute', left: 12, right: 12, bottom: 132, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 10, borderRadius: 22, backgroundColor: 'rgba(255,250,241,0.98)', borderWidth: 1.4, borderColor: '#D7B18D', shadowColor: '#3E294D', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 10, zIndex: 40 },
+  homeCharacterPickerMenuCompact: { bottom: 100 },
+  homeCharacterPickerMenuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 6, marginBottom: 5 },
+  homeCharacterPickerTitle: { color: '#6B4A62', fontSize: 12, fontWeight: '900', letterSpacing: 0.4 },
+  homeCharacterPickerClose: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4DFD7' },
+  homeCharacterPickerCloseText: { color: '#76516C', fontSize: 18, lineHeight: 20, marginTop: -1 },
+  homeCharacterOptions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 5 },
+  homeCharacterOption: { width: '31.8%', minHeight: 61, paddingVertical: 3, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
+  homeCharacterOptionSelected: { backgroundColor: '#F8E7BD', borderColor: '#DCA66D' },
+  homeCharacterOptionImage: { width: 38, height: 42 },
+  homeCharacterOptionName: { width: '100%', color: '#76516C', fontSize: 8, fontWeight: '900', textAlign: 'center', marginTop: 1 },
   homeMainCharacter: { position: 'absolute', left: '50%', bottom: 90, width: 220, height: 250, marginLeft: -110, zIndex: 8 },
   homeMainCharacterCompact: { bottom: 60, width: 178, height: 198, marginLeft: -89 },
   homeMainCharacterPullable: { alignItems: 'center', justifyContent: 'flex-end', overflow: 'visible' },
@@ -1934,7 +2835,7 @@ const styles = StyleSheet.create({
   stepLineDone: { backgroundColor: '#8E687D' },
   encounterScene: { height: 300, borderRadius: 26, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   encounterHaloAsset: { position: 'absolute', width: 252, height: 252, zIndex: 2 },
-  packageAnimationWrap: { zIndex: 3, alignItems: 'center', justifyContent: 'center' },
+  packageAnimationWrap: { zIndex: 3, alignItems: 'center', justifyContent: 'center', marginTop: 72 },
   mobbyPackage: { width: 210, height: 210, alignItems: 'center', justifyContent: 'center', position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   packagePressed: { transform: [{ rotate: '1deg' }, { scale: 0.96 }] },
   packageAsset: { position: 'absolute', width: 210, height: 210 },
@@ -1987,27 +2888,28 @@ const styles = StyleSheet.create({
   pullableReactionLayer: { ...StyleSheet.absoluteFillObject, zIndex: 5 },
   pullableReactionFrame: { ...StyleSheet.absoluteFillObject },
   pullableReactionBurst: { position: 'absolute', zIndex: 4, left: '18%', top: '18%', width: '64%', height: '64%', borderRadius: 999, borderWidth: 4, borderColor: 'rgba(255, 225, 151, 0.8)' },
-  reactionPatternButton: { position: 'absolute', zIndex: 20, width: 54, minHeight: 48, paddingHorizontal: 5, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: 'rgba(255, 249, 235, 0.94)', borderWidth: 1.5, borderColor: '#D7AF84', shadowColor: '#6F4738', shadowOpacity: 0.16, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
-  reactionPatternButtonLarge: { left: -50, top: '43%' },
-  reactionPatternButtonCompact: { left: -60, top: '41%' },
-  reactionPatternButtonPressed: { transform: [{ scale: 0.94 }], opacity: 0.88 },
-  reactionPatternCaption: { color: '#9A786D', fontSize: 8, fontWeight: '800', lineHeight: 11 },
-  reactionPatternValue: { color: '#68465F', fontSize: 11, fontWeight: '900', lineHeight: 15 },
+  characterPickerButton: { position: 'absolute', zIndex: 20, width: 62, minHeight: 48, paddingHorizontal: 5, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: 'rgba(255, 249, 235, 0.94)', borderWidth: 1.5, borderColor: '#C5A4C9', shadowColor: '#5D466A', shadowOpacity: 0.16, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+  characterPickerButtonLarge: { left: -68, top: '43%' },
+  characterPickerButtonCompact: { left: -68, top: '41%' },
+  characterPickerButtonPressed: { transform: [{ scale: 0.94 }], opacity: 0.88 },
+  characterPickerCaption: { color: '#8B6D91', fontSize: 8, fontWeight: '800', lineHeight: 11 },
+  characterPickerValue: { color: '#68465F', fontSize: 11, fontWeight: '900', lineHeight: 15 },
   animeEffectLayer: { ...StyleSheet.absoluteFillObject, zIndex: 6 },
   animeBurstRayWrap: { ...StyleSheet.absoluteFillObject },
   animeBurstRay: { position: 'absolute', width: 3, borderRadius: 3, backgroundColor: 'rgba(255, 225, 151, 0.88)' },
-  animeCheekLine: { position: 'absolute', top: '38%', color: 'rgba(255, 220, 146, 0.9)', fontSize: 18, fontWeight: '900', letterSpacing: -4 },
-  animeCheekLineLeft: { left: '3%', transform: [{ rotate: '-10deg' }] },
-  animeCheekLineRight: { right: '3%', transform: [{ rotate: '10deg' }] },
+  animeCheekTrail: { position: 'absolute', top: '39%', gap: 6 },
+  animeCheekTrailLeft: { left: '2%', alignItems: 'flex-start', transform: [{ rotate: '-8deg' }] },
+  animeCheekTrailRight: { right: '2%', alignItems: 'flex-end', transform: [{ rotate: '8deg' }] },
+  animeCheekStroke: { height: 3, borderRadius: 3, borderWidth: 0.7, borderColor: 'rgba(196,128,105,0.45)', backgroundColor: 'rgba(255,231,181,0.88)' },
   animeSpeedGroup: { position: 'absolute', top: '31%', gap: 7 },
   animeSpeedGroupLeft: { left: '1%', alignItems: 'flex-start' },
   animeSpeedGroupRight: { right: '1%', alignItems: 'flex-end' },
   animeSpeedLine: { height: 3, borderRadius: 3, backgroundColor: 'rgba(211, 111, 82, 0.8)' },
-  animeAngerMark: { position: 'absolute', right: '12%', top: '15%', color: 'rgba(205, 78, 62, 0.82)', fontSize: 23, fontWeight: '900', transform: [{ rotate: '-18deg' }] },
+
   animeGloomLines: { position: 'absolute', left: '17%', top: '9%', flexDirection: 'row', gap: 7, alignItems: 'flex-start' },
   animeGloomLine: { width: 3, height: 27, borderRadius: 3, backgroundColor: 'rgba(103, 82, 120, 0.56)' },
   animeGloomLineShort: { height: 18 },
-  animeSigh: { position: 'absolute', right: '10%', top: '37%', color: 'rgba(255, 238, 198, 0.72)', fontSize: 25, fontWeight: '900', transform: [{ rotate: '-12deg' }] },
+
   pullStatus: { position: 'absolute', bottom: -2, left: 0, right: 0, alignItems: 'center', zIndex: 4 },
   pullStatusText: { color: '#8A6672', fontSize: 9, fontWeight: '900', backgroundColor: 'rgba(255,248,232,0.78)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   stageLight: { position: 'absolute', width: 300, height: 300, borderRadius: 160, backgroundColor: 'rgba(255,248,229,0.55)' },
