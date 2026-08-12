@@ -1,9 +1,9 @@
 :root {
   --font-display:
-    'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
+    'MochiyPopOne_400Regular', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
+  --font-rounded: 'MPLUSRounded1c_700Bold', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
 
@@ -17,4 +17,11 @@ body,
 
 body {
   color: #5a351f;
+  font-family: var(--font-rounded);
+}
+
+/* Body copy uses M PLUS Rounded 1c; display headings keep Mochiy Pop One. */
+#root [dir='auto'],
+#root button {
+  font-feature-settings: 'palt' 1;
 }
