@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 
 import { MobbyPullMesh, type MobbyPullMeshHandle } from '@/components/MobbyPullMesh';
+import { MobbyCarousel } from '@/components/MobbyCarousel';
 import { getMobby, type MobbyId } from '@/data/mobies';
 import { PULL_ASSETS, type MobbyPullAsset, type PullFrame } from '@/data/mobbyPullAssets';
 import { useMobbyAudio } from '@/hooks/useMobbyAudio';
@@ -39,6 +40,12 @@ type OnboardingStep = 'none' | 'favorite' | 'mobbyTime' | 'opening' | 'place' | 
 
 const DESIGN_WIDTH = 440;
 const DESIGN_MIN_HEIGHT = 720;
+const BOTTOM_NAV_CELLS = [
+  { left: 14, width: 78 },
+  { left: 115, width: 76 },
+  { left: 217, width: 76 },
+  { left: 318, width: 78 },
+] as const;
 
 function isDarkTextColor(color: unknown) {
   if (typeof color !== 'string') return true;
@@ -126,7 +133,6 @@ const MOBBY_TIME_OPENED_BOX = require('../../assets/mobby-time-opened-box.png');
 const MOBBY_TIME_TIMER_PLAQUE = require('../../assets/mobby-time/timer-plaque.png');
 const MOBBY_TIME_MESSAGE_PLAQUE = require('../../assets/mobby-time/message-plaque.png');
 const MOBBY_TIME_REWARD_SEAL = require('../../assets/mobby-time/reward-seal.png');
-const MOBBY_TIME_REVEAL_HALO = require('../../assets/mobby-time/reveal-halo.png');
 const UI_WIDE_PAPER = require('../../assets/home-ui/panels/wide-paper.png');
 const UI_BOTTOM_STRIP = require('../../assets/home-ui/panels/bottom-strip.png');
 const UI_CREAM_BUTTON = require('../../assets/home-ui/buttons/cream-button.png');
@@ -524,7 +530,7 @@ function Header({ onBell, soundEnabled, onToggleSound }: { onBell: () => void; s
           <Text style={[styles.soundButtonText, !soundEnabled && styles.soundButtonTextMuted]}>{soundEnabled ? '♪' : '♪'}</Text>
           {!soundEnabled ? <View pointerEvents="none" style={styles.soundMutedSlash} /> : null}
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="お知らせ" onPress={onBell} style={styles.bellButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="お知らせ" onPress={onBell} style={[styles.bellButton, styles.pressableFocusReset]}>
           <Image source={BELL} resizeMode="contain" style={styles.bellIcon} />
           <View style={styles.bellBadge}><Text style={styles.bellBadgeText}>3</Text></View>
         </Pressable>
@@ -686,6 +692,9 @@ function FavoriteMobbyPicker({
   onConfirm: () => void;
 }) {
   const entrance = useRef(new Animated.Value(0)).current;
+  const { scale } = useAppLayout();
+  const selectedItem = ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0];
+  const selectedMobbyId = ITEM_MOBBY_IDS[selectedItem.id] ?? 'mobichi';
 
   useEffect(() => {
     Animated.spring(entrance, { toValue: 1, speed: 18, bounciness: 7, useNativeDriver: true }).start();
@@ -695,28 +704,20 @@ function FavoriteMobbyPicker({
     <View style={styles.onboardingOverlay}>
       <View style={styles.onboardingBackdrop} />
       <Animated.View style={[styles.favoriteCard, { opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }]}>
+        <View pointerEvents="none" style={styles.favoriteGlassSheen} />
         <Text style={styles.onboardingKicker}>WELCOME TO MOBBY</Text>
         <Text style={styles.favoriteTitle}>お気に入りのモビーは？</Text>
-        <Text style={styles.favoriteLead}>最初の相棒をひとり選んでね。あとからいつでも変えられます。</Text>
-        <View style={styles.favoriteGrid}>
-          {ITEMS.map((item) => {
-            const active = item.id === selectedId;
-            return (
-              <Pressable
-                key={item.id}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: active }}
-                onPress={() => onSelect(item.id)}
-                style={({ pressed }) => [styles.favoriteOption, active && { borderColor: item.accent, backgroundColor: `${item.accent}33` }, pressed && styles.favoriteOptionPressed]}
-              >
-                <Image source={item.image} resizeMode="contain" style={styles.favoriteImage} />
-                <Text style={styles.favoriteName} numberOfLines={1}>{item.name.replace(' ぬいキー', '').replace(' ぬい', '')}</Text>
-                {active ? <View style={[styles.favoriteCheck, { backgroundColor: item.accent }]}><Text style={styles.favoriteCheckText}>✓</Text></View> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-        <Pressable accessibilityRole="button" onPress={onConfirm} style={({ pressed }) => [styles.onboardingPrimaryButton, pressed && styles.onboardingPrimaryButtonPressed]}>
+        <Text style={styles.favoriteLead}>モビーは全部で9キャラ！ 最初の相棒を選んでね。{`\n`}左右にスワイプ・あとからいつでも変更できます。</Text>
+        <MobbyCarousel
+          interactionScale={scale}
+          selectedId={selectedMobbyId}
+          onSelect={(mobby) => {
+            const item = ITEMS.find((candidate) => ITEM_MOBBY_IDS[candidate.id] === mobby.id);
+            if (item) onSelect(item.id);
+          }}
+          style={styles.favoriteCarousel}
+        />
+        <Pressable accessibilityRole="button" accessibilityLabel={`${itemCharacterName(selectedItem)}と始める`} onPress={onConfirm} style={({ pressed }) => [styles.onboardingPrimaryButton, pressed && styles.onboardingPrimaryButtonPressed]}>
           <Text style={styles.onboardingPrimaryText}>この子と始める</Text>
         </Pressable>
       </Animated.View>
@@ -747,18 +748,19 @@ function OnboardingGuide({ step, onNext, onSkip }: { step: OnboardingStep; onNex
   const copy = ONBOARDING_COPY[step];
   if (!copy) return null;
   const interactive = Boolean(copy.action);
-  const cardAtTop = !interactive || typeof copy.navIndex === 'number';
+  const cardAtTop = !interactive;
+  const navCell = typeof copy.navIndex === 'number' ? BOTTOM_NAV_CELLS[copy.navIndex] : null;
   return (
-    <View pointerEvents="box-none" style={styles.guideOverlay}>
-      {typeof copy.navIndex === 'number' ? <View pointerEvents="none" style={[styles.guideNavHighlight, { left: 14 + copy.navIndex * 80.4 }]}><View style={styles.guideNavHighlightInner} /></View> : null}
-      <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={[styles.guideCard, cardAtTop ? styles.guideCardTop : styles.guideCardBottom]}>
+    <View pointerEvents={interactive ? 'auto' : 'box-none'} style={styles.guideOverlay}>
+      {navCell ? <View pointerEvents="none" style={[styles.guideNavHighlight, { left: 8 + navCell.left, width: navCell.width }]}><View style={styles.guideNavHighlightInner} /></View> : null}
+      <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={[styles.guideCard, cardAtTop ? styles.guideCardTop : styles.guideCardBottom]} imageStyle={styles.guideCardImage}>
         <View style={styles.guideHeadingRow}>
           <Text style={styles.guideStep}>{copy.step}</Text>
           {interactive ? <Pressable accessibilityRole="button" onPress={onSkip} hitSlop={10}><Text style={styles.guideSkip}>スキップ</Text></Pressable> : null}
         </View>
         <Text style={styles.guideTitle}>{copy.title}</Text>
         <Text style={styles.guideBody}>{copy.body}</Text>
-        {copy.action ? <Pressable accessibilityRole="button" onPress={onNext} style={({ pressed }) => [styles.guideButton, pressed && styles.onboardingPrimaryButtonPressed]}><ImageBackground source={UI_CORAL_BUTTON} resizeMode="stretch" style={styles.assetButtonInner}><Text style={styles.guideButtonText}>{copy.action}</Text></ImageBackground></Pressable> : null}
+        {copy.action ? <Pressable accessibilityRole="button" onPress={onNext} style={({ pressed }) => [styles.guideButton, styles.pressableFocusReset, pressed && styles.onboardingPrimaryButtonPressed]}><ImageBackground source={UI_CORAL_BUTTON} resizeMode="stretch" style={styles.assetButtonInner}><Text style={styles.guideButtonText}>{copy.action}</Text></ImageBackground></Pressable> : null}
       </ImageBackground>
     </View>
   );
@@ -1279,14 +1281,14 @@ function HomeScreen({
     <View style={styles.homeScreenBackground}>
       <View style={styles.homeRoom} onLayout={handleRoomLayout}>
         <Image source={PLUSH_SHELF_BASE} resizeMode="contain" style={styles.homeShelfBase} />
-        <Image source={HOME_GARLAND} resizeMode="contain" style={styles.homeGarland} />
+        <View pointerEvents="none" style={styles.homeGarland}><Image source={HOME_GARLAND} resizeMode="contain" style={styles.homeDecorAsset} /></View>
         <View pointerEvents="none" style={styles.homeDecorPlant}><Image source={HOME_DECOR_PLANT} resizeMode="contain" style={styles.homeDecorAsset} /></View>
         <View pointerEvents="none" style={styles.homeDecorCushions}><Image source={HOME_DECOR_CUSHIONS} resizeMode="contain" style={styles.homeDecorAsset} /></View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={isEditing ? 'ホーム編集を完了' : 'ホームを編集'}
           onPress={toggleEditing}
-          style={({ pressed }) => [styles.homeEditButton, isEditing && styles.homeEditButtonActive, pressed && styles.homeSelectablePressed]}
+          style={({ pressed }) => [styles.homeEditButton, styles.pressableFocusReset, isEditing && styles.homeEditButtonActive, pressed && styles.homeSelectablePressed]}
         >
           <ImageBackground source={isEditing ? UI_CORAL_BUTTON : UI_CREAM_BUTTON} resizeMode="stretch" style={styles.homeEditButtonAsset}><Text style={[styles.homeEditButtonText, isEditing && styles.homeEditButtonTextActive]}>{isEditing ? 'おわり' : 'お部屋'}</Text></ImageBackground>
         </Pressable>
@@ -1359,7 +1361,7 @@ function HomeScreen({
           {characterPickerOpen ? (
             <View pointerEvents="box-none" style={styles.homeCharacterPickerOverlay}>
               <Pressable accessibilityRole="button" accessibilityLabel="メインモビー選択を閉じる" onPress={() => setCharacterPickerOpen(false)} style={styles.homeCharacterPickerBackdrop} />
-              <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={[styles.homeCharacterPickerMenu, compactViewport && styles.homeCharacterPickerMenuCompact]}>
+              <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={[styles.homeCharacterPickerMenu, compactViewport && styles.homeCharacterPickerMenuCompact]} imageStyle={styles.panelStretchImage}>
                 <View style={styles.homeCharacterPickerMenuHeader}>
                   <Text style={styles.homeCharacterPickerTitle}>メインモビーを選ぶ</Text>
                   <Pressable accessibilityRole="button" accessibilityLabel="メインモビー選択を閉じる" onPress={() => setCharacterPickerOpen(false)} style={styles.homeCharacterPickerClose}><Text style={styles.homeCharacterPickerCloseText}>×</Text></Pressable>
@@ -1369,7 +1371,7 @@ function HomeScreen({
                     const mobby = getMobby(ITEM_MOBBY_IDS[item.id] ?? 'mobichi');
                     const isSelected = item.id === selected.id;
                     return (
-                      <Pressable key={`main-mobby-${item.id}`} accessibilityRole="button" accessibilityLabel={`${mobby.name}をメインモビーにする`} onPress={() => chooseCharacter(item)} style={({ pressed }) => [styles.homeCharacterOption, isSelected && styles.homeCharacterOptionSelected, pressed && styles.homeSelectablePressed]}>
+                      <Pressable key={`main-mobby-${item.id}`} accessibilityRole="radio" accessibilityState={{ checked: isSelected }} accessibilityLabel={`${mobby.name}をメインモビーにする`} onPress={() => chooseCharacter(item)} style={({ pressed }) => [styles.homeCharacterOption, isSelected && styles.homeCharacterOptionSelected, pressed && styles.homeSelectablePressed]}>
                         <Image source={item.image} resizeMode="contain" style={styles.homeCharacterOptionImage} />
                         <Text style={styles.homeCharacterOptionName} numberOfLines={1}>{mobby.name}</Text>
                       </Pressable>
@@ -1403,7 +1405,7 @@ function WallPlacementFlight({ item, variant, onComplete }: { item: Item; varian
   const itemIndex = Math.max(0, ITEMS.findIndex((candidate) => candidate.id === item.id));
   const row = Math.floor(itemIndex / 5);
   const column = itemIndex % 5;
-  const targetCenterX = appWidth * (0.1431 + column * 0.17845);
+  const targetCenterX = appWidth * (0.07 + (column + 0.5) * 0.86 / 5);
   const targetCenterY = 74 + roomHeight * 0.07 + row * roomHeight * 0.1849 + 53;
   const startCenterX = appWidth / 2;
   const startCenterY = height * 0.55;
@@ -1735,9 +1737,9 @@ function CollectionScreen({ items, owned, selectedId, onSelect, onKeychainSwing 
       <Image source={COLLECTION_DISPLAY_BOARD} resizeMode="stretch" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
       <View style={styles.collectionHeaderBar}>
         <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.collectionHeaderCopy}><Text style={styles.collectionHeaderTitle}>集めたモビー</Text></ImageBackground>
-        <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.collectionModeTabs}><Pressable onPress={() => setMode('ぬいキー')} style={[styles.collectionModeTab, mode === 'ぬいキー' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text></Pressable><Pressable onPress={() => setMode('ぬいぐるみ')} style={[styles.collectionModeTab, mode === 'ぬいぐるみ' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable></ImageBackground>
+        <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.collectionModeTabs} imageStyle={styles.panelStretchImage}><Pressable onPress={() => setMode('ぬいキー')} style={[styles.collectionModeTab, styles.pressableFocusReset, mode === 'ぬいキー' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text></Pressable><Pressable onPress={() => setMode('ぬいぐるみ')} style={[styles.collectionModeTab, styles.pressableFocusReset, mode === 'ぬいぐるみ' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable></ImageBackground>
       </View>
-      {mode === 'ぬいキー' ? <View style={styles.collectionKeySizeTabs}><Text style={styles.collectionKeySizeLabel}>サイズ</Text><Pressable onPress={() => setKeyImageSize('normal')} style={[styles.collectionKeySizeTab, keyImageSize === 'normal' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'normal' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'normal' && styles.collectionKeySizeTextActive]}>ノーマル</Text></Pressable><Pressable onPress={() => setKeyImageSize('small')} style={[styles.collectionKeySizeTab, keyImageSize === 'small' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'small' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'small' && styles.collectionKeySizeTextActive]}>S</Text></Pressable></View> : null}
+      {mode === 'ぬいキー' ? <View style={styles.collectionKeySizeTabs}><Text style={styles.collectionKeySizeLabel}>サイズ</Text><Pressable onPress={() => setKeyImageSize('normal')} style={[styles.collectionKeySizeTab, styles.pressableFocusReset, keyImageSize === 'normal' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'normal' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'normal' && styles.collectionKeySizeTextActive]}>ノーマル</Text></Pressable><Pressable onPress={() => setKeyImageSize('small')} style={[styles.collectionKeySizeTab, styles.pressableFocusReset, keyImageSize === 'small' && styles.collectionKeySizeTabActive]} accessibilityRole="tab" accessibilityState={{ selected: keyImageSize === 'small' }}><Text style={[styles.collectionKeySizeText, keyImageSize === 'small' && styles.collectionKeySizeTextActive]}>S</Text></Pressable></View> : null}
       <View style={[styles.collectionDisplay, { height: COLLECTION_BOARD_TOP + boardHeight }, mode === 'ぬいぐるみ' && styles.collectionDisplayPlush]}>
         {mode === 'ぬいキー' ? (
           <KeychainGrid items={displayItems} owned={owned} selectedId={selectedId} onSelect={onSelect} imageSize={keyImageSize} boardHeight={boardHeight} onSwing={onKeychainSwing} />
@@ -1772,7 +1774,7 @@ function CollectionScreen({ items, owned, selectedId, onSelect, onKeychainSwing 
 
 function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace, onPlaced, onTrade, secondsLeft }: { today: Item; todayVariant: CollectibleVariant; stage: MobbyTimeStage; onOpen: () => void; onReveal: () => void; onPlace: () => void; onPlaced: () => void; onTrade: () => void; secondsLeft: number }) {
   const { width: appWidth, height: appHeight } = useAppLayout();
-  const [headerHeight, setHeaderHeight] = useState(132);
+  const [headerHeight, setHeaderHeight] = useState(110);
   const active = secondsLeft > 0;
   const minutes = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
   const seconds = (secondsLeft % 60).toString().padStart(2, '0');
@@ -1783,7 +1785,6 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
   const packageMotion = useRef(new Animated.Value(0)).current;
   const revealMotion = useRef(new Animated.Value(0)).current;
   const magicGlow = useRef(new Animated.Value(0)).current;
-  const revealFlash = useRef(new Animated.Value(0)).current;
   const placementMotion = useRef(new Animated.Value(0)).current;
   const placementBurst = useRef(new Animated.Value(0)).current;
   const onRevealRef = useRef(onReveal);
@@ -1804,7 +1805,6 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
       openingRunRef.current += 1;
       packageMotion.setValue(0);
       magicGlow.setValue(0);
-      revealFlash.setValue(0);
       return;
     }
     const runId = ++openingRunRef.current;
@@ -1819,9 +1819,7 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
         ]),
         Animated.timing(magicGlow, { toValue: 1, duration: 500, useNativeDriver: true }),
       ]),
-      Animated.delay(230),
-      Animated.timing(revealFlash, { toValue: 1, duration: 170, useNativeDriver: true }),
-      Animated.delay(110),
+      Animated.delay(510),
     ]);
     animation.start(({ finished }) => {
       if (finished && openingRunRef.current === runId) onRevealRef.current();
@@ -1830,7 +1828,7 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
       if (openingRunRef.current === runId) openingRunRef.current += 1;
       animation.stop();
     };
-  }, [magicGlow, opening, packageMotion, revealFlash]);
+  }, [magicGlow, opening, packageMotion]);
 
   useEffect(() => {
     if (!placing) {
@@ -1907,11 +1905,12 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
   }, []);
   const packageTransform = {
     transform: [
-      { translateX: packageMotion.interpolate({ inputRange: [-1, 0, 1], outputRange: [7, 14, 21] }) },
-      { rotate: packageMotion.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-4deg', '-2deg', '1deg'] }) },
+      { translateX: packageMotion.interpolate({ inputRange: [-1, 0, 1], outputRange: [-7, 0, 7] }) },
+      { rotate: packageMotion.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-3deg', '0deg', '3deg'] }) },
       { scale: magicGlow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) },
     ],
   };
+  const openButtonLabel = !active ? 'また明日会おう' : opening ? '開封中…' : '箱をタップして開封しよう';
   return (
     <View style={styles.timeScrollContent}>
       <View onLayout={handleHeaderLayout} style={styles.timeHeader}><Text style={styles.timeTitle}>{active ? 'MOBBY TIME' : 'また明日'}</Text><Text style={styles.timeHeaderSub}>今日のモビーが会いにきたよ</Text><ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} resizeMode="contain" style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{active ? 'あと' : '次回まで'}</Text><Text style={styles.bigTimerValue}>{active ? `${minutes}:${seconds}` : '明日'}</Text></ImageBackground></View>
@@ -1921,18 +1920,21 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
         <View style={styles.encounterScene}>
           {!revealed ? (
             <Animated.View style={[styles.packageAnimationWrap, packageTransform]}>
-            <Pressable accessibilityRole="button" accessibilityLabel="届いた箱を開ける" onPress={startOpening} disabled={!active || opening} style={({ pressed }) => [styles.mobbyPackage, pressed && styles.packagePressed]}>
-              <Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={styles.packageAsset} />
-              <View pointerEvents="none" style={styles.packageBrandOverlay}><Text style={styles.packageLogo}>MOBBY</Text><Text style={styles.packageHint}>TAP TO OPEN</Text></View>
+            <Pressable accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onPress={startOpening} disabled={!active || opening} style={({ pressed }) => [styles.mobbyPackage, pressed && styles.packagePressed]}>
+              <Image source={opening ? MOBBY_TIME_OPENED_BOX : MOBBY_TIME_PACKAGE} resizeMode="contain" style={[styles.packageAsset, opening && styles.openedPackageAsset]} />
+              {!opening ? <View pointerEvents="none" style={styles.packageBrandOverlay}><Text style={styles.packageLogo}>MOBBY</Text><Text style={styles.packageHint}>TAP TO OPEN</Text></View> : null}
             </Pressable>
             </Animated.View>
-          ) : <Animated.View style={[styles.encounterRewardWrap, { transform: placing ? [{ translateY: placementMotion.interpolate({ inputRange: [0, 1], outputRange: [0, placementDistance] }) }, { scale: placementMotion.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1.16, 0.86] }) }, { rotate: placementMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '-5deg', '0deg'] }) }] : [{ translateX: 15 }, { rotate: '-3deg' }, { scale: revealMotion }] }]}><Image source={rewardImage} resizeMode="contain" style={[styles.encounterKeyImage, todayVariant === 'key-small' && styles.encounterSmallKeyImage]} /></Animated.View>}
-          {opening ? <><Animated.Image source={MOBBY_TIME_REVEAL_HALO} resizeMode="contain" style={[styles.magicRing, { opacity: magicGlow, transform: [{ scale: magicGlow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1.35] }) }] }]} /><View pointerEvents="none" style={styles.magicParticles}><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text></View><Animated.View pointerEvents="none" style={[styles.revealFlash, { opacity: revealFlash }]} /></> : null}
+          ) : <>
+            {!placing && !placed ? <Image source={MOBBY_TIME_OPENED_BOX} resizeMode="contain" style={styles.encounterOpenedBox} /> : null}
+            <Animated.View style={[styles.encounterRewardWrap, { transform: placing ? [{ translateY: placementMotion.interpolate({ inputRange: [0, 1], outputRange: [-38, placementDistance] }) }, { scale: placementMotion.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1.16, 0.86] }) }, { rotate: placementMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '-5deg', '0deg'] }) }] : placed ? [{ scale: revealMotion }] : [{ translateY: -38 }, { scale: revealMotion }] }]}><Image source={rewardImage} resizeMode="contain" style={[styles.encounterKeyImage, todayVariant === 'key-small' && styles.encounterSmallKeyImage]} /></Animated.View>
+          </>}
+          {opening ? <View pointerEvents="none" style={styles.magicParticles}><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text></View> : null}
           {placing ? <Animated.View pointerEvents="none" style={[styles.placementSparkles, { opacity: placementBurst }]}><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text><Text style={styles.placementSparkle}>★</Text><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text></Animated.View> : null}
           <ImageBackground source={MOBBY_TIME_MESSAGE_PLAQUE} resizeMode="contain" style={styles.encounterBubble}><Text style={styles.encounterBubbleTitle}>{!active ? 'また明日' : placed ? '飾ったよ' : placing ? `${placement}へ移動中` : revealed ? rewardName : opening ? 'もうすぐ会えるよ' : '箱をタップ'}</Text><Text style={styles.encounterBubbleText}>{!active ? '次のMOBBY TIMEを待ってね' : placed ? `${collectibleVariantLabel(todayVariant)}が${placement}に仲間入り` : placing ? '大切に飾っています' : revealed ? `今日の${collectibleVariantLabel(todayVariant)}` : opening ? 'なにが入っているかな' : '開封しよう'}</Text></ImageBackground>
           {revealed && !placed && !placing ? <ImageBackground source={MOBBY_TIME_REWARD_SEAL} resizeMode="contain" style={styles.newBadge}><Text style={styles.newBadgeText}>NEW!</Text></ImageBackground> : null}
         </View>
-        {!revealed ? <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.encounterCaptionPlaque}><Text style={styles.encounterCaption}>{!active ? '次のMOBBY TIMEを楽しみにしていてね' : opening ? '箱の中から光があふれている…！' : '箱をタップして開封しよう'}</Text></ImageBackground> : null}
+        {!revealed ? <Pressable accessibilityRole="button" accessibilityLabel={openButtonLabel} accessibilityState={{ disabled: !active || opening }} disabled={!active || opening} onPress={startOpening} style={({ pressed }) => [styles.encounterOpenButton, (!active || opening) && styles.encounterOpenButtonDisabled, pressed && styles.encounterOpenButtonPressed]}><ImageBackground source={UI_CORAL_BUTTON} resizeMode="stretch" style={styles.encounterOpenButtonAsset}><Text style={styles.encounterOpenButtonText}>{openButtonLabel}</Text></ImageBackground></Pressable> : null}
         {revealed ? <Pressable accessibilityRole="button" accessibilityLabel={placed ? '残り時間で友達と交換' : `${placement}に追加する`} onPress={placed ? onTrade : onPlace} disabled={!active || placing} style={({ pressed }) => [styles.timePrimaryButton, (!active || placing) && styles.timePrimaryButtonInactive, pressed && styles.pressed]}><ImageBackground source={UI_CREAM_BUTTON} resizeMode="stretch" style={styles.assetButtonInner}><Image source={placed ? EXCHANGE : MOBBY_ICON} resizeMode="contain" style={styles.primaryButtonIcon} /><Text style={[styles.primaryButtonText, styles.timePrimaryButtonText]}>{placed ? '残り時間で友達と交換' : placing ? `${placement}へ飾り付け中…` : `${placement}に追加する`}</Text></ImageBackground></Pressable> : <View style={styles.packageCaptionSpacer} />}
       </ImageBackground>
       </View>
@@ -2102,6 +2104,11 @@ function PullableMobby({ selected, onPull, size = 320, onCharacterPickerPress, s
     onPanResponderTerminate: (_event, gesture) => release(gesture.dx / appScale, gesture.dy / appScale),
   }), [appScale, clearReactionTimers, pullAsset, release, scaleX, scaleY, size, specialMotion]);
 
+  const triggerAccessibleReaction = useCallback(() => {
+    const distance = Math.max(12, size * 0.08);
+    release(distance, 0);
+  }, [release, size]);
+
   const meshVisible = Platform.OS === 'web' && (status === 'pulling' || status === 'released');
   const isPullReaction = Boolean(reactionFrames && reactionFrame !== null);
   const defaultEye = pullAsset.defaultEye ?? pullAsset.eyes[0];
@@ -2147,7 +2154,7 @@ function PullableMobby({ selected, onPull, size = 320, onCharacterPickerPress, s
     <View style={[styles.pullableWrap, { width: size, height: size + pullableExtraHeight }]}>
       <Animated.View style={[styles.pullableStage, { width: size, height: size, transform: [{ translateX: specialTranslateX }, { translateY: specialTranslateY }, { scale: specialScale }] }]}>
         {onCharacterPickerPress ? <Pressable accessibilityRole="button" accessibilityLabel={`メインモビーを選ぶ（現在：${selectedMobbyName ?? selected.name}）`} onPress={onCharacterPickerPress} style={({ pressed }) => [styles.characterPickerButton, size >= 300 ? styles.characterPickerButtonLarge : styles.characterPickerButtonCompact, pressed && styles.characterPickerButtonPressed]}><ImageBackground source={UI_CREAM_BUTTON} resizeMode="stretch" style={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></ImageBackground></Pressable> : null}
-        <Animated.View {...panResponder.panHandlers} accessibilityRole="button" accessibilityLabel="モビーのほっぺを引っ張る" style={[styles.pullableSlot, { width: size, height: size, opacity: meshVisible || isPullReaction ? 0 : 1, transform: [{ scaleX }, { scaleY }] }]}>
+        <Animated.View {...panResponder.panHandlers} accessibilityRole="button" accessibilityLabel="モビーのほっぺを引っ張る" accessibilityHint="タップすると引っ張った時のリアクションをします" onAccessibilityTap={triggerAccessibleReaction} style={[styles.pullableSlot, { width: size, height: size, opacity: meshVisible || isPullReaction ? 0 : 1, transform: [{ scaleX }, { scaleY }] }]}>
           <Image source={pullAsset.body} resizeMode="contain" style={[styles.pullableBody, { width: size, height: size }]} />
         </Animated.View>
         <MobbyPullMesh ref={meshRef} source={pullAsset.body} size={size} visible={meshVisible} />
@@ -2261,10 +2268,10 @@ function TradeCharacterPicker({
       <Image source={COLLECTION_DISPLAY_BOARD} resizeMode="stretch" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
       <View style={styles.collectionHeaderBar}>
         <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={[styles.collectionHeaderCopy, styles.tradeSelectionHeaderCopy]}><Text numberOfLines={1} style={[styles.collectionHeaderTitle, styles.tradeSelectionHeaderTitle]}>交換する子を選ぶ</Text></ImageBackground>
-        <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.collectionModeTabs}>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: variant === 'key-normal' }} accessibilityLabel="通常サイズのぬいキーから選ぶ" onPress={() => onVariantChange('key-normal')} style={[styles.collectionModeTab, styles.tradeVariantTab, variant === 'key-normal' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, styles.tradeVariantTabText, variant === 'key-normal' && styles.collectionModeTextActive]}>キー通常</Text></Pressable>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: variant === 'key-small' }} accessibilityLabel="Sサイズのぬいキーから選ぶ" onPress={() => onVariantChange('key-small')} style={[styles.collectionModeTab, styles.tradeVariantTab, variant === 'key-small' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, styles.tradeVariantTabText, variant === 'key-small' && styles.collectionModeTextActive]}>キーS</Text></Pressable>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: variant === 'plush' }} accessibilityLabel="ぬいぐるみから選ぶ" onPress={() => onVariantChange('plush')} style={[styles.collectionModeTab, styles.tradeVariantTab, variant === 'plush' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, styles.tradeVariantTabText, variant === 'plush' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable>
+        <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.collectionModeTabs} imageStyle={styles.panelStretchImage}>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: variant === 'key-normal' }} accessibilityLabel="通常サイズのぬいキーから選ぶ" onPress={() => onVariantChange('key-normal')} style={[styles.collectionModeTab, styles.pressableFocusReset, styles.tradeVariantTab, variant === 'key-normal' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, styles.tradeVariantTabText, variant === 'key-normal' && styles.collectionModeTextActive]}>キー通常</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: variant === 'key-small' }} accessibilityLabel="Sサイズのぬいキーから選ぶ" onPress={() => onVariantChange('key-small')} style={[styles.collectionModeTab, styles.pressableFocusReset, styles.tradeVariantTab, variant === 'key-small' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, styles.tradeVariantTabText, variant === 'key-small' && styles.collectionModeTextActive]}>キーS</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: variant === 'plush' }} accessibilityLabel="ぬいぐるみから選ぶ" onPress={() => onVariantChange('plush')} style={[styles.collectionModeTab, styles.pressableFocusReset, styles.tradeVariantTab, variant === 'plush' && styles.collectionModeTabActive]}><Text style={[styles.collectionModeText, styles.tradeVariantTabText, variant === 'plush' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable>
         </ImageBackground>
       </View>
       <View style={[styles.tradeSelectionDisplay, { height: COLLECTION_BOARD_TOP + boardHeight }]}>
@@ -2316,7 +2323,6 @@ function QrCode() {
 
 function TradeScreen({ items, owned, selectedId, selectedVariant, onSelect }: { items: Item[]; owned: Record<string, number>; selectedId: string; selectedVariant: CollectibleVariant; onSelect: (id: string, variant: CollectibleVariant) => void }) {
   const [qrVisible, setQrVisible] = useState(false);
-  const [tradeState, setTradeState] = useState<'idle' | 'ready' | 'done'>('idle');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftSelectedId, setDraftSelectedId] = useState(selectedId);
   const [draftVariant, setDraftVariant] = useState<CollectibleVariant>(selectedVariant);
@@ -2333,7 +2339,6 @@ function TradeScreen({ items, owned, selectedId, selectedVariant, onSelect }: { 
   };
   const confirmPicker = () => {
     onSelect(draftSelectedId, draftVariant);
-    setTradeState('idle');
     setPickerOpen(false);
   };
 
@@ -2355,12 +2360,12 @@ function TradeScreen({ items, owned, selectedId, selectedVariant, onSelect }: { 
         <View style={[styles.tradeCard, styles.tradeCardSecond]}>
           <View style={styles.tradeCharacterHeading}><Text style={styles.tradeSectionNo}>交換する子を選ぶ</Text></View>
           <View style={styles.tradeItemRow}>
-            <View style={styles.tradeItem}><View style={styles.tradeItemImage}><Image source={selectedImage} resizeMode="contain" style={[styles.tradeImage, selectedVariant === 'key-small' && styles.tradeSmallKeyImage]} /></View><Text style={styles.tradeItemName}>{selectedName}</Text><Text style={styles.tradeItemCount}>{collectibleVariantLabel(selectedVariant)}　×{ownedCollectibleCount(owned, selected.id, selectedVariant)}</Text></View>
+            <View style={styles.tradeItem}><View style={styles.tradeItemImage}><Image source={selectedImage} resizeMode="contain" style={[styles.tradeImage, selectedVariant === 'key-small' && styles.tradeSmallKeyImage]} /></View><Text style={styles.tradeItemName}>{selectedName}</Text><Text style={styles.tradeItemCount}>{collectibleVariantLabel(selectedVariant)}</Text></View>
             <View style={styles.exchangeArrow}><Image source={EXCHANGE} resizeMode="contain" style={styles.exchangeArrowIcon} /></View>
             <View style={styles.partnerItem}><View style={styles.partnerImage}><Image source={FRIEND} resizeMode="contain" style={styles.partnerWaitingIcon} /></View><Text style={styles.partnerName}>友達を待っています</Text></View>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="交換するモビーを選ぶ" onPress={openPicker} style={({ pressed }) => [styles.tradeChooseCharacterButton, pressed && styles.tradeButtonPressed]}><ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.assetButtonInner}><Image source={EXCHANGE} resizeMode="contain" style={styles.tradeChooseCharacterIcon} /><Text style={styles.tradeChooseCharacterText}>交換する子を選び直す</Text></ImageBackground></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="交換内容を進める" accessibilityState={{ disabled: tradeState === 'done' }} disabled={tradeState === 'done'} onPress={() => setTradeState(tradeState === 'ready' ? 'done' : 'ready')} style={({ pressed }) => [styles.secondaryButton, pressed && styles.tradeButtonPressed]}><ImageBackground source={UI_CREAM_BUTTON} resizeMode="stretch" style={styles.assetButtonInner}><Text style={styles.secondaryButtonText}>{tradeState === 'idle' ? 'この子で交換へ' : tradeState === 'ready' ? '交換を決定する' : '交換できました！'}</Text></ImageBackground></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={qrVisible ? '友達の読み取りを待っています' : '先に交換QRを表示してください'} accessibilityState={{ disabled: true }} disabled style={[styles.secondaryButton, styles.secondaryButtonDisabled]}><ImageBackground source={UI_CREAM_BUTTON} resizeMode="stretch" style={styles.assetButtonInner}><Text style={styles.secondaryButtonText}>{qrVisible ? '友達の読み取りを待っています' : '先にQRを表示してね'}</Text></ImageBackground></Pressable>
         </View>
       </ImageBackground>
     </ScrollView>
@@ -2374,13 +2379,7 @@ function BottomNav({ screen, setScreen }: { screen: Screen; setScreen: (screen: 
     { id: 'time', label: 'MOBBY TIME', icon: SPARKLES },
     { id: 'trade', label: 'TRADE', icon: FRIEND },
   ];
-  const cells = [
-    { left: 14, width: 78 },
-    { left: 115, width: 76 },
-    { left: 217, width: 76 },
-    { left: 318, width: 78 },
-  ];
-  return <View style={styles.bottomNav}><Image source={UI_BOTTOM_STRIP} resizeMode="stretch" style={styles.bottomNavAsset} />{tabs.map((tab, index) => <Pressable key={tab.id} accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: screen === tab.id }} onPress={() => setScreen(tab.id)} style={({ pressed }) => [styles.navTab, cells[index], pressed && styles.navTabPressed]}><Image source={tab.icon} resizeMode="contain" style={[styles.navIcon, screen === tab.id && styles.navIconActive]} /><Text style={[styles.navLabel, screen === tab.id && styles.navLabelActive]}>{tab.label}</Text>{screen === tab.id ? <View style={styles.navDot} /> : null}</Pressable>)}</View>;
+  return <View style={styles.bottomNav}><Image source={UI_BOTTOM_STRIP} resizeMode="stretch" style={styles.bottomNavAsset} />{tabs.map((tab, index) => <Pressable key={tab.id} accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: screen === tab.id }} onPress={() => setScreen(tab.id)} style={({ pressed }) => [styles.navTab, BOTTOM_NAV_CELLS[index], pressed && styles.navTabPressed]}><Image source={tab.icon} resizeMode="contain" style={[styles.navIcon, screen === tab.id && styles.navIconActive]} /><Text style={[styles.navLabel, screen === tab.id && styles.navLabelActive]}>{tab.label}</Text>{screen === tab.id ? <View style={styles.navDot} /> : null}</Pressable>)}</View>;
 }
 
 export default function IndexScreen() {
@@ -2481,6 +2480,12 @@ export default function IndexScreen() {
       [STORAGE_OWNED, JSON.stringify(owned)],
     ]).catch(() => undefined);
   }, [owned, selectedId, storageReady, tutorialComplete]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(''), 4200);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     setTodayId(ITEMS[Math.floor(Math.random() * ITEMS.length)].id);
@@ -2715,7 +2720,7 @@ export default function IndexScreen() {
                   setNotificationOpen(true);
                 }}
               />
-              {notice ? <Pressable onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></Pressable> : null}
+              {notice && !tutorialRewardActive ? <Pressable accessibilityRole="button" accessibilityLabel={`${notice}。閉じる`} accessibilityLiveRegion="polite" onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></Pressable> : null}
               {notificationOpen ? (
                 <NotificationPopup
                   onClose={() => { playSfx('tap'); setNotificationOpen(false); }}
@@ -2762,19 +2767,16 @@ const styles = StyleSheet.create({
   loadingDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#735574' },
   loadingTitle: { color: '#5D405B', fontSize: 18, lineHeight: 23, fontWeight: '900', marginTop: 2 },
   loadingText: { color: '#98737E', fontSize: 10, lineHeight: 15, fontWeight: '800', marginTop: 4 },
+  pressableFocusReset: { outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  panelStretchImage: { width: '100%', height: '100%' },
   onboardingOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 115, alignItems: 'center', justifyContent: 'center' },
-  onboardingBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(67,44,61,0.48)' },
-  favoriteCard: { position: 'absolute', top: 32, left: 14, right: 14, bottom: 24, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 16, borderRadius: 30, alignItems: 'center', backgroundColor: '#FFF9EC', borderWidth: 1.6, borderColor: '#DDB892', shadowColor: '#4D3246', shadowOpacity: 0.32, shadowRadius: 19, shadowOffset: { width: 0, height: 10 }, elevation: 16 },
+  onboardingBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(67,44,61,0.025)' },
+  favoriteCard: { position: 'absolute', top: 32, left: 14, right: 14, bottom: 24, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 16, borderRadius: 30, alignItems: 'center', backgroundColor: 'rgba(255,249,236,0.2)', borderWidth: 1.6, borderColor: 'rgba(255,255,250,0.54)', shadowColor: '#4D3246', shadowOpacity: 0.17, shadowRadius: 16, shadowOffset: { width: 0, height: 10 }, elevation: 16, ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(3px) saturate(1.03)' } as any) : {}) },
+  favoriteGlassSheen: { position: 'absolute', top: 9, left: 18, right: 18, height: 86, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.035)', borderTopWidth: 1.4, borderColor: 'rgba(255,255,255,0.3)' },
   onboardingKicker: { color: '#A0797F', fontSize: 8, fontWeight: '900', letterSpacing: 1.8 },
   favoriteTitle: { color: '#553B59', fontSize: 23, lineHeight: 29, fontWeight: '900', marginTop: 4 },
   favoriteLead: { width: 320, color: '#8D6C76', fontSize: 10, lineHeight: 15, fontWeight: '800', textAlign: 'center', marginTop: 4, marginBottom: 10 },
-  favoriteGrid: { flex: 1, width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'space-between', gap: 7 },
-  favoriteOption: { width: '31.5%', minHeight: 103, paddingHorizontal: 3, paddingTop: 4, paddingBottom: 5, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7EEE4', borderWidth: 1.5, borderColor: '#E7D5C2', position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
-  favoriteOptionPressed: { opacity: 0.76, transform: [{ scale: 0.96 }] },
-  favoriteImage: { width: 76, height: 76 },
-  favoriteName: { color: '#654A61', fontSize: 9, lineHeight: 12, fontWeight: '900', maxWidth: '94%' },
-  favoriteCheck: { position: 'absolute', top: 4, right: 4, width: 19, height: 19, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#FFF9EB' },
-  favoriteCheckText: { color: '#FFF', fontSize: 10, lineHeight: 12, fontWeight: '900' },
+  favoriteCarousel: { width: '100%', minHeight: 366, marginTop: -2 },
   onboardingPrimaryButton: { width: '100%', minHeight: 48, marginTop: 10, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6B547D', borderWidth: 1.2, borderColor: '#E3C7D5', shadowColor: '#4E365B', shadowOpacity: 0.2, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
   onboardingPrimaryButtonPressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
   onboardingPrimaryText: { color: '#FFF9EC', fontSize: 13, fontWeight: '900', letterSpacing: 0.4 },
@@ -2782,6 +2784,7 @@ const styles = StyleSheet.create({
   guideNavHighlight: { position: 'absolute', bottom: Platform.OS === 'web' ? 17 : 10, width: 76, height: 60, padding: 3, borderRadius: 20, borderWidth: 2, borderColor: '#C9778B', backgroundColor: 'rgba(255,240,225,0.18)', zIndex: 104, shadowColor: '#6A4158', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 10 },
   guideNavHighlightInner: { flex: 1, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,247,228,0.92)' },
   guideCard: { position: 'absolute', left: 10, right: 10, paddingHorizontal: 28, paddingTop: 23, paddingBottom: 25, shadowColor: '#4E3449', shadowOpacity: 0.23, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 11 },
+  guideCardImage: { width: '100%', height: '100%' },
   guideCardBottom: { bottom: 84, minHeight: 132 },
   guideCardTop: { top: 78, minHeight: 104 },
   guideHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -2882,8 +2885,8 @@ const styles = StyleSheet.create({
   homeEditGuideText: { color: '#FFF9EB', fontSize: 11, fontWeight: '900', textAlign: 'center', marginTop: 2 },
   // Nine keychains are distributed over two broad rows so the center stage
   // remains clear for the selected Mobby and the shelf below.
-  homeWallKeys: { position: 'absolute', top: '7%', left: '7%', right: '7%', height: '43%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'flex-start', zIndex: 2 },
-  homeWallKey: { width: '17%', height: '43%', alignItems: 'center', justifyContent: 'flex-start', borderRadius: 12, position: 'relative', overflow: 'visible', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  homeWallKeys: { position: 'absolute', top: '7%', left: '7%', right: '7%', height: '43%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', alignContent: 'flex-start', zIndex: 2 },
+  homeWallKey: { width: '20%', height: '43%', alignItems: 'center', justifyContent: 'flex-start', borderRadius: 12, position: 'relative', overflow: 'visible', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   homeWallKeySelected: { backgroundColor: 'rgba(255,244,196,0.34)', shadowColor: '#FFF0A8', shadowOpacity: 0.8, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
   homeWallKeyHidden: { opacity: 0 },
   homeDecorationEditable: { borderWidth: 1.2, borderColor: 'rgba(107,84,125,0.48)', borderStyle: 'dashed', backgroundColor: 'rgba(255,250,232,0.18)' },
@@ -3065,14 +3068,14 @@ const styles = StyleSheet.create({
   mobbyPackage: { width: 242, height: 242, alignItems: 'center', justifyContent: 'center', position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   packagePressed: { transform: [{ rotate: '1deg' }, { scale: 0.96 }] },
   packageAsset: { position: 'absolute', width: 242, height: 242 },
+  openedPackageAsset: { width: 270, height: 270 },
   packageBrandOverlay: { position: 'absolute', top: 144, left: 54, right: 54, height: 43, alignItems: 'center', justifyContent: 'center' },
   packageLogo: { color: '#68465F', fontSize: 15, lineHeight: 17, fontWeight: '900', letterSpacing: 1.6 },
   packageHint: { color: '#8B6774', fontSize: 6, fontWeight: '900', letterSpacing: 1.1, marginTop: 2 },
   packageCaptionSpacer: { height: 15 },
-  magicRing: { position: 'absolute', width: 238, height: 238, zIndex: 2 },
   magicParticles: { ...StyleSheet.absoluteFillObject, zIndex: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 28 },
   magicParticle: { color: '#FFF7B8', fontSize: 32, fontWeight: '900', textShadowColor: '#D98FA0', textShadowRadius: 8 },
-  revealFlash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFBE8', zIndex: 7 },
+  encounterOpenedBox: { position: 'absolute', top: 18, left: '50%', width: 300, height: 300, marginLeft: -150, zIndex: 2 },
   encounterRewardWrap: { width: 252, height: 276, alignItems: 'center', justifyContent: 'center', zIndex: 3 },
   encounterKeyImage: { width: 252, height: 276 },
   encounterSmallKeyImage: { width: 196, height: 216 },
@@ -3087,8 +3090,11 @@ const styles = StyleSheet.create({
   encounterBubble: { position: 'absolute', top: -2, right: -15, width: 158, height: 78, paddingHorizontal: 27, paddingTop: 17, paddingBottom: 20, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '3deg' }], zIndex: 6 },
   encounterBubbleTitle: { color: '#4E3048', fontSize: 10, lineHeight: 13, fontWeight: '900', textAlign: 'center', textShadowColor: '#FFF7E7', textShadowRadius: 2 },
   encounterBubbleText: { color: '#694B5A', fontSize: 8, lineHeight: 10, fontWeight: '800', marginTop: 1, textAlign: 'center' },
-  encounterCaptionPlaque: { alignSelf: 'center', width: 244, height: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22, paddingTop: 1 },
-  encounterCaption: { color: '#51364A', fontSize: 9, lineHeight: 12, fontWeight: '900', textAlign: 'center' },
+  encounterOpenButton: { alignSelf: 'center', width: 260, height: 52, borderRadius: 20, overflow: 'hidden', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent', shadowColor: '#6B3F4D', shadowOpacity: 0.28, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  encounterOpenButtonAsset: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', paddingLeft: 20, paddingRight: 48, paddingBottom: 1 },
+  encounterOpenButtonText: { color: '#FFF9ED', fontFamily: 'MochiyPopOne_400Regular', fontSize: 12, lineHeight: 17, fontWeight: '900', letterSpacing: 0.15, textAlign: 'center', textShadowColor: 'rgba(92,45,54,0.42)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  encounterOpenButtonPressed: { opacity: 0.9, transform: [{ translateY: 2 }, { scale: 0.97 }] },
+  encounterOpenButtonDisabled: { opacity: 0.58 },
   primaryButton: { minHeight: 49, borderRadius: 17, backgroundColor: '#6B547D', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 17 },
   primaryButtonDone: { backgroundColor: '#9A8491' },
   primaryButtonIcon: { width: 22, height: 22, marginRight: 5 },
@@ -3179,7 +3185,7 @@ const styles = StyleSheet.create({
   tradeItemRow: { height: 150, flexDirection: 'row', alignItems: 'center', overflow: 'visible' },
   tradeItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tradeItemImage: { width: 140, height: 112, alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
-  tradeImage: { width: 128, height: 132 },
+  tradeImage: { width: 118, height: 116 },
   tradeSmallKeyImage: { width: 100, height: 104 },
   tradeItemName: { color: '#492E46', fontSize: 14, lineHeight: 19, fontWeight: '900', marginTop: 0, textAlign: 'center', letterSpacing: 0.1, textShadowColor: 'rgba(255,247,225,0.88)', textShadowRadius: 2 },
   tradeItemCount: { color: '#624454', fontSize: 10.5, lineHeight: 15, fontWeight: '700', textAlign: 'center', textShadowColor: 'rgba(255,247,225,0.8)', textShadowRadius: 2 },
@@ -3193,6 +3199,7 @@ const styles = StyleSheet.create({
   tradeChooseCharacterIcon: { width: 19, height: 23, marginRight: 7, tintColor: '#684B64' },
   tradeChooseCharacterText: { color: '#50344B', fontSize: 12.5, lineHeight: 18, fontWeight: '900', letterSpacing: 0.1 },
   secondaryButton: { alignSelf: 'center', width: 280, height: 46, alignItems: 'center', justifyContent: 'center', marginTop: 0, overflow: 'hidden', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  secondaryButtonDisabled: { opacity: 0.68 },
   secondaryButtonText: { color: '#50344B', fontSize: 13, lineHeight: 18, fontWeight: '900', letterSpacing: 0.1 },
   tradeSelectionScreen: { flex: 1, position: 'relative' },
   tradeSelectionDisplay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 },

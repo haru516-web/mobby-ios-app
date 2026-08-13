@@ -1,5 +1,8 @@
+import { Asset } from 'expo-asset';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Image,
   PanResponder,
   Pressable,
@@ -7,6 +10,7 @@ import {
   Text,
   View,
   type ImageSourcePropType,
+  type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
@@ -44,7 +48,97 @@ function circularDelta(index: number, center: number, length: number) {
 
 function CharacterArt({ mobby }: { mobby: Mobby }) {
   return (
-    <Image source={mobby.image} resizeMode="contain" style={styles.characterArt} />
+    <Image accessible={false} source={mobby.image} resizeMode="contain" style={styles.characterArt} />
+  );
+}
+
+function SelectedJoyArt({
+  mobby,
+  runId,
+  onFinished,
+}: {
+  mobby: Mobby;
+  runId: number;
+  onFinished: (mobbyId: MobbyId, runId: number) => void;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const joyOpacity = useRef(new Animated.Value(0)).current;
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!ready || failed) return;
+
+    scale.setValue(1);
+    joyOpacity.setValue(0);
+    const animation = Animated.parallel([
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.18,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 230,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.delay(140),
+      ]),
+      Animated.sequence([
+        Animated.timing(joyOpacity, {
+          toValue: 1,
+          duration: 100,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.delay(310),
+        Animated.timing(joyOpacity, {
+          toValue: 0,
+          duration: 140,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]);
+    animation.start(({ finished }) => {
+      if (finished) onFinished(mobby.id, runId);
+    });
+    return () => animation.stop();
+  }, [failed, joyOpacity, mobby.id, onFinished, ready, runId, scale]);
+
+  useEffect(() => {
+    if (failed) onFinished(mobby.id, runId);
+  }, [failed, mobby.id, onFinished, runId]);
+
+  return (
+    <Animated.View pointerEvents="none" style={[styles.selectionPop, { transform: [{ scale }] }]}>
+      <Animated.Image
+        accessible={false}
+        source={mobby.image}
+        resizeMode="contain"
+        style={[
+          styles.characterArtLayer,
+          {
+            opacity: failed
+              ? 1
+              : joyOpacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0], extrapolate: 'clamp' }),
+          },
+        ]}
+      />
+      {!failed ? (
+        <Animated.Image
+          accessible={false}
+          source={mobby.joyImage}
+          resizeMode="contain"
+          onLoad={() => setReady(true)}
+          onError={() => setFailed(true)}
+          style={[styles.characterArtLayer, { opacity: joyOpacity }]}
+        />
+      ) : null}
+    </Animated.View>
   );
 }
 
@@ -52,46 +146,108 @@ type MobbyCarouselProps = {
   selectedId: MobbyId;
   onSelect: (mobby: Mobby) => void;
   onInteract?: () => void;
-  style?: ViewStyle;
+  interactionScale?: number;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function MobbyCarousel({ selectedId, onSelect, onInteract, style }: MobbyCarouselProps) {
+export function MobbyCarousel({ selectedId, onSelect, onInteract, interactionScale = 1, style }: MobbyCarouselProps) {
   const initialIndex = Math.max(0, MOBBIES.findIndex((mobby) => mobby.id === selectedId));
   const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [joyId, setJoyId] = useState<MobbyId | null>(null);
+  const [joyRevision, setJoyRevision] = useState(0);
   const [dragProgress, setDragProgress] = useState(0);
+  const activeIndexRef = useRef(initialIndex);
+  const joyRunRef = useRef(0);
   const gesture = useRef({ active: false, moved: false });
+  const bob = useRef(new Animated.Value(0)).current;
+  const float = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const joyAssets = MOBBIES.map((mobby) => mobby.joyImage).filter((source): source is number => typeof source === 'number');
+    void Asset.loadAsync(joyAssets).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    bob.stopAnimation();
+    float.stopAnimation();
+    bob.setValue(0);
+    float.setValue(1);
+
+    const bobLoop = Animated.loop(Animated.sequence([
+      Animated.timing(bob, { toValue: 1, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(bob, { toValue: 0, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    const floatLoop = Animated.loop(Animated.sequence([
+      Animated.timing(float, { toValue: 0, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(float, { toValue: 1, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    bobLoop.start();
+    floatLoop.start();
+    return () => {
+      bobLoop.stop();
+      floatLoop.stop();
+    };
+  }, [bob, float]);
+
+  const activeMobby = MOBBIES[activeIndex] ?? MOBBIES[0];
+  const triggerJoy = useCallback((mobbyId: MobbyId) => {
+    const nextRun = joyRunRef.current + 1;
+    joyRunRef.current = nextRun;
+    setJoyId(mobbyId);
+    setJoyRevision(nextRun);
+  }, []);
+
+  const finishJoy = useCallback((mobbyId: MobbyId, runId: number) => {
+    if (joyRunRef.current !== runId) return;
+    setJoyId((current) => current === mobbyId ? null : current);
+  }, []);
+
+  useEffect(() => () => {
+    joyRunRef.current += 1;
+  }, []);
+
+  const setActive = useCallback((nextIndex: number, notify = true) => {
+    const normalized = (nextIndex + MOBBIES.length) % MOBBIES.length;
+    if (normalized === activeIndexRef.current) return;
+    activeIndexRef.current = normalized;
+    triggerJoy(MOBBIES[normalized].id);
+    setActiveIndex(normalized);
+    if (notify) onSelect(MOBBIES[normalized]);
+  }, [onSelect, triggerJoy]);
+
+  const celebrateActive = useCallback((mobby: Mobby) => {
+    triggerJoy(mobby.id);
+    onInteract?.();
+    onSelect(mobby);
+  }, [onInteract, onSelect, triggerJoy]);
 
   useEffect(() => {
     const nextIndex = MOBBIES.findIndex((mobby) => mobby.id === selectedId);
-    if (nextIndex >= 0 && nextIndex !== activeIndex) setActiveIndex(nextIndex);
-  }, [activeIndex, selectedId]);
-
-  const activeMobby = MOBBIES[activeIndex] ?? MOBBIES[0];
-  const setActive = useCallback((nextIndex: number) => {
-    const normalized = (nextIndex + MOBBIES.length) % MOBBIES.length;
-    setActiveIndex(normalized);
-    onSelect(MOBBIES[normalized]);
-  }, [onSelect]);
+    if (nextIndex >= 0 && nextIndex !== activeIndexRef.current) setActive(nextIndex, false);
+  }, [selectedId, setActive]);
 
   const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_event, state) => Math.abs(state.dx) > 4,
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_event, state) => {
+      const designDx = state.dx / Math.max(0.2, interactionScale);
+      return Math.abs(designDx) > 8 && Math.abs(designDx) > Math.abs(state.dy) * 1.25;
+    },
     onPanResponderGrant: () => {
       gesture.current = { active: true, moved: false };
       setDragProgress(0);
     },
     onPanResponderMove: (_event, state) => {
       if (!gesture.current.active) return;
-      gesture.current.moved = gesture.current.moved || Math.abs(state.dx) > 5;
-      setDragProgress(clamp(-state.dx / 190, -0.92, 0.92));
+      const designDx = state.dx / Math.max(0.2, interactionScale);
+      gesture.current.moved = gesture.current.moved || Math.abs(designDx) > 5;
+      setDragProgress(clamp(designDx / 190, -0.92, 0.92));
     },
     onPanResponderRelease: (_event, state) => {
-      const moved = gesture.current.moved || Math.abs(state.dx) > 42;
+      const designDx = state.dx / Math.max(0.2, interactionScale);
+      const moved = gesture.current.moved || Math.abs(designDx) > 42;
       gesture.current = { active: false, moved: false };
-      if (moved && Math.abs(state.dx) > 42) {
-        setActive(activeIndex + (state.dx < 0 ? 1 : -1));
-      } else if (!moved) {
-        onInteract?.();
+      if (moved && Math.abs(designDx) > 42) {
+        setActive(activeIndexRef.current + (designDx < 0 ? 1 : -1));
       }
       setDragProgress(0);
     },
@@ -99,26 +255,43 @@ export function MobbyCarousel({ selectedId, onSelect, onInteract, style }: Mobby
       gesture.current = { active: false, moved: false };
       setDragProgress(0);
     },
-  }), [activeIndex, onInteract, setActive]);
+  }), [interactionScale, setActive]);
 
   return (
-    <View style={[styles.root, style]} {...responder.panHandlers}>
-      <View pointerEvents="none" style={styles.softGlow} />
+    <View accessibilityRole="radiogroup" accessibilityLabel="モビーを左右にスワイプして選択" style={[styles.root, style]} {...responder.panHandlers}>
       <View style={styles.slideStage}>
         {MOBBIES.map((mobby, index) => {
           const delta = circularDelta(index, activeIndex, MOBBIES.length) + dragProgress;
           const absoluteDelta = Math.abs(delta);
           if (absoluteDelta > 2.15) return null;
+          const active = index === activeIndex;
           const blend = Math.min(1, absoluteDelta);
           const scale = 1 - blend * 0.24;
           const opacity = 1 - blend * 0.66;
           const translateX = delta * 180;
+          const floatMotion = active ? bob : index % 2 === 0 ? float : bob;
+          const translateY = floatMotion.interpolate({
+            inputRange: [0, 1],
+            outputRange: active ? [5, -9] : [3, -6],
+          });
+          const rotate = floatMotion.interpolate({
+            inputRange: [0, 1],
+            outputRange: active ? ['-1.6deg', '1.6deg'] : ['-1deg', '1deg'],
+          });
           return (
             <Pressable
               key={mobby.id}
-              accessibilityRole="button"
+              accessibilityRole="radio"
               accessibilityLabel={`${DISPLAY_NAMES[mobby.id]}を選ぶ`}
-              onPress={() => setActive(index)}
+              accessibilityState={{ checked: active }}
+              aria-checked={active}
+              onPress={() => {
+                if (active) {
+                  celebrateActive(mobby);
+                  return;
+                }
+                setActive(index);
+              }}
               style={[
                 styles.slide,
                 {
@@ -128,21 +301,25 @@ export function MobbyCarousel({ selectedId, onSelect, onInteract, style }: Mobby
                 },
               ]}
             >
-              <CharacterArt mobby={mobby} />
+              <Animated.View pointerEvents="none" style={[styles.floatingArt, { transform: [{ translateY }, { rotate }] }]}>
+                {active && joyId === mobby.id ? <SelectedJoyArt key={`${mobby.id}-${joyRevision}`} mobby={mobby} runId={joyRevision} onFinished={finishJoy} /> : <CharacterArt mobby={mobby} />}
+                {active ? <View style={[styles.selectedBadge, { backgroundColor: mobby.color }]}><Text style={styles.selectedBadgeText}>✓</Text></View> : null}
+              </Animated.View>
             </Pressable>
           );
         })}
       </View>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="前のモビー" onPress={() => setActive(activeIndex - 1)} style={[styles.arrow, styles.arrowLeft]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="前のモビー" onPress={() => setActive(activeIndexRef.current - 1)} style={[styles.arrow, styles.arrowLeft]}>
         <Image source={ICONS.left} resizeMode="contain" style={styles.arrowIconLeft} />
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="次のモビー" onPress={() => setActive(activeIndex + 1)} style={[styles.arrow, styles.arrowRight]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="次のモビー" onPress={() => setActive(activeIndexRef.current + 1)} style={[styles.arrow, styles.arrowRight]}>
         <Image source={ICONS.right} resizeMode="contain" style={styles.arrowIconRight} />
       </Pressable>
 
-      <View pointerEvents="none" style={styles.characterName}>
+      <View pointerEvents="none" accessibilityLiveRegion="polite" style={styles.characterName}>
         <Text style={styles.name}>{DISPLAY_NAMES[activeMobby.id]}</Text>
+        <Text style={styles.characterMeta}>{activeMobby.catchphrase} ・ 全{MOBBIES.length}キャラ中 {activeIndex + 1}キャラ目</Text>
       </View>
     </View>
   );
@@ -151,16 +328,21 @@ export function MobbyCarousel({ selectedId, onSelect, onInteract, style }: Mobby
 export { DISPLAY_NAMES };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: 360, position: 'relative', overflow: 'hidden' },
-  softGlow: { position: 'absolute', top: 42, left: '8%', right: '8%', height: 285, borderRadius: 150, backgroundColor: 'rgba(255,250,226,0.48)' },
-  slideStage: { flex: 1, minHeight: 330, position: 'relative', alignItems: 'center', justifyContent: 'center' },
-  slide: { position: 'absolute', top: 8, left: '50%', width: 286, height: 286, marginLeft: -143, alignItems: 'center' },
+  root: { flex: 1, minHeight: 366, position: 'relative', overflow: 'hidden' },
+  slideStage: { flex: 1, minHeight: 324, position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  slide: { position: 'absolute', top: '50%', left: '50%', width: 286, height: 286, marginTop: -174, marginLeft: -143, alignItems: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  floatingArt: { width: 286, height: 286, alignItems: 'center', justifyContent: 'center' },
   characterArt: { width: 286, height: 286 },
-  name: { color: MobbyColors.ink, fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
-  arrow: { position: 'absolute', top: 137, width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#D9A76C', backgroundColor: '#FFF4D9', alignItems: 'center', justifyContent: 'center', shadowColor: '#7B4C2E', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  selectionPop: { width: 286, height: 286, alignItems: 'center', justifyContent: 'center' },
+  characterArtLayer: { position: 'absolute', width: 286, height: 286 },
+  selectedBadge: { position: 'absolute', top: 30, right: 29, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF9E9', shadowColor: '#5B3A58', shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  selectedBadgeText: { color: '#FFF', fontSize: 15, lineHeight: 18, fontWeight: '900' },
+  name: { color: MobbyColors.ink, fontSize: 18, lineHeight: 22, fontWeight: '900', letterSpacing: 0.5 },
+  characterMeta: { color: '#97717A', fontSize: 9, lineHeight: 12, fontWeight: '800', marginTop: 2 },
+  arrow: { position: 'absolute', top: '50%', width: 50, height: 50, marginTop: -56, borderRadius: 25, borderWidth: 2, borderColor: '#D9A76C', backgroundColor: '#FFF4D9', alignItems: 'center', justifyContent: 'center', shadowColor: '#7B4C2E', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 3 }, elevation: 3, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   arrowLeft: { left: 8 },
   arrowRight: { right: 8 },
   arrowIconLeft: { width: 25, height: 25, transform: [{ rotate: '-90deg' }], tintColor: '#7B916E' },
   arrowIconRight: { width: 25, height: 25, transform: [{ rotate: '90deg' }], tintColor: '#7B916E' },
-  characterName: { position: 'absolute', bottom: 6, left: 62, right: 62, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,248,229,0.94)', borderWidth: 1.5, borderColor: '#E3B878' },
+  characterName: { position: 'absolute', top: '50%', left: 58, right: 58, height: 51, marginTop: 120, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,248,229,0.96)', borderWidth: 1.5, borderColor: '#E3B878' },
 });
