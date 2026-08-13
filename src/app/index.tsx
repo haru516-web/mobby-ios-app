@@ -1230,7 +1230,7 @@ function HomeScreen({
     const shelfHeight = roomHeight * 0.18;
     // Use most of each four-column slot so the plush read larger while
     // retaining a small, even gap between neighboring characters.
-    const width = Math.min(itemWidth * 1.04, shelfHeight * 0.92);
+    const width = Math.min(itemWidth * 1.16, shelfHeight * 1.0);
     return { width, height: width * 1.14 };
   }, [roomSize.height, roomSize.width]);
   const shelfSurfaceY = useMemo(() => {
@@ -1690,7 +1690,7 @@ function KeychainGrid({ items, owned, selectedId, onSelect, imageSize, boardHeig
           onSelect={onSelect}
           imageSize={imageSize}
           placement={{
-            left: COLLECTION_COLUMN_X[index % 3] - 41,
+            left: COLLECTION_COLUMN_X[index % 3] - 52,
             top: COLLECTION_BOARD_TOP + COLLECTION_KEY_ROW_RATIOS[Math.floor(index / 3)] * boardHeight,
           }}
           onSwingReady={registerSwing}
@@ -1709,12 +1709,12 @@ function getPlushCollectionPlacement(index: number, boardHeight: number) {
   const columnX = COLLECTION_COLUMN_X[index % 3];
   const shelfRatio = COLLECTION_PLUSH_SHELF_RATIOS[Math.floor(index / 3)] ?? COLLECTION_PLUSH_SHELF_RATIOS[2];
   const shelfY = COLLECTION_BOARD_TOP + shelfRatio * boardHeight;
-  return { left: columnX - 44, top: shelfY - 96 };
+  return { left: columnX - 55, top: shelfY - 120 };
 }
 
 function getPlushCollectionImageBottom(item: Item) {
-  const imageWidth = 88;
-  const imageHeight = 96;
+  const imageWidth = 110;
+  const imageHeight = 120;
   const renderedImageHeight = Math.min(imageWidth, imageHeight);
   const containTopInset = (imageHeight - renderedImageHeight) / 2;
   const visibleBottomRatio = PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE;
@@ -1811,15 +1811,19 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
     const animation = Animated.sequence([
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(packageMotion, { toValue: 1, duration: 90, useNativeDriver: true }),
-          Animated.timing(packageMotion, { toValue: -1, duration: 90, useNativeDriver: true }),
-          Animated.timing(packageMotion, { toValue: 1, duration: 80, useNativeDriver: true }),
-          Animated.timing(packageMotion, { toValue: -1, duration: 80, useNativeDriver: true }),
-          Animated.timing(packageMotion, { toValue: 0, duration: 70, useNativeDriver: true }),
+          // Keep the package closed for three full left/right shakes before
+          // the reveal callback swaps in the opened box and reward.
+          Animated.timing(packageMotion, { toValue: 1, duration: 180, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: -1, duration: 180, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: 1, duration: 160, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: -1, duration: 160, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: 1, duration: 140, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: -1, duration: 140, useNativeDriver: true }),
+          Animated.timing(packageMotion, { toValue: 0, duration: 140, useNativeDriver: true }),
         ]),
-        Animated.timing(magicGlow, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(magicGlow, { toValue: 1, duration: 1050, useNativeDriver: true }),
       ]),
-      Animated.delay(510),
+      Animated.delay(950),
     ]);
     animation.start(({ finished }) => {
       if (finished && openingRunRef.current === runId) onRevealRef.current();
@@ -1921,13 +1925,13 @@ function MobbyTimeScreen({ today, todayVariant, stage, onOpen, onReveal, onPlace
           {!revealed ? (
             <Animated.View style={[styles.packageAnimationWrap, packageTransform]}>
             <Pressable accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onPress={startOpening} disabled={!active || opening} style={({ pressed }) => [styles.mobbyPackage, pressed && styles.packagePressed]}>
-              <Image source={opening ? MOBBY_TIME_OPENED_BOX : MOBBY_TIME_PACKAGE} resizeMode="contain" style={[styles.packageAsset, opening && styles.openedPackageAsset]} />
+              <Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={styles.packageAsset} />
               {!opening ? <View pointerEvents="none" style={styles.packageBrandOverlay}><Text style={styles.packageLogo}>MOBBY</Text><Text style={styles.packageHint}>TAP TO OPEN</Text></View> : null}
             </Pressable>
             </Animated.View>
           ) : <>
             {!placing && !placed ? <Image source={MOBBY_TIME_OPENED_BOX} resizeMode="contain" style={styles.encounterOpenedBox} /> : null}
-            <Animated.View style={[styles.encounterRewardWrap, { transform: placing ? [{ translateY: placementMotion.interpolate({ inputRange: [0, 1], outputRange: [-38, placementDistance] }) }, { scale: placementMotion.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1.16, 0.86] }) }, { rotate: placementMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '-5deg', '0deg'] }) }] : placed ? [{ scale: revealMotion }] : [{ translateY: -38 }, { scale: revealMotion }] }]}><Image source={rewardImage} resizeMode="contain" style={[styles.encounterKeyImage, todayVariant === 'key-small' && styles.encounterSmallKeyImage]} /></Animated.View>
+            <Animated.View style={[styles.encounterRewardWrap, { transform: placing ? [{ translateY: placementMotion.interpolate({ inputRange: [0, 1], outputRange: [-20, placementDistance] }) }, { scale: placementMotion.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1.16, 0.86] }) }, { rotate: placementMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '-5deg', '0deg'] }) }] : placed ? [{ scale: revealMotion }] : [{ translateY: -20 }, { scale: revealMotion }] }]}><Image source={rewardImage} resizeMode="contain" style={[styles.encounterKeyImage, todayVariant === 'key-small' && styles.encounterSmallKeyImage, todayVariant === 'plush' && styles.encounterPlushImage]} /></Animated.View>
           </>}
           {opening ? <View pointerEvents="none" style={styles.magicParticles}><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text></View> : null}
           {placing ? <Animated.View pointerEvents="none" style={[styles.placementSparkles, { opacity: placementBurst }]}><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text><Text style={styles.placementSparkle}>★</Text><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text></Animated.View> : null}
@@ -2537,6 +2541,11 @@ export default function IndexScreen() {
     }
     playSfx('place');
     finalizePlacement(today, effectiveTodayVariant);
+    // Plush placement finishes its in-card motion before this callback runs.
+    // Return to the home shelf for all sessions, including users who have
+    // already completed onboarding (the wall-flight branch does this before
+    // its animation starts).
+    setScreen('home');
   }, [effectiveTodayVariant, finalizePlacement, onboardingStep, playSfx, today]);
   const startPlacement = useCallback(() => {
     playSfx('tap');
@@ -2548,6 +2557,16 @@ export default function IndexScreen() {
     }
     setMobbyTimeStage('placing');
   }, [effectiveTodayVariant, placeToday, playSfx]);
+  const completeMobbyTimePlacement = useCallback(() => {
+    // Plush rewards run the short “moving to the shelf” animation inside the
+    // encounter card. Once it finishes, commit the item and leave Mobby Time
+    // automatically instead of waiting for a second tap.
+    if (effectiveTodayVariant === 'plush') {
+      placeToday();
+      return;
+    }
+    setMobbyTimeStage('placed');
+  }, [effectiveTodayVariant, placeToday]);
   const completeWallPlacement = useCallback(() => {
     if (!wallPlacement) return;
     playSfx('place');
@@ -2732,7 +2751,7 @@ export default function IndexScreen() {
               <View style={styles.screenBody}>
                 {screen === 'home' ? <HomeScreen selected={selected} owned={owned} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.item.id} wallItemIds={visibleHomeWallItemIds} wallVariants={homeWallVariants} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} /> : null}
-                {screen === 'time' ? <MobbyTimeScreen today={today} todayVariant={effectiveTodayVariant} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); if (onboardingStep === 'mobbyTime') setOnboardingStep('opening'); }} onReveal={revealToday} onPlace={startPlacement} onPlaced={placeToday} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
+                {screen === 'time' ? <MobbyTimeScreen today={today} todayVariant={effectiveTodayVariant} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); if (onboardingStep === 'mobbyTime') setOnboardingStep('opening'); }} onReveal={revealToday} onPlace={startPlacement} onPlaced={completeMobbyTimePlacement} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
                 {screen === 'trade' ? <TradeScreen items={ITEMS} owned={owned} selectedId={tradeSelectedId} selectedVariant={tradeSelectedVariant} onSelect={selectTradeMobby} /> : null}
               </View>
@@ -2898,8 +2917,8 @@ const styles = StyleSheet.create({
   homeWallKeySwing: { alignItems: 'center', transformOrigin: '50% 0%', marginTop: 11 },
   // The hook plate's round center is the hanging point. Start each keychain
   // there so the chain visibly comes out of the center of the wood hook.
-  homeWallKeyImage: { width: 76, height: 84 },
-  homeWallSmallKeyImage: { width: 60, height: 66 },
+  homeWallKeyImage: { width: 96, height: 106 },
+  homeWallSmallKeyImage: { width: 76, height: 84 },
   // The wall image has its first wooden shelf directly below the key pegs.
   // Keep the plush feet on that shelf board instead of letting them fall onto
   // the rug at the bottom of the room.
@@ -2973,26 +2992,26 @@ const styles = StyleSheet.create({
   collectionDisplay: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'transparent', overflow: 'visible', zIndex: 3 },
   collectionDisplayPlush: { backgroundColor: 'transparent' },
   keyCollectionGrid: { ...StyleSheet.absoluteFillObject },
-  collectionKeyItem: { width: 82, alignItems: 'center' },
+  collectionKeyItem: { width: 104, alignItems: 'center' },
   collectionKeyItemAnchored: { position: 'absolute' },
   collectionKeyPressable: { alignItems: 'center', outlineColor: 'transparent', outlineWidth: 0 },
   collectionKeySwing: { alignItems: 'center', transformOrigin: '50% 0%' },
   collectionKeyHookOwned: { height: 0 },
   collectionKeyBody: { width: 55, height: 70, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(91,64,75,0.28)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  collectionKeyBodyOwned: { width: 86, height: 101, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
+  collectionKeyBodyOwned: { width: 104, height: 122, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
   collectionKeySelected: { transform: [{ scale: 1.06 }] },
-  collectionKeyImage: { width: 86, height: 101 },
-  collectionSmallKeyImage: { width: 67, height: 79 },
-  collectionKeyName: { width: 82, color: '#503645', fontSize: 8, fontWeight: '700', textAlign: 'center', marginTop: 1, textShadowColor: '#FFF4DC', textShadowRadius: 2 },
+  collectionKeyImage: { width: 104, height: 122 },
+  collectionSmallKeyImage: { width: 81, height: 95 },
+  collectionKeyName: { width: 104, color: '#503645', fontSize: 8, fontWeight: '700', textAlign: 'center', marginTop: 1, textShadowColor: '#FFF4DC', textShadowRadius: 2 },
   collectionLocked: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(96,80,94,0.52)', alignItems: 'center', justifyContent: 'center' },
   collectionLockedText: { color: '#FFF7E6', fontSize: 27, fontWeight: '900' },
   plushCollectionShelf: { ...StyleSheet.absoluteFillObject },
-  plushCollectionItem: { position: 'absolute', width: 88, height: 108, alignItems: 'center' },
-  plushCollectionBody: { width: 88, height: 96, borderRadius: 24, borderWidth: 1.4, borderColor: 'rgba(86,58,58,0.27)', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
-  plushCollectionBodyOwned: { width: 88, height: 96, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
+  plushCollectionItem: { position: 'absolute', width: 110, height: 134, alignItems: 'center' },
+  plushCollectionBody: { width: 110, height: 120, borderRadius: 28, borderWidth: 1.4, borderColor: 'rgba(86,58,58,0.27)', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
+  plushCollectionBodyOwned: { width: 110, height: 120, borderRadius: 0, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent', overflow: 'visible' },
   plushCollectionSelected: { transform: [{ scale: 1.05 }] },
-  plushCollectionImage: { position: 'absolute', width: 88, height: 96 },
-  collectionPlushName: { width: 88, color: '#503645', fontSize: 8, fontWeight: '700', textAlign: 'center', textShadowColor: '#FFF4DC', textShadowRadius: 2, marginTop: 1 },
+  plushCollectionImage: { position: 'absolute', width: 110, height: 120 },
+  collectionPlushName: { width: 110, color: '#503645', fontSize: 8, fontWeight: '700', textAlign: 'center', textShadowColor: '#FFF4DC', textShadowRadius: 2, marginTop: 1 },
   timeBanner: { minHeight: 72, borderRadius: 21, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: '#5B4672', flexDirection: 'row', alignItems: 'center', shadowColor: '#3B294D', shadowOpacity: 0.16, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   timeBannerClosed: { backgroundColor: '#8D7789' },
   timeBadge: { width: 47, height: 47, borderRadius: 18, backgroundColor: '#F3D6AF', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
@@ -3068,7 +3087,6 @@ const styles = StyleSheet.create({
   mobbyPackage: { width: 242, height: 242, alignItems: 'center', justifyContent: 'center', position: 'relative', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   packagePressed: { transform: [{ rotate: '1deg' }, { scale: 0.96 }] },
   packageAsset: { position: 'absolute', width: 242, height: 242 },
-  openedPackageAsset: { width: 270, height: 270 },
   packageBrandOverlay: { position: 'absolute', top: 144, left: 54, right: 54, height: 43, alignItems: 'center', justifyContent: 'center' },
   packageLogo: { color: '#68465F', fontSize: 15, lineHeight: 17, fontWeight: '900', letterSpacing: 1.6 },
   packageHint: { color: '#8B6774', fontSize: 6, fontWeight: '900', letterSpacing: 1.1, marginTop: 2 },
@@ -3076,9 +3094,10 @@ const styles = StyleSheet.create({
   magicParticles: { ...StyleSheet.absoluteFillObject, zIndex: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 28 },
   magicParticle: { color: '#FFF7B8', fontSize: 32, fontWeight: '900', textShadowColor: '#D98FA0', textShadowRadius: 8 },
   encounterOpenedBox: { position: 'absolute', top: 18, left: '50%', width: 300, height: 300, marginLeft: -150, zIndex: 2 },
-  encounterRewardWrap: { width: 252, height: 276, alignItems: 'center', justifyContent: 'center', zIndex: 3 },
-  encounterKeyImage: { width: 252, height: 276 },
-  encounterSmallKeyImage: { width: 196, height: 216 },
+  encounterRewardWrap: { width: 286, height: 312, alignItems: 'center', justifyContent: 'center', zIndex: 3 },
+  encounterKeyImage: { width: 286, height: 312 },
+  encounterSmallKeyImage: { width: 222, height: 244 },
+  encounterPlushImage: { width: 222, height: 246 },
   placementSparkles: { ...StyleSheet.absoluteFillObject, zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 18 },
   placementSparkle: { color: '#FFF4A8', fontSize: 27, fontWeight: '900', textShadowColor: '#C96F8B', textShadowRadius: 7 },
   newBadge: { position: 'absolute', left: 7, bottom: 4, width: 72, height: 72, alignItems: 'center', justifyContent: 'center', paddingBottom: 12, transform: [{ rotate: '-7deg' }], zIndex: 5 },
