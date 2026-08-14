@@ -6,6 +6,7 @@ import { Asset } from 'expo-asset';
 import { useFonts } from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  AccessibilityInfo,
   Animated,
   Dimensions,
   Easing,
@@ -15,7 +16,6 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text as NativeText,
   View,
@@ -26,10 +26,59 @@ import {
 import { MobbyPullMesh, type MobbyPullMeshHandle } from '@/components/MobbyPullMesh';
 import { MobbyCarousel } from '@/components/MobbyCarousel';
 import { getMobby, type MobbyId } from '@/data/mobies';
+import {
+  ENEMIES,
+  ENEMIES_IN_REVEAL_ORDER,
+  ENEMY_CASE_BY_ID,
+  ENEMY_CASES,
+  PLAYABLE_ENEMY_CASES,
+  getEnemyPublicDescriptor,
+  isPlayableEnemyCase,
+  type EnemyCase,
+  type EnemyCaseId,
+} from '@/data/enemyCases';
+import { getIncidentComic, incidentComicId } from '@/data/incidentComics';
 import { PULL_ASSETS, type MobbyPullAsset, type PullFrame } from '@/data/mobbyPullAssets';
 import { useMobbyAudio } from '@/hooks/useMobbyAudio';
+import { InvestigationScreen, type IncidentAllyActor, type InvestigationProgress } from '@/components/InvestigationScreen';
+import { IncidentCutIn } from '@/components/IncidentCutIn';
+import { IncidentResolutionOverlay } from '@/components/IncidentResolutionOverlay';
+import {
+  IncidentCasebookScreen,
+  type IncidentCasebookActiveCase,
+  type IncidentCasebookComicEntry,
+  type IncidentCasebookEnemyEntry,
+  type IncidentCasebookTab,
+} from '@/components/IncidentCasebookScreen';
+import { MIDNIGHT_DOUBLE_INCIDENT } from '@/data/incidentStory';
+import {
+  incidentAllyIds,
+  restoreIncidentAllies,
+  sanitizeIncidentHintLevels,
+  selectIncidentAllies,
+  type IncidentAllyCandidate,
+  type IncidentAllySelection,
+} from '@/domain/incidents/cast';
+import {
+  acknowledgeIncidentNotification,
+  completeIncidentReturn as advanceIncidentReturn,
+  createIncidentRunId,
+  decodeIncidentStorage,
+  dismissIncidentReward,
+  freshIncidentStorage,
+  markIncidentCaseIntroSeen,
+  markOrganizationIntroSeen,
+  selectIdentifiedEnemyIds,
+  selectSolvedCaseIds,
+  solveIncidentRun,
+  startIncidentRun,
+  updateIncidentProgress,
+  type IncidentRewardResolver,
+  type IncidentStorageCodec,
+  type IncidentStorageV4,
+} from '@/domain/incidents/archive';
 
-type Screen = 'home' | 'collection' | 'time' | 'touch' | 'trade';
+type Screen = 'home' | 'collection' | 'time' | 'touch' | 'trade' | 'casebook' | 'investigation';
 type ItemKind = 'ぬいキー' | 'ぬいぐるみ';
 type CollectibleVariant = 'key-normal' | 'key-small' | 'plush';
 type KeychainImageSize = 'normal' | 'small';
@@ -37,14 +86,16 @@ type CollectibleReward = { item: Item; variant: CollectibleVariant };
 type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placing' | 'placed';
 type HomePlacementKind = 'wall' | 'shelf';
 type OnboardingStep = 'none' | 'favorite' | 'mobbyTime' | 'opening' | 'place' | 'wallFlight' | 'home' | 'collection' | 'time' | 'trade';
+type IncidentResolutionPhase = 'none' | 'returning' | 'resolved';
 
 const DESIGN_WIDTH = 440;
 const DESIGN_MIN_HEIGHT = 720;
 const BOTTOM_NAV_CELLS = [
-  { left: 14, width: 78 },
-  { left: 115, width: 76 },
-  { left: 217, width: 76 },
-  { left: 318, width: 78 },
+  { left: 4, width: 78 },
+  { left: 90, width: 78 },
+  { left: 176, width: 78 },
+  { left: 262, width: 78 },
+  { left: 348, width: 78 },
 ] as const;
 
 function isDarkTextColor(color: unknown) {
@@ -151,6 +202,162 @@ const STORAGE_TUTORIAL_COMPLETE = '@mobby/tutorial-complete-v2';
 const STORAGE_FAVORITE = '@mobby/favorite-v1';
 const STORAGE_OWNED = '@mobby/owned-v2';
 const STORAGE_OWNED_LEGACY = '@mobby/owned-v1';
+const STORAGE_CASES = '@mobby/case-files-v2';
+const FEATURED_INCIDENT_CASE_ID = 'case-04-magician';
+const PLAYABLE_INCIDENT_CASE_IDS: ReadonlySet<string> = new Set(PLAYABLE_ENEMY_CASES.map((caseData) => caseData.id));
+const INCIDENT_REWARD_RESOLVER: IncidentRewardResolver = {
+  enemyIdForCase: (caseId) => ENEMY_CASE_BY_ID[caseId]?.revealEnemyId ?? null,
+  comicIdForMobby: (mobbyId) => incidentComicId(mobbyId),
+};
+const INVESTIGATION_SCENES = ['arrival', 'evidence', 'link', 'deduction', 'contradiction', 'accuse', 'rebuttal', 'confession'] as const;
+const DEFAULT_INVESTIGATION_PROGRESS: InvestigationProgress = {
+  scene: 'arrival',
+  storySceneId: MIDNIGHT_DOUBLE_INCIDENT.sceneIds[0] ?? 'alert',
+  evidenceIndex: 0,
+  completedInteractionIds: [],
+  discoveredFactIds: [],
+  accusationAnswers: {},
+  accusationIndex: 0,
+  attempts: 0,
+};
+
+function freshDefaultInvestigationProgress(): InvestigationProgress {
+  return {
+    ...DEFAULT_INVESTIGATION_PROGRESS,
+    completedInteractionIds: [],
+    discoveredFactIds: [],
+    accusationAnswers: {},
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function uniqueAllowedStrings(value: unknown, allowed: ReadonlySet<string>): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const result: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string' || !allowed.has(entry)) return null;
+    if (!result.includes(entry)) result.push(entry);
+  }
+  return result;
+}
+
+function sameOrderedValues(actual: readonly string[], expected: readonly string[]): boolean {
+  return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
+}
+
+function sanitizeInvestigationProgress(value: unknown, migrateV2Hints = false): InvestigationProgress | null {
+  if (!isRecord(value)) return null;
+  const scene = typeof value.scene === 'string' && (INVESTIGATION_SCENES as readonly string[]).includes(value.scene)
+    ? value.scene as InvestigationProgress['scene']
+    : null;
+  const evidenceIndex = Number.isInteger(value.evidenceIndex) && Number(value.evidenceIndex) >= 0 && Number(value.evidenceIndex) <= 2 ? Number(value.evidenceIndex) : null;
+  const accusationIndex = Number.isInteger(value.accusationIndex) && Number(value.accusationIndex) >= 0 && Number(value.accusationIndex) <= 2
+    ? Number(value.accusationIndex)
+    : null;
+  const attempts = Number.isInteger(value.attempts) && Number(value.attempts) >= 0 ? Number(value.attempts) : null;
+  if (!scene || evidenceIndex === null || accusationIndex === null || attempts === null) return null;
+  const story = MIDNIGHT_DOUBLE_INCIDENT;
+  const storyScene = typeof value.storySceneId === 'string' ? story.scenes.find((candidate) => candidate.id === value.storySceneId) : undefined;
+  if (!storyScene) return null;
+  const interactionOrder = story.interactions.map((interaction) => interaction.id);
+  const factOrder = story.interactions.map((interaction) => interaction.successFactId);
+  const interactionIds = uniqueAllowedStrings(value.completedInteractionIds, new Set(interactionOrder));
+  const factIds = uniqueAllowedStrings(value.discoveredFactIds, new Set(Object.keys(story.facts)));
+  if (!interactionIds || !factIds) return null;
+  if (!sameOrderedValues(interactionIds, interactionOrder.slice(0, interactionIds.length))) return null;
+  if (!sameOrderedValues(factIds, factOrder.slice(0, factIds.length)) || factIds.length !== interactionIds.length) return null;
+  const contradictionChoices = new Set(story.contradiction.choices.map((choice) => choice.id));
+  const contradictionChoiceId = value.contradictionChoiceId === undefined
+    ? undefined
+    : typeof value.contradictionChoiceId === 'string' && contradictionChoices.has(value.contradictionChoiceId)
+      ? value.contradictionChoiceId
+      : null;
+  if (contradictionChoiceId === null) return null;
+
+  if (!isRecord(value.accusationAnswers)) return null;
+  const questionIds = new Set<string>(story.accusation.map((question) => question.id));
+  if (Object.keys(value.accusationAnswers).some((key) => !questionIds.has(key))) return null;
+  const accusationAnswers: InvestigationProgress['accusationAnswers'] = {};
+  for (const question of story.accusation) {
+    const answer = value.accusationAnswers[question.id];
+    if (answer === undefined) continue;
+    const correctOption = question.options.find((option) => option.correct);
+    if (typeof answer !== 'string' || answer !== correctOption?.id) return null;
+    accusationAnswers[question.id] = answer;
+  }
+  const answeredCount = story.accusation.filter((question) => accusationAnswers[question.id] !== undefined).length;
+  const answeredPrefix = story.accusation.slice(0, answeredCount).every((question) => accusationAnswers[question.id] !== undefined);
+  if (!answeredPrefix) return null;
+  const progressKeys = new Set<string>([...interactionOrder, 'contradiction', ...story.accusation.map((question) => question.id)]);
+  const sanitizeCounters = (raw: unknown) => {
+    if (raw === undefined) return {};
+    if (!isRecord(raw) || Object.keys(raw).some((key) => !progressKeys.has(key))) return null;
+    const result: Record<string, number> = {};
+    for (const [key, entry] of Object.entries(raw)) {
+      if (!Number.isInteger(entry) || Number(entry) < 0) return null;
+      result[key] = Number(entry);
+    }
+    return result;
+  };
+  const hintLevels = sanitizeIncidentHintLevels(value.hintLevels, progressKeys, migrateV2Hints);
+  const interactionAttempts = sanitizeCounters(value.interactionAttempts);
+  if (!hintLevels || !interactionAttempts) return null;
+  const inspectableTargets: Record<string, ReadonlySet<string>> = {
+    'clock-inspection': new Set(['hands', 'back']),
+    'projection-comparison': new Set(),
+    'corridor-search': new Set(['window', 'footprints', 'service-box']),
+  };
+  const inspectedTargetIds: Record<string, string[]> = {};
+  if (value.inspectedTargetIds !== undefined) {
+    const interactionIdSet = new Set<string>(interactionOrder);
+    if (!isRecord(value.inspectedTargetIds) || Object.keys(value.inspectedTargetIds).some((key) => !interactionIdSet.has(key))) return null;
+    for (const [key, entry] of Object.entries(value.inspectedTargetIds)) {
+      const ids = uniqueAllowedStrings(entry, inspectableTargets[key] ?? new Set());
+      if (!ids) return null;
+      inspectedTargetIds[key] = ids;
+    }
+  }
+  const expectedScene: InvestigationProgress['scene'] = storyScene.kind === 'inspection' ? 'evidence'
+    : storyScene.id === 'contradiction' ? 'contradiction'
+      : storyScene.kind === 'deduction' ? 'deduction'
+        : storyScene.kind === 'accusation' ? 'accuse'
+          : storyScene.kind === 'rescue' ? 'confession'
+            : storyScene.id === 'confrontation' ? 'link' : 'arrival';
+  if (scene !== expectedScene && !(storyScene.kind === 'accusation' && scene === 'rebuttal')) return null;
+  const requiredEvidenceCount: Record<string, number> = { alert: 0, briefing: 0, clock: 0, projection: 1, sabotage: 2, corridor: 2, memo: 3, contradiction: 3, confrontation: 3, accusation: 3, proof: 3, rescue: 3 };
+  const requiredCount = requiredEvidenceCount[storyScene.id];
+  if (requiredCount === undefined || interactionIds.length < requiredCount) return null;
+  if (storyScene.kind !== 'inspection' && interactionIds.length !== requiredCount) return null;
+  if (storyScene.id === 'clock' && interactionIds.length > 1) return null;
+  if (storyScene.id === 'projection' && interactionIds.length > 2) return null;
+  if (storyScene.id === 'corridor' && interactionIds.length > 3) return null;
+  const expectedEvidenceIndex = storyScene.interactionId ? story.interactions.findIndex((item) => item.id === storyScene.interactionId) : 0;
+  if (evidenceIndex !== expectedEvidenceIndex) return null;
+  const contradictionSolved = contradictionChoiceId === story.contradiction.correctChoiceId;
+  if (storyScene.order < 7 && contradictionChoiceId !== undefined) return null;
+  if (storyScene.order < 9 && answeredCount !== 0) return null;
+  if (['confrontation', 'accusation', 'proof', 'rescue'].includes(storyScene.id) && !contradictionSolved) return null;
+  if (storyScene.id === 'accusation' && answeredCount !== accusationIndex) return null;
+  if (['proof', 'rescue'].includes(storyScene.id) && (answeredCount !== story.accusation.length || accusationIndex !== story.accusation.length - 1)) return null;
+
+  return {
+    scene: scene === 'rebuttal' ? 'accuse' : scene,
+    storySceneId: storyScene.id,
+    evidenceIndex,
+    completedInteractionIds: interactionIds as InvestigationProgress['completedInteractionIds'],
+    discoveredFactIds: factIds as InvestigationProgress['discoveredFactIds'],
+    contradictionChoiceId,
+    accusationAnswers,
+    accusationIndex,
+    attempts,
+    hintLevels,
+    interactionAttempts,
+    inspectedTargetIds,
+  };
+}
 const KEYCHAIN = {
   reomoby: require('../../assets/mobby-keychains/reomoby-key.png'),
   mobichi: require('../../assets/mobby-keychains/mobichi-key.png'),
@@ -375,6 +582,16 @@ const PULL_REACTION_FRAMES: Partial<Record<MobbyId, readonly number[]>> = {
     require('../../assets/mobies/reactions/yami_extra_reaction_20_ultimate_enough.webp'),
   ],
 };
+
+const CASE_REACTION_FRAME_INDEX: Record<string, number> = {
+  'case-01-informant': 9,
+  'case-02-tracker': 14,
+  'case-03-safecracker': 11,
+  'case-04-magician': 17,
+  'case-05-veiled-duchess': 14,
+  'case-06-courier': 15,
+  'case-07-operation': 19,
+};
 const ITEMS: Item[] = [
   { id: 'mobichi-key', name: 'もびち ぬいキー', kind: 'ぬいキー', rarity: 'R', image: require('../../assets/mobies/mobichi.webp'), keyImage: KEYCHAIN.mobichi, smallKeyImage: KEYCHAIN_SMALL.mobichi, accent: '#E79AA7' },
   { id: 'mobiyan-plush', name: 'もびやん ぬい', kind: 'ぬいぐるみ', rarity: 'SR', image: require('../../assets/mobies/mobiyan.webp'), keyImage: KEYCHAIN.mobiyan, smallKeyImage: KEYCHAIN_SMALL.mobiyan, accent: '#83B8C4' },
@@ -468,6 +685,64 @@ function normalizeOwnedInventory(raw: Record<string, unknown>) {
   return normalized;
 }
 
+function ownsAnyCollectible(owned: Record<string, number>, itemId: string) {
+  return COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(owned, itemId, variant) > 0);
+}
+
+function isValidIncidentTarget(owned: Record<string, number>, itemId: string) {
+  return ITEMS.some((item) => item.id === itemId)
+    && ownedCollectibleCount(owned, itemId, 'key-normal') + ownedCollectibleCount(owned, itemId, 'key-small') > 0;
+}
+
+function buildIncidentAllyCandidates(
+  owned: Record<string, number>,
+  wallItemIds: readonly string[],
+  plushItemIds: readonly string[],
+): IncidentAllyCandidate[] {
+  const visiblePlushIds = plushItemIds.filter((id) => ownedCollectibleCount(owned, id, 'plush') > 0).slice(0, 4);
+  const visibleIds = new Set([
+    ...wallItemIds.filter((id) => ownedCollectibleCount(owned, id, 'key-normal') + ownedCollectibleCount(owned, id, 'key-small') > 0),
+    ...visiblePlushIds,
+  ]);
+  const orderedItemIds = [...visibleIds, ...ITEMS.map((item) => item.id).filter((id) => !visibleIds.has(id))];
+  return orderedItemIds.flatMap((itemId) => {
+    const item = ITEMS.find((candidate) => candidate.id === itemId);
+    const mobbyId = ITEM_MOBBY_IDS[itemId];
+    if (!item || !mobbyId) return [];
+    return [{
+      itemId,
+      mobbyId,
+      name: itemCharacterName(item),
+      image: item.image,
+      owned: ownsAnyCollectible(owned, itemId),
+      homeVisible: visibleIds.has(itemId),
+    }];
+  });
+}
+
+function createIncidentStorageCodec(
+  owned: Record<string, number>,
+  wallItemIds: readonly string[],
+  plushItemIds: readonly string[],
+): IncidentStorageCodec<InvestigationProgress> {
+  const candidates = buildIncidentAllyCandidates(owned, wallItemIds, plushItemIds);
+  return {
+    caseIds: new Set(ENEMY_CASES.map((caseData) => caseData.id)),
+    playableCaseIds: PLAYABLE_INCIDENT_CASE_IDS,
+    enemyIds: new Set(ENEMIES.map((enemy) => enemy.id)),
+    mobbyIds: new Set(Object.values(ITEM_MOBBY_IDS)),
+    enemyIdForCase: (caseId) => ENEMY_CASE_BY_ID[caseId]?.revealEnemyId ?? null,
+    comicIdForMobby: (mobbyId) => incidentComicId(mobbyId),
+    mobbyIdForTargetItem: (itemId) => ITEM_MOBBY_IDS[itemId] ?? null,
+    isValidTargetItem: (itemId) => isValidIncidentTarget(owned, itemId),
+    sanitizeAllies: (value, targetItemId) => {
+      const restored = restoreIncidentAllies(value, candidates, targetItemId);
+      return restored ? incidentAllyIds(restored) : null;
+    },
+    sanitizeProgress: (value) => sanitizeInvestigationProgress(value),
+  };
+}
+
 // The source illustrations have slightly different transparent padding below
 // their feet. Normalize that padding so every plush touches the same shelf
 // edge instead of making some characters appear to float.
@@ -520,7 +795,7 @@ const QR_PATTERN = [
   '1111111011011110111',
 ];
 
-function Header({ onBell, soundEnabled, onToggleSound }: { onBell: () => void; soundEnabled: boolean; onToggleSound: () => void }) {
+function Header({ onBell, onInvestigation, hasUnresolvedIncident, soundEnabled, onToggleSound }: { onBell: () => void; onInvestigation: () => void; hasUnresolvedIncident: boolean; soundEnabled: boolean; onToggleSound: () => void }) {
   return (
     <View style={styles.header}>
       <View style={styles.brandWrap}><Image source={MOBBY_LOGO_RAINBOW} resizeMode="contain" style={styles.headerLogoImage} /></View>
@@ -530,9 +805,13 @@ function Header({ onBell, soundEnabled, onToggleSound }: { onBell: () => void; s
           <Text style={[styles.soundButtonText, !soundEnabled && styles.soundButtonTextMuted]}>{soundEnabled ? '♪' : '♪'}</Text>
           {!soundEnabled ? <View pointerEvents="none" style={styles.soundMutedSlash} /> : null}
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={hasUnresolvedIncident ? '未解決事件を開く' : '事件通知を確認する'} onPress={onInvestigation} style={[styles.caseHeaderButton, styles.pressableFocusReset]}>
+          <Image source={require('../../assets/home-ui/icons/notice.png')} resizeMode="contain" style={styles.caseHeaderIcon} />
+          <View style={[styles.caseHeaderBadge, !hasUnresolvedIncident && styles.caseHeaderBadgeWaiting]}><Text style={styles.caseHeaderBadgeText}>{hasUnresolvedIncident ? '!' : '·'}</Text></View>
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="お知らせ" onPress={onBell} style={[styles.bellButton, styles.pressableFocusReset]}>
           <Image source={BELL} resizeMode="contain" style={styles.bellIcon} />
-          <View style={styles.bellBadge}><Text style={styles.bellBadgeText}>3</Text></View>
+          <View style={styles.bellBadge}><Text style={styles.bellBadgeText}>4</Text></View>
         </Pressable>
       </View>
     </View>
@@ -544,11 +823,17 @@ function NotificationPopup({
   onOpenMobbyTime,
   onOpenCollection,
   onOpenTrade,
+  onOpenInvestigation,
+  hasUnresolvedIncident,
+  incidentNotificationPending,
 }: {
   onClose: () => void;
   onOpenMobbyTime: () => void;
   onOpenCollection: () => void;
   onOpenTrade: () => void;
+  onOpenInvestigation: () => void;
+  hasUnresolvedIncident: boolean;
+  incidentNotificationPending: boolean;
 }) {
   const entrance = useRef(new Animated.Value(0)).current;
 
@@ -581,7 +866,7 @@ function NotificationPopup({
         <View style={styles.notificationHeader}>
           <View>
             <Text style={styles.notificationTitle}>お知らせ</Text>
-            <Text style={styles.notificationSubtitle}>モビーの部屋から3件届いています</Text>
+            <Text style={styles.notificationSubtitle}>{hasUnresolvedIncident ? '未解決の事件通知が届いています' : '新しい事件の通知を待っています'}</Text>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} style={styles.notificationCloseButton}>
             <Text style={styles.notificationCloseText}>×</Text>
@@ -614,6 +899,16 @@ function NotificationPopup({
             <Text style={styles.notificationKicker}>交換</Text>
             <Text style={styles.notificationItemTitle}>フレンドと交換しよう</Text>
             <Text style={styles.notificationItemBody}>MOBBY TIME中は交換チャンス！</Text>
+          </View>
+          <Text style={styles.notificationChevron}>›</Text>
+        </ImageBackground></Pressable>
+
+        <Pressable accessibilityRole="button" accessibilityLabel={hasUnresolvedIncident ? '未解決事件のお知らせを開く' : '事件通知を確認する'} onPress={onOpenInvestigation} style={({ pressed }) => [styles.notificationItem, pressed && styles.notificationItemPressed]}><ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.notificationItemPaper}>
+          <View style={[styles.notificationIcon, styles.notificationIconCase]}><Text style={styles.notificationIconText}>!</Text></View>
+          <View style={styles.notificationCopy}>
+            <View style={styles.notificationItemHeading}><Text style={styles.notificationKicker}>事件簿</Text><View style={styles.notificationNewBadge}><Text style={styles.notificationLiveText}>{incidentNotificationPending ? '新着' : hasUnresolvedIncident ? '未解決' : '待機中'}</Text></View></View>
+            <Text style={styles.notificationItemTitle}>{incidentNotificationPending ? 'モビーの部屋に異変を検知' : hasUnresolvedIncident ? 'モビーの部屋に異変が…' : '次の事件を待っています'}</Text>
+            <Text style={styles.notificationItemBody}>{incidentNotificationPending ? 'タップして事件通知を確認してください' : hasUnresolvedIncident ? '証拠を集めて、犯人を推理しよう' : '事件ボタンからデモ通知を受け取れます'}</Text>
           </View>
           <Text style={styles.notificationChevron}>›</Text>
         </ImageBackground></Pressable>
@@ -672,7 +967,7 @@ function LoadingMascot({ compact = false }: { compact?: boolean }) {
 
 function LoadingOverlay() {
   return (
-    <View accessibilityRole="progressbar" accessibilityLabel="読み込み中" style={styles.loadingOverlay}>
+    <View accessibilityRole="progressbar" accessibilityLabel="読み込み中" accessibilityViewIsModal style={styles.loadingOverlay}>
       <View style={styles.loadingCard}>
         <LoadingMascot />
         <Text style={styles.loadingTitle}>お部屋を準備中</Text>
@@ -837,7 +1132,11 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
   const openingCompositionHeight = Math.max(openingCoreHeight, openingPackageTop + openingPackageSize);
   const openingSceneTop = Math.max(0, (appHeight - openingCompositionHeight) / 2);
   return (
-    <Animated.View style={[styles.openingScreen, { opacity: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ scale: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }] }]}>
+    <Animated.View
+      accessibilityLabel="MOBBY COLLECTION 起動画面"
+      accessibilityViewIsModal
+      style={[styles.openingScreen, { opacity: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ scale: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }] }]}
+    >
       <Image source={ROOM_BACKGROUND} resizeMode="cover" style={styles.openingBackdrop} />
       <Pressable
         accessibilityRole="button"
@@ -904,7 +1203,7 @@ function HomeWallKeychain({
   index,
   selectedId,
   ownedCount,
-  hidden,
+  incidentState,
   isEditing,
   isEditSelected,
   isEditTarget,
@@ -919,7 +1218,7 @@ function HomeWallKeychain({
   index: number;
   selectedId: string;
   ownedCount: number;
-  hidden: boolean;
+  incidentState: 'normal' | 'stolen' | 'returning' | 'placement-hidden';
   isEditing: boolean;
   isEditSelected: boolean;
   isEditTarget: boolean;
@@ -931,6 +1230,23 @@ function HomeWallKeychain({
 }) {
   const isOwned = ownedCount > 0;
   const rotation = useRef(new Animated.Value(0)).current;
+  const alarmPulse = useRef(new Animated.Value(0)).current;
+  const isStolen = incidentState === 'stolen';
+  const isReturning = incidentState === 'returning';
+  const interactionsDisabled = isStolen || isReturning;
+  useEffect(() => {
+    if (!isStolen) {
+      alarmPulse.stopAnimation();
+      alarmPulse.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(alarmPulse, { toValue: 1, duration: 620, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+      Animated.timing(alarmPulse, { toValue: 0, duration: 620, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [alarmPulse, isStolen]);
   const settle = useCallback((direction: number) => {
     Animated.sequence([
       Animated.timing(rotation, { toValue: -direction * 0.72, duration: 125, useNativeDriver: true }),
@@ -941,8 +1257,8 @@ function HomeWallKeychain({
   }, [rotation]);
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_event, gesture) => isOwned && !isEditing && (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 5),
-    onMoveShouldSetPanResponderCapture: (_event, gesture) => isOwned && !isEditing && (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 5),
+    onMoveShouldSetPanResponder: (_event, gesture) => isOwned && !isEditing && !interactionsDisabled && (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 5),
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => isOwned && !isEditing && !interactionsDisabled && (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 5),
     onPanResponderGrant: () => {
       rotation.stopAnimation();
       onSwing();
@@ -950,33 +1266,34 @@ function HomeWallKeychain({
     onPanResponderMove: (_event, gesture) => rotation.setValue(Math.max(-1, Math.min(1, gesture.dx / 42))),
     onPanResponderRelease: (_event, gesture) => settle(gesture.dx < 0 ? -1 : 1),
     onPanResponderTerminate: (_event, gesture) => settle(gesture.dx < 0 ? -1 : 1),
-  }), [isEditing, isOwned, onSwing, rotation, settle]);
+  }), [interactionsDisabled, isEditing, isOwned, onSwing, rotation, settle]);
   const swing = useCallback((direction: number) => {
     onSwing();
     settle(direction);
   }, [onSwing, settle]);
   useEffect(() => {
     if (!onSwingReady) return undefined;
-    if (!isOwned) {
+    if (!isOwned || interactionsDisabled) {
       onSwingReady(item.id, null);
       return undefined;
     }
     onSwingReady(item.id, swing);
     return () => onSwingReady(item.id, null);
-  }, [isOwned, item.id, onSwingReady, swing]);
+  }, [interactionsDisabled, isOwned, item.id, onSwingReady, swing]);
   const sway = rotation.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-20deg', '0deg', '20deg'] });
   const name = item.name.replace(' ぬいキー', '').replace(' ぬい', '');
-  const localPanHandlers = !gestureManaged && !isEditing && isOwned ? panResponder.panHandlers : {};
-  const canPress = isOwned || isEditing;
+  const localPanHandlers = !gestureManaged && !isEditing && isOwned && !interactionsDisabled ? panResponder.panHandlers : {};
+  const canPress = isStolen || isOwned || isEditing;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={isEditing ? `${name}、壁フック${index + 1}` : isOwned ? `${name}を揺らす` : `未所持の壁フック${index + 1}`}
+      accessibilityLabel={isStolen ? `${name}が連れ去られた。タップして追跡` : isEditing ? `${name}、壁フック${index + 1}` : isOwned ? `${name}を揺らす` : `未所持の壁フック${index + 1}`}
+      accessibilityHint={isStolen ? '未解決事件の捜査を再開します' : undefined}
       onPress={() => {
         if (!canPress) return;
         onPress();
-        if (!isEditing && isOwned) {
+        if (!isEditing && isOwned && !interactionsDisabled) {
           rotation.stopAnimation();
           settle(1);
           onSwing();
@@ -988,15 +1305,30 @@ function HomeWallKeychain({
         isEditing && styles.homeDecorationEditable,
         isEditTarget && styles.homeDecorationTarget,
         isEditSelected && styles.homeDecorationEditSelected,
-        hidden && styles.homeWallKeyHidden,
+        incidentState === 'placement-hidden' && styles.homeWallKeyHidden,
+        isStolen && styles.homeWallKeyStolen,
+        isReturning && styles.homeWallKeyReturning,
         pressed && styles.homeSelectablePressed,
       ]}
       onLayout={onLayout}
     >
       <Image source={WOODEN_HOOK} resizeMode="contain" style={styles.homeWallHook} />
-      {isOwned ? (
+      {isStolen ? (
+        <Animated.View pointerEvents="none" style={[styles.homeWallStolenMarker, {
+          borderColor: alarmPulse.interpolate({ inputRange: [0, 1], outputRange: ['rgba(190,42,58,0.55)', '#FF4358'] }),
+          backgroundColor: alarmPulse.interpolate({ inputRange: [0, 1], outputRange: ['rgba(80,17,31,0.18)', 'rgba(137,22,42,0.34)'] }),
+          transform: [{ scale: alarmPulse.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.035] }) }],
+        }] }>
+          <Image source={collectibleImage(item, variant)} resizeMode="contain" style={[styles.homeWallStolenGhost, variant === 'key-small' && styles.homeWallStolenGhostSmall]} />
+          <View style={styles.homeWallBrokenCord}><View style={styles.homeWallBrokenCordLeft} /><View style={styles.homeWallBrokenCordRight} /></View>
+          <View style={styles.homeWallCaseTag}><Text style={styles.homeWallCaseTagText}>CASE 04</Text></View>
+          <View style={styles.homeWallStolenBand}><Text style={styles.homeWallStolenBandText}>連れ去られた</Text></View>
+          <Text numberOfLines={1} style={styles.homeWallStolenName}>{name}</Text>
+          <Text style={styles.homeWallResume}>タップして追跡</Text>
+        </Animated.View>
+      ) : isOwned ? (
         <Animated.View {...localPanHandlers} style={[styles.homeWallKeySwing, { transform: [{ rotate: sway }] }]}>
-          <Image source={collectibleImage(item, variant)} resizeMode="contain" style={[styles.homeWallKeyImage, variant === 'key-small' && styles.homeWallSmallKeyImage]} />
+          <Image source={collectibleImage(item, variant)} resizeMode="contain" style={[styles.homeWallKeyImage, variant === 'key-small' && styles.homeWallSmallKeyImage, isReturning && styles.homeWallReturningImage]} />
         </Animated.View>
       ) : null}
       {isEditing ? <View style={styles.homeSlotBadge}><Text style={styles.homeSlotBadgeText}>{index + 1}</Text></View> : null}
@@ -1082,7 +1414,10 @@ function HomeScreen({
   selected,
   owned = EMPTY_OWNED,
   onSelect,
-  hiddenWallItemId,
+  incidentWallItemId,
+  incidentWallState,
+  placementHiddenWallItemId,
+  onIncidentPress,
   wallItemIds,
   wallVariants,
   plushItemIds,
@@ -1096,7 +1431,10 @@ function HomeScreen({
   selected: Item;
   owned?: Record<string, number>;
   onSelect: (id: string) => void;
-  hiddenWallItemId?: string;
+  incidentWallItemId?: string;
+  incidentWallState: 'none' | 'stolen' | 'returning';
+  placementHiddenWallItemId?: string;
+  onIncidentPress: () => void;
   wallItemIds: string[];
   wallVariants: Record<string, Exclude<CollectibleVariant, 'plush'>>;
   plushItemIds: string[];
@@ -1253,6 +1591,12 @@ function HomeScreen({
   };
   const toggleEditing = () => {
     onUiTap();
+    if (incidentWallState !== 'none') {
+      setIsEditing(false);
+      setEditSelection(null);
+      setEditFeedback('事件中は壁の配置を変更できません');
+      return;
+    }
     setIsEditing((current) => !current);
     setEditSelection(null);
     setEditFeedback('');
@@ -1315,11 +1659,15 @@ function HomeScreen({
                 index={index}
                 selectedId={selected.id}
                 ownedCount={ownedCollectibleCount(owned, item.id, 'key-normal') + ownedCollectibleCount(owned, item.id, 'key-small')}
-                hidden={item.id === hiddenWallItemId}
+                incidentState={item.id === incidentWallItemId && incidentWallState !== 'none'
+                  ? incidentWallState
+                  : item.id === placementHiddenWallItemId ? 'placement-hidden' : 'normal'}
                 isEditing={isEditing}
                 isEditSelected={isEditSelected}
                 isEditTarget={isEditTarget}
-                onPress={() => handleDecorationPress('wall', index, item)}
+                onPress={() => item.id === incidentWallItemId && incidentWallState === 'stolen'
+                  ? onIncidentPress()
+                  : handleDecorationPress('wall', index, item)}
                 onSwing={onKeychainSwing}
                 gestureManaged={!isEditing}
                 onSwingReady={registerWallSwing}
@@ -2233,10 +2581,10 @@ function selectPullExpression(
 function TouchScreen({ selected, onInteract, reaction }: { selected: Item; onInteract: (kind: string) => number; reaction: string }) {
   return (
     <View style={styles.touchScreenBackground}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.touchScrollContent}>
+      <View style={styles.touchScrollContent}>
       <View style={styles.touchTop}><View style={styles.touchTitleRow}><Text style={styles.bigTitle}>{selected.name}</Text><View style={[styles.rarityBadge, { backgroundColor: selected.accent }]}><Text style={styles.rarityBadgeText}>{selected.rarity}</Text></View></View></View>
       <View style={styles.touchStage}><PullableMobby selected={selected} onPull={() => onInteract('ほっぺ')} />{reaction ? <View style={styles.touchBubble}><Text style={styles.touchBubbleText}>{reaction}</Text></View> : null}<Text style={styles.touchHand}>☝</Text><View style={styles.touchHearts}><Text style={styles.touchHeart}>♥</Text><Text style={styles.touchHeart}>♥</Text><Text style={styles.touchHeart}>♥</Text></View></View>
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -2330,8 +2678,9 @@ function TradeScreen({ items, owned, selectedId, selectedVariant, onSelect }: { 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftSelectedId, setDraftSelectedId] = useState(selectedId);
   const [draftVariant, setDraftVariant] = useState<CollectibleVariant>(selectedVariant);
-  const { width: appWidth } = useAppLayout();
-  const tradeBoardWidth = Math.min(appWidth - 12, 428);
+  const { width: appWidth, height: appHeight } = useAppLayout();
+  // The body starts below the 74px header and keeps 92px clear for the nav.
+  const tradeBoardWidth = Math.min(appWidth - 12, 428, (appHeight - 166) / 1.5);
   const tradeBoardHeight = tradeBoardWidth * 1.5;
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
   const selectedName = selected.name.replace(' ぬいキー', '').replace(' ぬい', '');
@@ -2351,7 +2700,7 @@ function TradeScreen({ items, owned, selectedId, selectedVariant, onSelect }: { 
   }
 
   return (
-    <ScrollView style={styles.tradeScreenScroll} contentContainerStyle={styles.tradeScrollContent} showsVerticalScrollIndicator={false}>
+    <View style={[styles.tradeScreenScroll, styles.tradeScrollContent]}>
       <ImageBackground source={TRADE_EXCHANGE_BOARD} resizeMode="contain" style={[styles.tradeBoardAsset, { width: tradeBoardWidth, height: tradeBoardHeight }]} imageStyle={styles.tradeBoardAssetImage}>
         <View style={styles.tradeBoardTitle}><Text style={styles.tradeTitle}>モビー交換会</Text></View>
         <View style={[styles.tradeCard, styles.tradeCardFirst]}>
@@ -2372,18 +2721,24 @@ function TradeScreen({ items, owned, selectedId, selectedVariant, onSelect }: { 
           <Pressable accessibilityRole="button" accessibilityLabel={qrVisible ? '友達の読み取りを待っています' : '先に交換QRを表示してください'} accessibilityState={{ disabled: true }} disabled style={[styles.secondaryButton, styles.secondaryButtonDisabled]}><ImageBackground source={UI_CREAM_BUTTON} resizeMode="stretch" style={styles.assetButtonInner}><Text style={styles.secondaryButtonText}>{qrVisible ? '友達の読み取りを待っています' : '先にQRを表示してね'}</Text></ImageBackground></Pressable>
         </View>
       </ImageBackground>
-    </ScrollView>
+    </View>
   );
 }
 
-function BottomNav({ screen, setScreen }: { screen: Screen; setScreen: (screen: Screen) => void }) {
+function BottomNav({ screen, onNavigate, onOpenIncident, hasUnresolvedIncident }: { screen: Screen; onNavigate: (screen: Exclude<Screen, 'investigation'>) => void; onOpenIncident: () => void; hasUnresolvedIncident: boolean }) {
   const tabs: { id: Screen; label: string; icon: number }[] = [
     { id: 'home', label: 'ホーム', icon: HOUSE },
     { id: 'collection', label: 'コレクション', icon: MOBBY_ICON },
     { id: 'time', label: 'MOBBY TIME', icon: SPARKLES },
     { id: 'trade', label: 'TRADE', icon: FRIEND },
+    { id: 'investigation', label: '事件', icon: require('../../assets/home-ui/icons/notice.png') },
   ];
-  return <View style={styles.bottomNav}><Image source={UI_BOTTOM_STRIP} resizeMode="stretch" style={styles.bottomNavAsset} />{tabs.map((tab, index) => <Pressable key={tab.id} accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: screen === tab.id }} onPress={() => setScreen(tab.id)} style={({ pressed }) => [styles.navTab, BOTTOM_NAV_CELLS[index], pressed && styles.navTabPressed]}><Image source={tab.icon} resizeMode="contain" style={[styles.navIcon, screen === tab.id && styles.navIconActive]} /><Text style={[styles.navLabel, screen === tab.id && styles.navLabelActive]}>{tab.label}</Text>{screen === tab.id ? <View style={styles.navDot} /> : null}</Pressable>)}</View>;
+  const handleTabPress = (tabId: Screen) => {
+    if (tabId === 'investigation') onOpenIncident();
+    else onNavigate(tabId);
+  };
+  const selectedTabId: Screen = screen === 'casebook' ? 'investigation' : screen;
+  return <View style={styles.bottomNav}><Image source={UI_BOTTOM_STRIP} resizeMode="stretch" style={styles.bottomNavAsset} />{tabs.map((tab, index) => <Pressable key={tab.id} accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: selectedTabId === tab.id }} onPress={() => handleTabPress(tab.id)} style={({ pressed }) => [styles.navTab, BOTTOM_NAV_CELLS[index], pressed && styles.navTabPressed]}><Image source={tab.icon} resizeMode="contain" style={[styles.navIcon, selectedTabId === tab.id && styles.navIconActive, tab.id === 'investigation' && styles.navCaseIcon]} /><Text style={[styles.navLabel, selectedTabId === tab.id && styles.navLabelActive]}>{tab.label}</Text>{selectedTabId === tab.id ? <View style={styles.navDot} /> : null}{tab.id === 'investigation' && hasUnresolvedIncident ? <View pointerEvents="none" style={styles.navIncidentBadge}><Text style={styles.navIncidentBadgeText}>!</Text></View> : null}</Pressable>)}</View>;
 }
 
 export default function IndexScreen() {
@@ -2405,9 +2760,15 @@ export default function IndexScreen() {
   const [todayVariant, setTodayVariant] = useState<CollectibleVariant>('key-normal');
   const [secondsLeft, setSecondsLeft] = useState(1421);
   const [reaction, setReaction] = useState('');
+  const [incidentStorage, setIncidentStorage] = useState<IncidentStorageV4<InvestigationProgress>>(() => freshIncidentStorage());
+  const [incidentCutInVisible, setIncidentCutInVisible] = useState(false);
+  const [cutInShowsOrganizationIntro, setCutInShowsOrganizationIntro] = useState(false);
+  const [organizationIntroReplay, setOrganizationIntroReplay] = useState(false);
+  const [casebookInitialTab, setCasebookInitialTab] = useState<IncidentCasebookTab>('active');
   const [notice, setNotice] = useState('');
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const [wallPlacement, setWallPlacement] = useState<CollectibleReward | null>(null);
   const [homeWallItemIds, setHomeWallItemIds] = useState(() => ITEMS.map((item) => item.id));
   const [homeWallVariants, setHomeWallVariants] = useState<Record<string, Exclude<CollectibleVariant, 'plush'>>>(() => Object.fromEntries(ITEMS.map((item) => [item.id, 'key-normal'])));
@@ -2419,9 +2780,57 @@ export default function IndexScreen() {
   const pullReactionIndexRef = useRef<Record<string, number>>({});
   const lastKeyJingleRef = useRef(0);
   const placementHandledIdRef = useRef<string | null>(null);
-  const { engageBgm, playSfx } = useMobbyAudio({ bgmEnabled: appStarted && soundEnabled, sfxEnabled: soundEnabled });
+  const storageWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
   const today = ITEMS.find((item) => item.id === todayId) ?? ITEMS[0];
+  const activeIncident = incidentStorage.activeIncident;
+  const pendingIncidentReward = incidentStorage.pendingReward;
+  const activeIncidentId = activeIncident?.caseId ?? null;
+  const incidentTargetItemId = activeIncident?.targetItemId ?? null;
+  const incidentProgress = activeIncident?.progress ?? null;
+  const incidentNotificationPending = activeIncident?.notificationPending ?? false;
+  const caseSolvedIds = useMemo(() => selectSolvedCaseIds(incidentStorage), [incidentStorage]);
+  const identifiedEnemyIds = useMemo(() => selectIdentifiedEnemyIds(incidentStorage), [incidentStorage]);
+  const activeIncidentCase = activeIncident ? ENEMY_CASE_BY_ID[activeIncident.caseId] ?? null : null;
+  const incidentTargetItem = useMemo(() => ITEMS.find((item) => item.id === incidentTargetItemId) ?? null, [incidentTargetItemId]);
+  const resolutionCase = pendingIncidentReward ? ENEMY_CASE_BY_ID[pendingIncidentReward.caseId] ?? null : null;
+  const resolutionTargetItemId = pendingIncidentReward?.targetItemId ?? null;
+  const resolutionTargetItem = useMemo(() => ITEMS.find((item) => item.id === pendingIncidentReward?.targetItemId) ?? null, [pendingIncidentReward?.targetItemId]);
+  const incidentResolutionPhase: IncidentResolutionPhase = pendingIncidentReward?.step === 'reward'
+    ? 'resolved'
+    : pendingIncidentReward?.step ?? 'none';
+  const incidentAllies = useMemo<readonly IncidentAllySelection[]>(() => {
+    const persisted = activeIncident?.allies ?? pendingIncidentReward?.allies;
+    const targetItemId = activeIncident?.targetItemId ?? pendingIncidentReward?.targetItemId;
+    if (!persisted || !targetItemId) return [];
+    const candidates = buildIncidentAllyCandidates(owned, homeWallItemIds, homePlushItemIds);
+    return restoreIncidentAllies(persisted, candidates, targetItemId) ?? [];
+  }, [activeIncident, homePlushItemIds, homeWallItemIds, owned, pendingIncidentReward]);
+  const casebookPreviewTarget = useMemo(() => ITEMS.find((item) => isValidIncidentTarget(owned, item.id)) ?? null, [owned]);
+  const cutInCase = activeIncidentCase ?? (organizationIntroReplay ? PLAYABLE_ENEMY_CASES[0] ?? null : null);
+  const cutInTargetItem = incidentTargetItem ?? (organizationIntroReplay ? casebookPreviewTarget : null);
+  const hasUnresolvedIncident = Boolean(activeIncident);
+  const incidentCutInActive = Boolean(incidentCutInVisible && appStarted && tutorialComplete && cutInCase && cutInTargetItem && !pendingIncidentReward);
+  const incidentInvestigationActive = screen === 'investigation';
+  const incidentResolutionActive = Boolean(pendingIncidentReward && resolutionCase && appStarted && storageReady && tutorialComplete);
+  const incidentExperienceActive = incidentCutInActive || incidentInvestigationActive || incidentResolutionActive;
+  const appBaseIsolated = !appStarted || incidentExperienceActive;
+  const bgmMode = incidentResolutionPhase === 'returning'
+    ? 'silent' as const
+    : hasUnresolvedIncident ? 'incident' as const : 'normal' as const;
+  const { engageBgm, playSfx } = useMobbyAudio({ bgmEnabled: appStarted && soundEnabled, sfxEnabled: soundEnabled, bgmMode });
+  const incidentReactionImage = useMemo(() => {
+    if (!incidentTargetItem) return undefined;
+    if (!activeIncidentCase) return incidentTargetItem.image;
+    const frames = PULL_REACTION_FRAMES[ITEM_MOBBY_IDS[incidentTargetItem.id] ?? 'mobichi'] ?? [];
+    return frames[CASE_REACTION_FRAME_INDEX[activeIncidentCase.id] ?? 0] ?? incidentTargetItem.image;
+  }, [activeIncidentCase, incidentTargetItem]);
+  const resolutionReactionImage = useMemo(() => {
+    if (!resolutionTargetItem) return undefined;
+    if (!resolutionCase) return resolutionTargetItem.image;
+    const frames = PULL_REACTION_FRAMES[ITEM_MOBBY_IDS[resolutionTargetItem.id] ?? 'mobichi'] ?? [];
+    return frames[CASE_REACTION_FRAME_INDEX[resolutionCase.id] ?? 0] ?? resolutionTargetItem.image;
+  }, [resolutionCase, resolutionTargetItem]);
   const tutorialRewardActive = !tutorialComplete && ['mobbyTime', 'opening', 'place', 'wallFlight'].includes(onboardingStep);
   const effectiveTodayVariant: CollectibleVariant = tutorialRewardActive ? 'key-normal' : todayVariant;
   const viewportWidth = Math.max(1, viewportSize.width - safeAreaInsets.left - safeAreaInsets.right);
@@ -2443,7 +2852,21 @@ export default function IndexScreen() {
 
   useEffect(() => {
     let mounted = true;
-    AsyncStorage.multiGet([STORAGE_TUTORIAL_COMPLETE, STORAGE_FAVORITE, STORAGE_OWNED, STORAGE_OWNED_LEGACY])
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => { if (mounted) setReduceMotion(enabled); })
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    AsyncStorage.multiGet([STORAGE_TUTORIAL_COMPLETE, STORAGE_FAVORITE, STORAGE_OWNED, STORAGE_OWNED_LEGACY, STORAGE_CASES])
       .then((entries) => {
         if (!mounted) return;
         const values = Object.fromEntries(entries);
@@ -2466,6 +2889,22 @@ export default function IndexScreen() {
         setTradeSelectedId(storedFavorite);
         setTradeSelectedVariant(preferredOwnedVariant(storedOwned, ITEMS.find((item) => item.id === storedFavorite) ?? ITEMS[0]));
         setOwned(storedOwned);
+        if (values[STORAGE_CASES]) {
+          try {
+            const codec = createIncidentStorageCodec(storedOwned, ITEMS.map((item) => item.id), ITEMS.map((item) => item.id));
+            const decoded = decodeIncidentStorage<InvestigationProgress>(JSON.parse(values[STORAGE_CASES]), codec);
+            setIncidentStorage(decoded.state);
+            const storedActive = decoded.state.activeIncident;
+            setIncidentCutInVisible(Boolean(storedActive && !storedActive.notificationPending && !storedActive.caseIntroSeen));
+            setCutInShowsOrganizationIntro(Boolean(storedActive && !decoded.state.archive.organizationIntroSeen));
+            setOrganizationIntroReplay(false);
+          } catch {
+            setIncidentStorage(freshIncidentStorage());
+            setIncidentCutInVisible(false);
+            setCutInShowsOrganizationIntro(false);
+            setOrganizationIntroReplay(false);
+          }
+        }
         setHomeWallVariants(Object.fromEntries(ITEMS.map((item) => [item.id, ownedCollectibleCount(storedOwned, item.id, 'key-small') > 0 && ownedCollectibleCount(storedOwned, item.id, 'key-normal') === 0 ? 'key-small' : 'key-normal'])));
       })
       .catch(() => {
@@ -2477,13 +2916,20 @@ export default function IndexScreen() {
   }, []);
 
   useEffect(() => {
-    if (!storageReady || !tutorialComplete) return;
-    AsyncStorage.multiSet([
-      [STORAGE_TUTORIAL_COMPLETE, 'true'],
-      [STORAGE_FAVORITE, selectedId],
-      [STORAGE_OWNED, JSON.stringify(owned)],
-    ]).catch(() => undefined);
-  }, [owned, selectedId, storageReady, tutorialComplete]);
+    if (!storageReady) return;
+    const entries: [string, string][] = [[STORAGE_CASES, JSON.stringify(incidentStorage)]];
+    if (tutorialComplete) {
+      entries.push(
+        [STORAGE_TUTORIAL_COMPLETE, 'true'],
+        [STORAGE_FAVORITE, selectedId],
+        [STORAGE_OWNED, JSON.stringify(owned)],
+      );
+    }
+    storageWriteChainRef.current = storageWriteChainRef.current
+      .catch(() => undefined)
+      .then(() => AsyncStorage.multiSet(entries))
+      .catch(() => undefined);
+  }, [incidentStorage, owned, selectedId, storageReady, tutorialComplete]);
 
   useEffect(() => {
     if (!notice) return;
@@ -2604,6 +3050,128 @@ export default function IndexScreen() {
     () => homePlushItemIds.filter((id) => ownedCollectibleCount(owned, id, 'plush') > 0).slice(0, 4),
     [homePlushItemIds, owned],
   );
+  const incidentAllyActors = useMemo<readonly IncidentAllyActor[]>(
+    () => incidentAllies.map((ally) => ({ slot: ally.slot, id: ally.id, name: ally.name, image: ally.image })),
+    [incidentAllies],
+  );
+  const incidentWallState: 'none' | 'stolen' | 'returning' = incidentResolutionPhase === 'returning'
+    ? 'returning'
+    : hasUnresolvedIncident ? 'stolen' : 'none';
+
+  const casebookActiveCase = useMemo<IncidentCasebookActiveCase | null>(() => {
+    if (pendingIncidentReward) return null;
+    if (activeIncident && activeIncidentCase && incidentTargetItem) {
+      const storyScene = MIDNIGHT_DOUBLE_INCIDENT.scenes.find((scene) => scene.id === activeIncident.progress.storySceneId);
+      const incidentNoticeConfirmed = activeIncident.caseIntroSeen && !activeIncident.notificationPending;
+      const introReady = incidentNoticeConfirmed && incidentStorage.archive.organizationIntroSeen;
+      const organizationIntroPending = incidentNoticeConfirmed && !incidentStorage.archive.organizationIntroSeen;
+      return {
+        id: activeIncidentCase.id,
+        chapter: activeIncidentCase.publicChapter,
+        title: activeIncidentCase.title,
+        targetName: itemCharacterName(incidentTargetItem),
+        targetImage: incidentTargetItem.image,
+        progressLabel: introReady
+          ? storyScene?.chapterLabel ?? activeIncident.progress.storySceneId ?? ''
+          : organizationIntroPending ? '怪盗団記録・未確認' : '事件通知・未確認',
+        objective: introReady
+          ? storyScene?.objective ?? activeIncidentCase.summary
+          : organizationIntroPending ? '怪盗団について確認する' : '事件の知らせを確認する',
+        canResume: true,
+        introSeen: introReady,
+      };
+    }
+    const playableCase = PLAYABLE_ENEMY_CASES[0];
+    if (!playableCase || !casebookPreviewTarget) return null;
+    return {
+      id: playableCase.id,
+      chapter: playableCase.publicChapter,
+      title: playableCase.title,
+      targetName: itemCharacterName(casebookPreviewTarget),
+      targetImage: casebookPreviewTarget.image,
+      progressLabel: caseSolvedIds.includes(playableCase.id) ? '解決済み・もう一度遊べます' : '事件発生前',
+      objective: playableCase.summary,
+      canResume: false,
+      introSeen: false,
+    };
+  }, [activeIncident, activeIncidentCase, caseSolvedIds, casebookPreviewTarget, incidentStorage.archive.organizationIntroSeen, incidentTargetItem, pendingIncidentReward]);
+
+  const casebookEnemies = useMemo<readonly IncidentCasebookEnemyEntry[]>(() => ENEMIES_IN_REVEAL_ORDER.map((enemy) => {
+    const caseData = ENEMY_CASES.find((candidate) => candidate.revealEnemyId === enemy.id);
+    if (!identifiedEnemyIds.has(enemy.id) || !caseData) {
+      const locked = getEnemyPublicDescriptor(enemy.id, 'locked');
+      return {
+        state: 'locked' as const,
+        id: enemy.id,
+        revealOrder: enemy.revealOrder,
+        alias: locked.displayName,
+        unlockCondition: enemy.publicChapter,
+      };
+    }
+    const revealed = getEnemyPublicDescriptor(enemy.id, 'revealed');
+    if (!revealed.image) {
+      return {
+        state: 'locked' as const,
+        id: enemy.id,
+        revealOrder: enemy.revealOrder,
+        alias: enemy.preRevealAlias,
+        unlockCondition: enemy.publicChapter,
+      };
+    }
+    return {
+      state: 'revealed' as const,
+      id: enemy.id,
+      caseId: caseData.id,
+      revealOrder: enemy.revealOrder,
+      name: revealed.displayName,
+      role: revealed.displayRole,
+      method: revealed.displayMethod,
+      record: revealed.record,
+      affiliationLabel: `${revealed.affiliation.organizationName}・${revealed.affiliation.relationship}`,
+      image: revealed.image,
+      isNew: pendingIncidentReward?.newEnemyId === enemy.id,
+    };
+  }), [identifiedEnemyIds, pendingIncidentReward?.newEnemyId]);
+
+  const casebookComics = useMemo<readonly IncidentCasebookComicEntry[]>(() => incidentStorage.archive.comicUnlocks.flatMap((unlock) => {
+    const comic = getIncidentComic(unlock.targetMobbyId);
+    const target = ITEMS.find((item) => ITEM_MOBBY_IDS[item.id] === unlock.targetMobbyId);
+    if (!target) return [];
+    return [{
+      id: comic.id,
+      caseId: unlock.sourceCaseId,
+      targetName: itemCharacterName(target),
+      targetImage: target.image,
+      title: comic.title,
+      image: comic.image,
+      frames: comic.placeholderPanels,
+      isNew: pendingIncidentReward?.newComicId === comic.id,
+    }];
+  }), [incidentStorage.archive.comicUnlocks, pendingIncidentReward?.newComicId]);
+
+  const resolutionNewEnemy = useMemo(() => {
+    if (!pendingIncidentReward?.newEnemyId) return null;
+    const enemy = getEnemyPublicDescriptor(pendingIncidentReward.newEnemyId, 'revealed');
+    if (!enemy.image) return null;
+    return {
+      name: enemy.displayName,
+      role: enemy.displayRole,
+      method: enemy.displayMethod,
+      image: enemy.image,
+      affiliationLabel: `${enemy.affiliation.organizationName}・${enemy.affiliation.relationship}`,
+    };
+  }, [pendingIncidentReward?.newEnemyId]);
+
+  const resolutionNewComic = useMemo(() => {
+    if (!pendingIncidentReward?.newComicId || !resolutionTargetItem) return null;
+    const comic = getIncidentComic(pendingIncidentReward.targetMobbyId);
+    return {
+      title: comic.title,
+      targetName: itemCharacterName(resolutionTargetItem),
+      image: comic.image,
+      frames: comic.placeholderPanels,
+    };
+  }, [pendingIncidentReward?.newComicId, pendingIncidentReward?.targetMobbyId, resolutionTargetItem]);
 
   const openMobbyTimeNotification = useCallback(() => {
     playSfx('tap');
@@ -2616,6 +3184,177 @@ export default function IndexScreen() {
     setScreen('time');
     setNotice('MOBBY TIME！中身は開けるまでのお楽しみ');
     setNotificationOpen(false);
+  }, [playSfx]);
+
+  const triggerIncident = useCallback((
+    mode: 'automatic' | 'demo' | 'confirmed-demo' = 'automatic',
+    requestedCaseId: EnemyCaseId = FEATURED_INCIDENT_CASE_ID,
+    preferredTargetItemId?: string,
+  ) => {
+    if (incidentResolutionPhase !== 'none' || !tutorialComplete) return;
+    if (activeIncident) return;
+    const caseData = ENEMY_CASE_BY_ID[requestedCaseId];
+    if (!caseData || !isPlayableEnemyCase(caseData)) return;
+    const wallTargets = ITEMS.filter((item) => ownedCollectibleCount(owned, item.id, 'key-normal') + ownedCollectibleCount(owned, item.id, 'key-small') > 0);
+    if (!wallTargets.length) return;
+    const target = wallTargets.find((candidate) => candidate.id === preferredTargetItemId)
+      ?? wallTargets[Math.floor(Math.random() * wallTargets.length)];
+    const castCandidates = buildIncidentAllyCandidates(owned, homeWallItemIds, homePlushItemIds);
+    const allies = selectIncidentAllies(castCandidates, target.id);
+    const runId = createIncidentRunId(caseData.id, target.id, Date.now());
+    setIncidentStorage((current) => startIncidentRun(current, {
+      runId,
+      caseId: caseData.id,
+      targetItemId: target.id,
+      targetMobbyId: ITEM_MOBBY_IDS[target.id],
+      allies: incidentAllyIds(allies),
+      progress: freshDefaultInvestigationProgress(),
+      notificationPending: mode === 'demo',
+    }, PLAYABLE_INCIDENT_CASE_IDS));
+    // Let the triggering tap finish before mounting the full-screen cut-in;
+    // otherwise the same pointer event can land on the new backdrop and
+    // immediately choose "あとで調べる" on web.
+    setIncidentCutInVisible(false);
+    setCutInShowsOrganizationIntro(!incidentStorage.archive.organizationIntroSeen);
+    setScreen('home');
+    if (mode === 'demo') {
+      setNotificationOpen(true);
+      setNotice('事件通知が届きました。お知らせから異変を確認してください');
+    } else {
+      setNotificationOpen(false);
+      setTimeout(() => setIncidentCutInVisible(true), 80);
+      setNotice(`事件発生！ ${target.name.replace(' ぬいキー', '').replace(' ぬい', '')}が盗まれました`);
+    }
+    playSfx('incidentSting');
+  }, [activeIncident, homePlushItemIds, homeWallItemIds, incidentResolutionPhase, incidentStorage.archive.organizationIntroSeen, owned, playSfx, tutorialComplete]);
+
+  const openIncident = useCallback(() => {
+    playSfx('tap');
+    setNotificationOpen(false);
+    setIncidentCutInVisible(false);
+    setOrganizationIntroReplay(false);
+    setCasebookInitialTab('active');
+    setScreen('casebook');
+  }, [playSfx]);
+
+  const openIncidentNotification = useCallback(() => {
+    if (activeIncident) {
+      playSfx('tap');
+      setNotificationOpen(false);
+      setIncidentStorage((current) => acknowledgeIncidentNotification(current, activeIncident.runId));
+      if (activeIncident.caseIntroSeen && incidentStorage.archive.organizationIntroSeen) {
+        setScreen('investigation');
+      } else {
+        setScreen('home');
+        setCutInShowsOrganizationIntro(!incidentStorage.archive.organizationIntroSeen);
+        setIncidentCutInVisible(false);
+        setTimeout(() => setIncidentCutInVisible(true), 80);
+      }
+      return;
+    }
+    playSfx('tap');
+    setNotificationOpen(false);
+    triggerIncident('confirmed-demo');
+  }, [activeIncident, incidentStorage.archive.organizationIntroSeen, playSfx, triggerIncident]);
+
+  const selectCasebookCase = useCallback((caseId: string) => {
+    const caseData = ENEMY_CASES.find((candidate) => candidate.id === caseId);
+    if (!caseData || !isPlayableEnemyCase(caseData) || activeIncident || pendingIncidentReward) return;
+    triggerIncident('confirmed-demo', caseData.id, casebookPreviewTarget?.id);
+  }, [activeIncident, casebookPreviewTarget?.id, pendingIncidentReward, triggerIncident]);
+
+  const resumeIncident = useCallback(() => {
+    if (!activeIncident) return;
+    playSfx('tap');
+    setNotificationOpen(false);
+    setOrganizationIntroReplay(false);
+    setIncidentStorage((current) => acknowledgeIncidentNotification(current, activeIncident.runId));
+    if (activeIncident.caseIntroSeen && incidentStorage.archive.organizationIntroSeen) {
+      setIncidentCutInVisible(false);
+      setScreen('investigation');
+    } else {
+      setScreen('home');
+      setCutInShowsOrganizationIntro(!incidentStorage.archive.organizationIntroSeen);
+      setIncidentCutInVisible(false);
+      setTimeout(() => setIncidentCutInVisible(true), 80);
+    }
+  }, [activeIncident, incidentStorage.archive.organizationIntroSeen, playSfx]);
+
+  const replayIncidentIntro = useCallback(() => {
+    if (!activeIncident) return;
+    playSfx('tap');
+    setOrganizationIntroReplay(false);
+    setCutInShowsOrganizationIntro(!incidentStorage.archive.organizationIntroSeen);
+    setIncidentStorage((current) => acknowledgeIncidentNotification(current, activeIncident.runId));
+    setScreen('home');
+    setIncidentCutInVisible(false);
+    setTimeout(() => setIncidentCutInVisible(true), 80);
+  }, [activeIncident, incidentStorage.archive.organizationIntroSeen, playSfx]);
+
+  const replayOrganizationIntro = useCallback(() => {
+    if (!activeIncident && !casebookPreviewTarget) return;
+    playSfx('tap');
+    setOrganizationIntroReplay(true);
+    setCutInShowsOrganizationIntro(true);
+    setIncidentCutInVisible(false);
+    setTimeout(() => setIncidentCutInVisible(true), 80);
+  }, [activeIncident, casebookPreviewTarget, playSfx]);
+
+  const handleOrganizationIntroSeen = useCallback(() => {
+    setIncidentStorage((current) => markOrganizationIntroSeen(current));
+  }, []);
+
+  const dismissIncidentCutIn = useCallback(() => {
+    playSfx('tap');
+    setIncidentCutInVisible(false);
+    setCutInShowsOrganizationIntro(false);
+    if (organizationIntroReplay) {
+      setOrganizationIntroReplay(false);
+      setScreen('casebook');
+      return;
+    }
+    if (activeIncident) setIncidentStorage((current) => markIncidentCaseIntroSeen(current, activeIncident.runId));
+    setScreen('home');
+    setNotice('未解決事件を事件ボタンに保存しました');
+  }, [activeIncident, organizationIntroReplay, playSfx]);
+
+  const startIncidentInvestigation = useCallback(() => {
+    playSfx('tap');
+    setIncidentCutInVisible(false);
+    setCutInShowsOrganizationIntro(false);
+    setNotificationOpen(false);
+    if (organizationIntroReplay) {
+      setOrganizationIntroReplay(false);
+      setScreen('casebook');
+      return;
+    }
+    if (!activeIncident) return;
+    setIncidentStorage((current) => markIncidentCaseIntroSeen(current, activeIncident.runId));
+    setScreen('investigation');
+  }, [activeIncident, organizationIntroReplay, playSfx]);
+
+  useEffect(() => {
+    if (!storageReady || !appStarted || !tutorialComplete || activeIncidentId || incidentResolutionPhase !== 'none') return;
+    const delay = 14000 + Math.floor(Math.random() * 12000);
+    const timer = setTimeout(() => triggerIncident(), delay);
+    return () => clearTimeout(timer);
+  }, [activeIncidentId, appStarted, incidentResolutionPhase, storageReady, triggerIncident, tutorialComplete]);
+
+  const completeIncidentReturn = useCallback(() => {
+    if (!pendingIncidentReward || pendingIncidentReward.step !== 'returning') return;
+    setIncidentStorage((current) => advanceIncidentReturn(current, pendingIncidentReward.runId));
+    setIncidentCutInVisible(false);
+  }, [pendingIncidentReward]);
+
+  const handleInvestigationSound = useCallback((sound: 'tap' | 'evidence' | 'wrong' | 'correct') => {
+    if (sound === 'evidence') playSfx('clueReveal');
+    else if (sound !== 'correct') playSfx('tap');
+  }, [playSfx]);
+
+  const handleResolutionSound = useCallback((sound: 'reveal' | 'reward' | 'tap') => {
+    if (sound === 'reveal') playSfx('clueReveal');
+    else if (sound === 'reward') playSfx('reward');
+    else playSfx('tap');
   }, [playSfx]);
 
   const openNotificationScreen = useCallback((nextScreen: Screen) => {
@@ -2646,6 +3385,46 @@ export default function IndexScreen() {
     lastKeyJingleRef.current = now;
     playSfx('keyJingle');
   }, [playSfx]);
+
+  const solveCase = useCallback((caseData: EnemyCase) => {
+    if (
+      !activeIncident
+      || pendingIncidentReward
+      || caseData.id !== activeIncident.caseId
+      || !isPlayableEnemyCase(caseData)
+      || !isValidIncidentTarget(owned, activeIncident.targetItemId)
+    ) return;
+    playSfx('caseSolved');
+    const solvedAt = Date.now();
+    setIncidentStorage((current) => solveIncidentRun(current, {
+      runId: activeIncident.runId,
+      caseId: activeIncident.caseId,
+      targetItemId: activeIncident.targetItemId,
+      targetMobbyId: activeIncident.targetMobbyId,
+      enemyId: caseData.revealEnemyId,
+      comicId: incidentComicId(activeIncident.targetMobbyId),
+      solvedAt,
+    }, INCIDENT_REWARD_RESOLVER));
+    setReaction(`救出成功！ ${caseData.rewardTitle}`);
+    setIncidentCutInVisible(false);
+    setScreen('home');
+    setNotice('事件解決！ モビーが帰ってきます');
+  }, [activeIncident, owned, pendingIncidentReward, playSfx]);
+
+  const dismissResolution = useCallback(() => {
+    if (!pendingIncidentReward || pendingIncidentReward.step !== 'reward') return;
+    playSfx('tap');
+    setIncidentStorage((current) => dismissIncidentReward(current, pendingIncidentReward.runId));
+    setNotice('事件解決！ モビーが壁に戻りました');
+  }, [pendingIncidentReward, playSfx]);
+
+  const openResolutionCasebook = useCallback(() => {
+    if (!pendingIncidentReward || pendingIncidentReward.step !== 'reward') return;
+    playSfx('tap');
+    setCasebookInitialTab(pendingIncidentReward.newComicId ? 'comics' : pendingIncidentReward.newEnemyId ? 'enemies' : 'active');
+    setIncidentStorage((current) => dismissIncidentReward(current, pendingIncidentReward.runId));
+    setScreen('casebook');
+  }, [pendingIncidentReward, playSfx]);
 
   const navigateTo = useCallback((nextScreen: Screen) => {
     playSfx('tap');
@@ -2727,18 +3506,26 @@ export default function IndexScreen() {
         <View style={[styles.appViewport, { width: appViewportWidth, height: viewportHeight }]}>
           <AppLayoutContext.Provider value={layoutMetrics}>
             <View style={[styles.appShell, { height: appHeight, transform: [{ scale: appScale }] }]}>
+              <View
+                style={styles.appBaseLayer}
+                pointerEvents={appBaseIsolated ? 'none' : 'auto'}
+                accessibilityElementsHidden={appBaseIsolated}
+                importantForAccessibility={appBaseIsolated ? 'no-hide-descendants' : 'auto'}
+              >
               {screen === 'collection' ? <>
                 <Image source={ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />
                 <Image source={COLLECTION_WALL_BACKGROUND} resizeMode="cover" style={styles.collectionReferenceBackground} />
               </> : <Image source={screen === 'home' ? HOME_WALL_BACKGROUND : ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />}
-              <Header
+              {incidentExperienceActive ? <View pointerEvents="none" style={styles.globalHeaderPlaceholder} /> : <Header
                 soundEnabled={soundEnabled}
                 onToggleSound={toggleSound}
+                onInvestigation={openIncident}
+                hasUnresolvedIncident={hasUnresolvedIncident}
                 onBell={() => {
                   playSfx('notification');
                   setNotificationOpen(true);
                 }}
-              />
+              />}
               {notice && !tutorialRewardActive ? <Pressable accessibilityRole="button" accessibilityLabel={`${notice}。閉じる`} accessibilityLiveRegion="polite" onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></Pressable> : null}
               {notificationOpen ? (
                 <NotificationPopup
@@ -2746,21 +3533,29 @@ export default function IndexScreen() {
                   onOpenMobbyTime={openMobbyTimeNotification}
                   onOpenCollection={() => openNotificationScreen('collection')}
                   onOpenTrade={() => openNotificationScreen('trade')}
+                  onOpenInvestigation={openIncidentNotification}
+                  hasUnresolvedIncident={hasUnresolvedIncident}
+                  incidentNotificationPending={incidentNotificationPending}
                 />
               ) : null}
               <View style={styles.screenBody}>
-                {screen === 'home' ? <HomeScreen selected={selected} owned={owned} onSelect={selectHomeMobby} hiddenWallItemId={wallPlacement?.item.id} wallItemIds={visibleHomeWallItemIds} wallVariants={homeWallVariants} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} /> : null}
+                {screen === 'home' ? <HomeScreen selected={selected} owned={owned} onSelect={selectHomeMobby} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallItemId={wallPlacement?.item.id} onIncidentPress={openIncident} wallItemIds={visibleHomeWallItemIds} wallVariants={homeWallVariants} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={swapHomeWallItems} onSwapPlushItems={swapHomePlushItems} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} /> : null}
                 {screen === 'time' ? <MobbyTimeScreen today={today} todayVariant={effectiveTodayVariant} stage={mobbyTimeStage} onOpen={() => { playSfx('boxOpen'); setMobbyTimeStage('opening'); if (onboardingStep === 'mobbyTime') setOnboardingStep('opening'); }} onReveal={revealToday} onPlace={startPlacement} onPlaced={completeMobbyTimePlacement} onTrade={() => navigateTo('trade')} secondsLeft={secondsLeft} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
                 {screen === 'trade' ? <TradeScreen items={ITEMS} owned={owned} selectedId={tradeSelectedId} selectedVariant={tradeSelectedVariant} onSelect={selectTradeMobby} /> : null}
+                {screen === 'casebook' ? <IncidentCasebookScreen activeCase={casebookActiveCase} enemies={casebookEnemies} comics={casebookComics} initialTab={casebookInitialTab} onSelectCase={selectCasebookCase} onResume={resumeIncident} onReplayIncidentIntro={replayIncidentIntro} onReplayOrganizationIntro={replayOrganizationIntro} onClose={() => navigateTo('home')} reduceMotion={reduceMotion} /> : null}
               </View>
-              {!['favorite', 'mobbyTime', 'opening', 'place', 'wallFlight'].includes(onboardingStep) ? <BottomNav screen={screen} setScreen={navigateTo} /> : null}
+              {!['favorite', 'mobbyTime', 'opening', 'place', 'wallFlight'].includes(onboardingStep) && !incidentExperienceActive ? <BottomNav screen={screen} hasUnresolvedIncident={hasUnresolvedIncident} onOpenIncident={openIncident} onNavigate={navigateTo} /> : null}
               {wallPlacement && wallPlacement.variant !== 'plush' ? <WallPlacementFlight item={wallPlacement.item} variant={wallPlacement.variant} onComplete={completeWallPlacement} /> : null}
               {onboardingStep !== 'none' && onboardingStep !== 'favorite' ? <OnboardingGuide step={onboardingStep} onNext={advanceOnboarding} onSkip={finishOnboarding} /> : null}
               {onboardingStep === 'favorite' ? <FavoriteMobbyPicker selectedId={favoriteDraftId} onSelect={(id) => { playSfx('tap'); setFavoriteDraftId(id); }} onConfirm={confirmFavorite} /> : null}
+              </View>
               {!appStarted ? <OpeningScreen onBegin={() => { engageBgm(); playSfx('reward'); }} onStart={startApp} /> : null}
               {!storageReady || (!fontsLoaded && !fontError) ? <LoadingOverlay /> : null}
+              {incidentInvestigationActive && activeIncident && incidentTargetItem ? <View style={styles.incidentScreenLayer} accessibilityViewIsModal><InvestigationScreen activeCase={activeIncidentCase} targetName={itemCharacterName(incidentTargetItem)} targetImage={incidentTargetItem.image} solvedCaseIds={caseSolvedIds} reactionImage={incidentReactionImage} allyActors={incidentAllyActors} identifiedEnemyIds={identifiedEnemyIds} story={MIDNIGHT_DOUBLE_INCIDENT} initialProgress={incidentProgress ?? undefined} onProgressChange={(progress) => setIncidentStorage((current) => updateIncidentProgress(current, activeIncident.runId, progress))} onUiSound={handleInvestigationSound} onSolved={solveCase} onClose={() => { setCasebookInitialTab('active'); navigateTo('casebook'); }} reduceMotion={reduceMotion} /></View> : null}
+              {incidentCutInActive && cutInCase && cutInTargetItem ? <IncidentCutIn caseData={cutInCase} targetName={itemCharacterName(cutInTargetItem)} targetImage={cutInTargetItem.image} allyActors={incidentAllyActors} story={MIDNIGHT_DOUBLE_INCIDENT} showOrganizationIntro={cutInShowsOrganizationIntro} organizationIntroOnly={organizationIntroReplay} onOrganizationIntroSeen={handleOrganizationIntroSeen} onInvestigate={startIncidentInvestigation} onLater={dismissIncidentCutIn} reduceMotion={reduceMotion} /> : null}
+              {incidentResolutionActive && resolutionCase && resolutionTargetItem && resolutionReactionImage ? <IncidentResolutionOverlay phase={incidentResolutionPhase === 'returning' ? 'returning' : 'resolved'} caseData={resolutionCase} targetName={itemCharacterName(resolutionTargetItem)} targetImage={resolutionTargetItem.image} rewardImage={resolutionReactionImage} allyActors={incidentAllyActors} newEnemy={resolutionNewEnemy} newComic={resolutionNewComic} onReturnComplete={completeIncidentReturn} onDismiss={dismissResolution} onOpenCasebook={openResolutionCasebook} onUiSound={handleResolutionSound} reduceMotion={reduceMotion} /> : null}
             </View>
           </AppLayoutContext.Provider>
         </View>
@@ -2774,6 +3569,9 @@ const styles = StyleSheet.create({
   outer: { flex: 1, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', backgroundColor: Platform.OS === 'web' ? '#E7D3BC' : '#FFF7EA' },
   appViewport: { position: 'relative', overflow: 'hidden', backgroundColor: '#E7D3BC', ...(Platform.OS === 'web' ? { boxShadow: '0 16px 48px rgba(81, 48, 54, 0.18)' } : {}) },
   appShell: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, backgroundColor: '#D8A46F', overflow: Platform.OS === 'web' ? ('clip' as any) : 'hidden', transformOrigin: 'top left' },
+  appBaseLayer: { flex: 1, position: 'relative' },
+  incidentScreenLayer: { ...StyleSheet.absoluteFillObject, zIndex: 160, backgroundColor: '#211827' },
+  globalHeaderPlaceholder: { minHeight: 74 },
   appShellBackground: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   collectionReferenceBackground: { ...StyleSheet.absoluteFillObject, width: DESIGN_WIDTH, height: '100%' },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 140, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(76,53,71,0.36)' },
@@ -2846,6 +3644,11 @@ const styles = StyleSheet.create({
   soundButtonText: { color: '#76536F', fontSize: 19, lineHeight: 21, fontWeight: '900' },
   soundButtonTextMuted: { color: '#9B8687' },
   soundMutedSlash: { position: 'absolute', width: 23, height: 2, borderRadius: 1, backgroundColor: '#A1777F', transform: [{ rotate: '-42deg' }] },
+  caseHeaderButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,253,246,0.9)', alignItems: 'center', justifyContent: 'center', shadowColor: '#66475D', shadowOpacity: 0.12, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  caseHeaderIcon: { width: 21, height: 21, tintColor: '#76536F' },
+  caseHeaderBadge: { position: 'absolute', right: -3, top: -5, width: 16, height: 16, borderRadius: 8, backgroundColor: '#D8898E', borderWidth: 1.2, borderColor: '#FFF8EC', alignItems: 'center', justifyContent: 'center' },
+  caseHeaderBadgeWaiting: { backgroundColor: '#B6A2B0' },
+  caseHeaderBadgeText: { color: '#FFF', fontSize: 9, lineHeight: 11, fontWeight: '900' },
   bellButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,253,246,0.9)', alignItems: 'center', justifyContent: 'center', shadowColor: '#66475D', shadowOpacity: 0.12, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   bellIcon: { width: 21, height: 21 },
   bellBadge: { position: 'absolute', right: -4, top: -6, width: 17, height: 17, borderRadius: 9, backgroundColor: '#E47884', borderWidth: 1.5, borderColor: '#FFF8EC', alignItems: 'center', justifyContent: 'center' },
@@ -2867,11 +3670,13 @@ const styles = StyleSheet.create({
   notificationIconTime: { backgroundColor: '#F1D4A6', borderColor: '#D3A56C' },
   notificationIconCollection: { backgroundColor: '#EAD9E6', borderColor: '#C9A8C0' },
   notificationIconTrade: { backgroundColor: '#DDE6D5', borderColor: '#B0C29F' },
+  notificationIconCase: { backgroundColor: '#E7D2D7', borderColor: '#BE8B9C' },
   notificationIconText: { color: '#6A4C68', fontSize: 20, fontWeight: '900' },
   notificationCopy: { flex: 1, minWidth: 0 },
   notificationItemHeading: { flexDirection: 'row', alignItems: 'center' },
   notificationKicker: { color: '#795463', fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
   notificationLiveBadge: { marginLeft: 7, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: '#E47780' },
+  notificationNewBadge: { marginLeft: 7, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: '#8C5D83' },
   notificationLiveText: { color: '#FFF9ED', fontSize: 7, fontWeight: '900' },
   notificationItemTitle: { color: '#50364D', fontSize: 12, lineHeight: 16, fontWeight: '800', marginTop: 2 },
   notificationItemBody: { color: '#765762', fontSize: 9, lineHeight: 13, fontWeight: '600', marginTop: 1 },
@@ -2908,6 +3713,21 @@ const styles = StyleSheet.create({
   homeWallKey: { width: '20%', height: '43%', alignItems: 'center', justifyContent: 'flex-start', borderRadius: 12, position: 'relative', overflow: 'visible', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   homeWallKeySelected: { backgroundColor: 'rgba(255,244,196,0.34)', shadowColor: '#FFF0A8', shadowOpacity: 0.8, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
   homeWallKeyHidden: { opacity: 0 },
+  homeWallKeyStolen: { zIndex: 18 },
+  homeWallKeyReturning: { zIndex: 12 },
+  homeWallReturningImage: { opacity: 0.74 },
+  homeWallStolenMarker: { position: 'absolute', top: -16, left: -10, right: -10, height: 152, borderRadius: 22, borderWidth: 3, alignItems: 'center', justifyContent: 'center', shadowColor: '#F32D48', shadowOpacity: 0.8, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 16 },
+  homeWallStolenGhost: { position: 'absolute', top: 22, width: 92, height: 102, opacity: 0.2, tintColor: '#441723' },
+  homeWallStolenGhostSmall: { width: 74, height: 84, top: 28 },
+  homeWallBrokenCord: { position: 'absolute', top: 9, left: '50%', width: 48, height: 48, marginLeft: -24 },
+  homeWallBrokenCordLeft: { position: 'absolute', left: 13, top: 0, width: 4, height: 30, borderRadius: 2, backgroundColor: '#D83C4D', transform: [{ rotate: '18deg' }] },
+  homeWallBrokenCordRight: { position: 'absolute', right: 11, top: 3, width: 4, height: 25, borderRadius: 2, backgroundColor: '#D83C4D', transform: [{ rotate: '-23deg' }] },
+  homeWallCaseTag: { position: 'absolute', top: 4, left: 4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: '#27131D', borderWidth: 1, borderColor: '#FF8994' },
+  homeWallCaseTagText: { color: '#FFE6D7', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  homeWallStolenBand: { position: 'absolute', left: -8, right: -8, top: 54, height: 35, backgroundColor: '#B8273E', borderTopWidth: 2, borderBottomWidth: 2, borderColor: '#FFD0B8', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-8deg' }] },
+  homeWallStolenBandText: { color: '#FFF9E8', fontSize: 14, fontWeight: '900', letterSpacing: 1.2 },
+  homeWallStolenName: { position: 'absolute', left: 2, right: 2, bottom: 23, color: '#FFF1DE', fontSize: 12, fontWeight: '900', textAlign: 'center', textShadowColor: '#35101B', textShadowRadius: 3 },
+  homeWallResume: { position: 'absolute', bottom: 4, color: '#FFCFB6', fontSize: 10, fontWeight: '900', letterSpacing: 0.1 },
   homeDecorationEditable: { borderWidth: 1.2, borderColor: 'rgba(107,84,125,0.48)', borderStyle: 'dashed', backgroundColor: 'rgba(255,250,232,0.18)' },
   homeDecorationTarget: { borderColor: '#D5748B', backgroundColor: 'rgba(255,225,232,0.34)' },
   homeDecorationEditSelected: { borderWidth: 2.5, borderStyle: 'solid', borderColor: '#6B547D', backgroundColor: 'rgba(255,244,196,0.56)', shadowColor: '#FFF0A8', shadowOpacity: 0.88, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 7 },
@@ -3128,7 +3948,7 @@ const styles = StyleSheet.create({
   rarityBadge: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10, marginLeft: 6 },
   rarityBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '900' },
   touchScreenBackground: { flex: 1, backgroundColor: 'transparent' },
-  touchScrollContent: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 105 },
+  touchScrollContent: { flex: 1, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 82 },
   touchStage: { height: 500, borderRadius: 28, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   pullableWrap: { width: 332, height: 365, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   pullableStage: { width: 320, height: 320, position: 'relative' },
@@ -3249,9 +4069,12 @@ const styles = StyleSheet.create({
   navTab: { position: 'absolute', top: 9, height: 55, borderRadius: 18, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   navTabPressed: { opacity: 0.72 },
   navIcon: { width: 24, height: 24, tintColor: '#A48189', marginBottom: 2 },
+  navCaseIcon: { width: 22, height: 22 },
   navIconActive: { tintColor: '#705178' },
   navLabel: { color: '#80626B', fontSize: 9, fontWeight: '700' },
   navLabelActive: { color: '#694B70' },
+  navIncidentBadge: { position: 'absolute', top: 1, right: 9, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#C65F6D', borderWidth: 1.2, borderColor: '#FFF8EB' },
+  navIncidentBadgeText: { color: '#FFF8EC', fontSize: 9, lineHeight: 11, fontWeight: '900' },
   navDot: { position: 'absolute', bottom: 3, width: 4, height: 4, borderRadius: 2, backgroundColor: '#D17B8C' },
   pressed: { opacity: 0.74, transform: [{ translateY: 1 }] },
 });
