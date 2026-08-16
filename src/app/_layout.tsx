@@ -1,11 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
+import { DailyLoopProvider } from '@/game/DailyLoopContext';
+
 export default function RootLayout() {
   return (
-    <>
+    <DailyLoopProvider>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }} />
-    </>
+    </DailyLoopProvider>
   );
 }

@@ -2,4 +2,4 @@
 
 - `sunny-stitch-room.png` — generated with the built-in ImageGen tool for the Mobby room scene.
 
-The room is intentionally a background plate: Mobby characters and optional furniture are layered above it in `src/components/Mobby2DScene.tsx`.
+The room is intentionally a background plate used behind the current home-screen characters and collection decorations.

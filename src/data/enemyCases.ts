@@ -71,13 +71,6 @@ export type EnemyPublicDescriptor = {
   image?: ImageSourcePropType;
 };
 
-export type CaseEvidence = {
-  id: string;
-  label: string;
-  detail: string;
-  symbol: string;
-};
-
 export type EnemyCase = {
   id: EnemyCaseId;
   chapter: string;
@@ -93,7 +86,6 @@ export type EnemyCase = {
   target: string;
   mainEnemyId: EnemyId;
   partnerEnemyId?: EnemyId;
-  evidence: readonly CaseEvidence[];
   choices: readonly EnemyId[];
   correctEnemyId: EnemyId;
   clue: string;
@@ -259,11 +251,6 @@ const ENEMY_CASE_CATALOG: readonly EnemyCase[] = [
     scene: '机の上に、触る時間・眠る場所・レア度を記した名簿が残されていた。',
     target: '一番レアなモビー',
     mainEnemyId: 'informant',
-    evidence: [
-      { id: 'time-list', label: '行動時間のメモ', detail: '夜に動く時間まで正確に記録されている。', symbol: '◷' },
-      { id: 'blue-ink', label: '青いインク', detail: '手紙の封蝋と同じ色。情報を集める相手の印だ。', symbol: '✎' },
-      { id: 'false-address', label: '偽の住所', detail: 'わざと違う部屋番号が一つだけ混ぜられている。', symbol: '⌂' },
-    ],
     choices: ['informant', 'tracker', 'magician'],
     correctEnemyId: 'informant',
     clue: '盗まれたのはモビーそのものではなく、行動時間と居場所の情報だった。',
@@ -286,11 +273,6 @@ const ENEMY_CASE_CATALOG: readonly EnemyCase[] = [
     scene: '足あとを一つずつ追うと、窓際のクッションだけが少しずれていた。',
     target: '家具の裏に隠れたモビー',
     mainEnemyId: 'tracker',
-    evidence: [
-      { id: 'footprints', label: '濡れた足あと', detail: '窓から入り、部屋の奥へ向かっている。', symbol: '⌁' },
-      { id: 'curtain', label: '揺れるカーテン', detail: '逃げたのではなく、隠れ場所を探した跡がある。', symbol: '≋' },
-      { id: 'cushion', label: 'ずれたクッション', detail: '下から小さな寝息が聞こえる。', symbol: '♡' },
-    ],
     choices: ['tracker', 'courier', 'veiled-duchess'],
     correctEnemyId: 'tracker',
     clue: '足あとを残したのは、モビーを運ぶためではなく隠れ場所を特定するためだった。',
@@ -313,11 +295,6 @@ const ENEMY_CASE_CATALOG: readonly EnemyCase[] = [
     scene: '金庫の前には、途中まで回されたダイヤルと細い金属粉が落ちている。',
     target: '展示ケースのレアモビー',
     mainEnemyId: 'safecracker',
-    evidence: [
-      { id: 'dial', label: '色のダイヤル', detail: 'モビーの胸ボタンと同じ色順で回されている。', symbol: '◉' },
-      { id: 'metal-dust', label: '金属粉', detail: '鍵穴の周りだけに残った、細かな工具の跡。', symbol: '✦' },
-      { id: 'lock-pick', label: '曲がったピック', detail: '複雑な鍵を開けるための専用工具だ。', symbol: '⌁' },
-    ],
     choices: ['safecracker', 'magician', 'commander'],
     correctEnemyId: 'safecracker',
     clue: '偽物を作る痕跡ではなく、鍵とダイヤルだけが狙われている。',
@@ -340,11 +317,6 @@ const ENEMY_CASE_CATALOG: readonly EnemyCase[] = [
     scene: '中央のモビーだけが、触れた指を目で追っている。',
     target: '3体に増えたモビー',
     mainEnemyId: 'magician',
-    evidence: [
-      { id: 'slow-shadow', label: '遅れる影', detail: '右の偽物だけ、動きが一拍遅れている。', symbol: '◌' },
-      { id: 'warm-button', label: 'あたたかいボタン', detail: '本物だけが、いつもの体温を返してくれる。', symbol: '♡' },
-      { id: 'paper-fur', label: '紙の毛並み', detail: '左の耳の奥に、折り目のような線がある。', symbol: '✣' },
-    ],
     choices: ['magician', 'veiled-duchess', 'informant'],
     correctEnemyId: 'magician',
     clue: '入れ替えを成立させるには、見た目を作る担当が必要だ。',
@@ -367,11 +339,6 @@ const ENEMY_CASE_CATALOG: readonly EnemyCase[] = [
     scene: '紅茶をすすめる手袋の奥で、視線だけが部屋の棚を探していた。',
     target: '棚で眠るモビー',
     mainEnemyId: 'veiled-duchess',
-    evidence: [
-      { id: 'shadow', label: '合わない影', detail: '帽子の羽根と影の形が一致していない。', symbol: '☾' },
-      { id: 'glove', label: '黒い手袋', detail: '指先に、棚のほこりが少し付いている。', symbol: '♢' },
-      { id: 'mask', label: '仮面のかけら', detail: '香水の下に、黒い布の繊維が残っている。', symbol: '◇' },
-    ],
     choices: ['veiled-duchess', 'courier', 'tracker'],
     correctEnemyId: 'veiled-duchess',
     clue: '訪問者を装い、部屋の中まで自然に入れるのは侵入担当だ。',
@@ -394,11 +361,6 @@ const ENEMY_CASE_CATALOG: readonly EnemyCase[] = [
     scene: 'ひとつだけ、角からモビーの小さなリボンがのぞいている。',
     target: '逃走する箱の中のモビー',
     mainEnemyId: 'courier',
-    evidence: [
-      { id: 'ribbon', label: 'リボンの端', detail: '左の箱から、いつものリボンが少しだけ見える。', symbol: '⌁' },
-      { id: 'wheel', label: '車輪の跡', detail: '重い箱だけ、床の跡が深く残っている。', symbol: '◍' },
-      { id: 'route', label: '逃走ルート', detail: '窓ではなく、玄関へ向かう線が残っている。', symbol: '➜' },
-    ],
     choices: ['courier', 'safecracker', 'commander'],
     correctEnemyId: 'courier',
     clue: '箱を用意し、逃走ルートへ運ぶ担当が犯行の中心にいる。',
@@ -422,11 +384,6 @@ const ENEMY_CASE_CATALOG: readonly EnemyCase[] = [
     target: 'いちばん大切なモビー',
     mainEnemyId: 'commander',
     partnerEnemyId: 'veiled-duchess',
-    evidence: [
-      { id: 'plan', label: '作戦計画書', detail: '7つの役割が時刻順に書き込まれている。', symbol: '▤' },
-      { id: 'red-seal', label: '赤い司令印', detail: 'すべての指示書に同じ赤い印がある。', symbol: '✦' },
-      { id: 'six-tools', label: '6つの道具', detail: '情報・足あと・偽物・鍵・仮面・箱が揃っている。', symbol: '⚿' },
-    ],
     choices: ['commander', 'veiled-duchess', 'safecracker', 'informant'],
     correctEnemyId: 'commander',
     clue: '現場に来た担当者ではなく、全員の手順を組んだ者が大型作戦の主犯だ。',

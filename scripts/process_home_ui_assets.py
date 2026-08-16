@@ -62,12 +62,14 @@ def main() -> None:
     icon_names = [
         ["heart", "coin", "plus", "bell", "menu"],
         ["notice", "book", "mission", "friend", "gift"],
-        ["exchange", "search", "house", "room", "message"],
+        [None, "search", "house", "room", "message"],
         ["gacha", "mobby", "chevron-up", "chevron-down", "sparkles"],
     ]
     cell_w, cell_h = icons.width // 5, icons.height // 4
     for row, names in enumerate(icon_names):
         for col, name in enumerate(names):
+            if name is None:
+                continue
             crop(icons, (col * cell_w, row * cell_h, (col + 1) * cell_w, (row + 1) * cell_h), name, "icons")
 
     # Logo is a wide 1536 x 1024 source.  Crop the mark tightly for the header.

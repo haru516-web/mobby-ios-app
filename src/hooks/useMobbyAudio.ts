@@ -12,7 +12,14 @@ export type MobbySfx =
   | 'keyJingle'
   | 'incidentSting'
   | 'clueReveal'
-  | 'caseSolved';
+  | 'caseSolved'
+  | 'transition'
+  | 'tab'
+  | 'collectionComplete'
+  | 'reactionDiscovered'
+  | 'stamp'
+  | 'dialogue'
+  | 'error';
 
 const BGM = require('../../assets/audio/bgm-cozy-room.wav');
 const INCIDENT_BGM = require('../../assets/audio/bgm-incident-investigation.wav');
@@ -25,6 +32,13 @@ const PLACE = require('../../assets/audio/sfx-place.wav');
 const INCIDENT_STING = require('../../assets/audio/sfx-incident-sting.wav');
 const CLUE_REVEAL = require('../../assets/audio/sfx-clue-reveal.wav');
 const CASE_SOLVED = require('../../assets/audio/sfx-case-solved.wav');
+const TRANSITION = require('../../assets/audio/transition-swish.wav');
+const TAB = require('../../assets/audio/tab-pop.wav');
+const COLLECTION_COMPLETE = require('../../assets/audio/collection-complete.wav');
+const REACTION_DISCOVERED = require('../../assets/audio/reaction-discovered.wav');
+const STAMP = require('../../assets/audio/stamp-hit.wav');
+const DIALOGUE = require('../../assets/audio/dialogue-step.wav');
+const ERROR = require('../../assets/audio/action-error.wav');
 
 const NORMAL_BGM_VOLUME = 0.18;
 const INCIDENT_BGM_VOLUME = 0.2;
@@ -50,6 +64,13 @@ export function useMobbyAudio({
   const incidentStingPlayer = useAudioPlayer(INCIDENT_STING, { keepAudioSessionActive: true });
   const clueRevealPlayer = useAudioPlayer(CLUE_REVEAL, { keepAudioSessionActive: true });
   const caseSolvedPlayer = useAudioPlayer(CASE_SOLVED, { keepAudioSessionActive: true });
+  const transitionPlayer = useAudioPlayer(TRANSITION, { keepAudioSessionActive: true });
+  const tabPlayer = useAudioPlayer(TAB, { keepAudioSessionActive: true });
+  const collectionCompletePlayer = useAudioPlayer(COLLECTION_COMPLETE, { keepAudioSessionActive: true });
+  const reactionDiscoveredPlayer = useAudioPlayer(REACTION_DISCOVERED, { keepAudioSessionActive: true });
+  const stampPlayer = useAudioPlayer(STAMP, { keepAudioSessionActive: true });
+  const dialoguePlayer = useAudioPlayer(DIALOGUE, { keepAudioSessionActive: true });
+  const errorPlayer = useAudioPlayer(ERROR, { keepAudioSessionActive: true });
   const fadeGenerationRef = useRef(0);
   const bgmModeRef = useRef(bgmMode);
 
@@ -75,7 +96,14 @@ export function useMobbyAudio({
     incidentStingPlayer.volume = 0.48;
     clueRevealPlayer.volume = 0.4;
     caseSolvedPlayer.volume = 0.48;
-  }, [bgmPlayer, boxOpenPlayer, caseSolvedPlayer, clueRevealPlayer, incidentBgmPlayer, incidentStingPlayer, keyJinglePlayer, notificationPlayer, placePlayer, rewardPlayer, tapPlayer]);
+    transitionPlayer.volume = 0.36;
+    tabPlayer.volume = 0.34;
+    collectionCompletePlayer.volume = 0.4;
+    reactionDiscoveredPlayer.volume = 0.4;
+    stampPlayer.volume = 0.42;
+    dialoguePlayer.volume = 0.3;
+    errorPlayer.volume = 0.34;
+  }, [bgmPlayer, boxOpenPlayer, caseSolvedPlayer, clueRevealPlayer, collectionCompletePlayer, dialoguePlayer, errorPlayer, incidentBgmPlayer, incidentStingPlayer, keyJinglePlayer, notificationPlayer, placePlayer, reactionDiscoveredPlayer, rewardPlayer, stampPlayer, tabPlayer, tapPlayer, transitionPlayer]);
 
   useEffect(() => {
     bgmModeRef.current = bgmMode;
@@ -143,12 +171,26 @@ export function useMobbyAudio({
                 ? incidentStingPlayer
                 : sound === 'clueReveal'
                   ? clueRevealPlayer
-                  : caseSolvedPlayer;
+                  : sound === 'caseSolved'
+                    ? caseSolvedPlayer
+                    : sound === 'transition'
+                      ? transitionPlayer
+                      : sound === 'tab'
+                        ? tabPlayer
+                        : sound === 'collectionComplete'
+                          ? collectionCompletePlayer
+                          : sound === 'reactionDiscovered'
+                            ? reactionDiscoveredPlayer
+                            : sound === 'stamp'
+                              ? stampPlayer
+                              : sound === 'dialogue'
+                                ? dialoguePlayer
+                                : errorPlayer;
 
     void player.seekTo(0)
       .then(() => player.play())
       .catch(() => player.play());
-  }, [boxOpenPlayer, caseSolvedPlayer, clueRevealPlayer, incidentStingPlayer, keyJinglePlayer, notificationPlayer, placePlayer, rewardPlayer, sfxEnabled, tapPlayer]);
+  }, [boxOpenPlayer, caseSolvedPlayer, clueRevealPlayer, collectionCompletePlayer, dialoguePlayer, errorPlayer, incidentStingPlayer, keyJinglePlayer, notificationPlayer, placePlayer, reactionDiscoveredPlayer, rewardPlayer, sfxEnabled, stampPlayer, tabPlayer, tapPlayer, transitionPlayer]);
 
   return { engageBgm, playSfx };
 }
