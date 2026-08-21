@@ -2,6 +2,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { MISSION_BONUS, STAMP_REWARDS, reactionMilestoneReward, type ReactionMilestone } from '@/data/dailyRewards';
+import { isCollectibleSelection, type CollectibleSelection } from '@/data/collectibles';
 import { claimableReactionMilestones, PULL_RELEASE_MISSION_TARGET } from '@/data/reactions';
 import {
   MOBBY_TIME_DURATION_MS,
@@ -17,19 +18,17 @@ import {
   type PendingReward,
 } from './dailyLoopStorage';
 
-export type MobbyTimeRewardSelection = {
-  itemId: string;
-  variant: 'key-normal' | 'key-small' | 'plush';
-};
+export type MobbyTimeRewardSelection = CollectibleSelection;
 
 type DailyLoopValue = {
   state: DailyLoopState;
   isHydrated: boolean;
   recordPullRelease: () => Promise<void>;
   openMobbyTime: (selection: MobbyTimeRewardSelection) => Promise<boolean>;
-  setMobbyTimeRewardPhase: (eventId: string, phase: MobbyTimeRewardPhase) => Promise<boolean>;
+  setMobbyTimeRewardPhase: (eventId: string, expectedPhase: MobbyTimeRewardPhase, phase: MobbyTimeRewardPhase) => Promise<MobbyTimePhaseTransition>;
   consumeMobbyTimeReward: (eventId: string) => Promise<boolean>;
   completeMobbyTimeReward: (eventId: string) => Promise<boolean>;
+  completeReceiptedMobbyTime: (entitlementId: string) => Promise<boolean>;
   grantMobbyTime: () => Promise<boolean>;
   recordReaction: (amount?: number) => Promise<boolean>;
   claimReactionMilestone: (milestone: ReactionMilestone) => Promise<PendingReward | null>;
@@ -40,8 +39,33 @@ type DailyLoopValue = {
 
 export type PendingMobbyTimeResult = { state: DailyLoopState; reward: PendingReward | null };
 export type ReactionCountResult = { state: DailyLoopState; accepted: boolean };
+export type MobbyTimePhaseTransition = { committed: boolean; alreadyAtOrBeyond: boolean };
+export type MobbyTimePhaseResult = MobbyTimePhaseTransition & { state: DailyLoopState };
 
 const DailyLoopContext = createContext<DailyLoopValue | null>(null);
+const MOBBY_TIME_PHASES: readonly MobbyTimeRewardPhase[] = ['opening', 'revealed', 'placing', 'placed'];
+
+export function advanceMobbyTimeRewardPhase(
+  state: DailyLoopState,
+  eventId: string,
+  expectedPhase: MobbyTimeRewardPhase,
+  nextPhase: MobbyTimeRewardPhase,
+): MobbyTimePhaseResult {
+  const reward = state.mobbyTimeReward;
+  const expectedIndex = MOBBY_TIME_PHASES.indexOf(expectedPhase);
+  const nextIndex = MOBBY_TIME_PHASES.indexOf(nextPhase);
+  if (!reward || reward.eventId !== eventId || nextIndex !== expectedIndex + 1) {
+    return { state, committed: false, alreadyAtOrBeyond: false };
+  }
+  const currentIndex = MOBBY_TIME_PHASES.indexOf(reward.phase);
+  if (currentIndex >= nextIndex) return { state, committed: false, alreadyAtOrBeyond: true };
+  if (reward.phase !== expectedPhase) return { state, committed: false, alreadyAtOrBeyond: false };
+  return {
+    state: { ...state, mobbyTimeReward: { ...reward, phase: nextPhase } },
+    committed: true,
+    alreadyAtOrBeyond: false,
+  };
+}
 
 function queueReward(state: DailyLoopState, reward: PendingReward): DailyLoopState {
   return state.pendingRewards.some((item) => item.eventId === reward.eventId)
@@ -202,7 +226,7 @@ export function DailyLoopProvider({ children }: { children: ReactNode }) {
   }), [commit]);
 
   const openMobbyTime = useCallback(async (selection: MobbyTimeRewardSelection) => {
-    if (!selection.itemId.trim() || !['key-normal', 'key-small', 'plush'].includes(selection.variant)) return false;
+    if (!isCollectibleSelection(selection)) return false;
     let opened = false;
     await commit((current) => {
       const next = reconcileDailyLoop(current);
@@ -227,15 +251,14 @@ export function DailyLoopProvider({ children }: { children: ReactNode }) {
     return opened;
   }, [commit]);
 
-  const setMobbyTimeRewardPhase = useCallback(async (eventId: string, phase: MobbyTimeRewardPhase) => {
-    let updated = false;
+  const setMobbyTimeRewardPhase = useCallback(async (eventId: string, expectedPhase: MobbyTimeRewardPhase, phase: MobbyTimeRewardPhase) => {
+    let transition: MobbyTimePhaseTransition = { committed: false, alreadyAtOrBeyond: false };
     await commit((current) => {
-      const reward = current.mobbyTimeReward;
-      if (!reward || reward.eventId !== eventId || reward.phase === phase) return current;
-      updated = true;
-      return { ...current, mobbyTimeReward: { ...reward, phase } };
+      const result = advanceMobbyTimeRewardPhase(current, eventId, expectedPhase, phase);
+      transition = { committed: result.committed, alreadyAtOrBeyond: result.alreadyAtOrBeyond };
+      return result.state;
     });
-    return updated;
+    return transition;
   }, [commit]);
 
   const consumeMobbyTimeReward = useCallback(async (eventId: string) => {
@@ -246,7 +269,7 @@ export function DailyLoopProvider({ children }: { children: ReactNode }) {
       consumed = true;
       return {
         ...current,
-        mobbyTimeReward: reward.phase === 'placed' ? null : { ...reward, inventoryGranted: true },
+        mobbyTimeReward: { ...reward, inventoryGranted: true },
       };
     });
     return consumed;
@@ -261,6 +284,20 @@ export function DailyLoopProvider({ children }: { children: ReactNode }) {
       return {
         ...current,
         mobbyTimeReward: reward.inventoryGranted ? null : { ...reward, phase: 'placed' },
+      };
+    });
+    return completed;
+  }, [commit]);
+
+  const completeReceiptedMobbyTime = useCallback(async (entitlementId: string) => {
+    let completed = false;
+    await commit((current) => {
+      const entitlement = current.mobbyTime;
+      if (!entitlement || entitlement.id !== entitlementId || current.mobbyTimeReward) return current;
+      completed = true;
+      return {
+        ...current,
+        mobbyTime: { ...entitlement, state: 'opened', openedAt: entitlement.openedAt ?? current.lastSeenAt, expiresAt: null },
       };
     });
     return completed;
@@ -340,6 +377,7 @@ export function DailyLoopProvider({ children }: { children: ReactNode }) {
     setMobbyTimeRewardPhase,
     consumeMobbyTimeReward,
     completeMobbyTimeReward,
+    completeReceiptedMobbyTime,
     grantMobbyTime,
     recordReaction,
     claimReactionMilestone,
@@ -349,6 +387,7 @@ export function DailyLoopProvider({ children }: { children: ReactNode }) {
   }), [
     claimReactionMilestone,
     completeMobbyTimeReward,
+    completeReceiptedMobbyTime,
     consumePendingCycleReward,
     consumePendingReward,
     consumeMobbyTimeReward,

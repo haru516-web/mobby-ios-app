@@ -8,6 +8,7 @@ import {
   type DailyReward,
   type ReactionMilestone,
 } from '@/data/dailyRewards';
+import { isCollectibleSelection, type CollectibleVariant, type ItemId } from '@/data/collectibles';
 
 export const DAILY_LOOP_STORAGE_KEY = '@mobby/daily-loop-v1';
 export const MOBBY_TIME_DURATION_MS = 30 * 60 * 1000;
@@ -39,13 +40,17 @@ export type MobbyTimeRewardPhase = 'opening' | 'revealed' | 'placing' | 'placed'
 export type MobbyTimeReward = {
   eventId: string;
   entitlementId: string;
-  itemId: string;
-  variant: 'key-normal' | 'key-small' | 'plush';
+  itemId: ItemId;
+  variant: CollectibleVariant;
   amount: 1;
   selectedAt: number;
   phase: MobbyTimeRewardPhase;
   inventoryGranted: boolean;
 };
+
+export function shouldGrantMobbyTimeReceipt(reward: MobbyTimeReward | null): reward is MobbyTimeReward {
+  return reward?.phase === 'placed';
+}
 export type PendingReward = DailyReward & { eventId: string; sourceDate: string; cycle: number | null };
 export type DailyLoopState = {
   version: 1;
@@ -156,7 +161,8 @@ export function migrateLegacyDailyLoopSnapshot(value: unknown): unknown {
 
 function rewardsEqual(actual: PendingReward, expected: DailyReward): boolean {
   return actual.id === expected.id && actual.kind === expected.kind &&
-    actual.amount === expected.amount && actual.label === expected.label;
+    actual.amount === expected.amount && actual.label === expected.label &&
+    actual.itemId === expected.itemId && actual.variant === expected.variant;
 }
 
 function decodeReward(value: unknown): PendingReward | null {
@@ -211,11 +217,13 @@ function decodeEntitlement(value: unknown, lastSeenAt: number): MobbyTimeEntitle
 
 function decodeMobbyTimeReward(value: unknown): MobbyTimeReward | null {
   if (!isRecord(value) || !isNonEmptyString(value.eventId) || !isNonEmptyString(value.entitlementId) ||
-      !isNonEmptyString(value.itemId) || !['key-normal', 'key-small', 'plush'].includes(String(value.variant)) ||
+      !isCollectibleSelection(value) ||
       value.amount !== 1 || !isTimestamp(value.selectedAt) ||
       !['opening', 'revealed', 'placing', 'placed'].includes(String(value.phase)) ||
       typeof value.inventoryGranted !== 'boolean') return null;
-  return value as unknown as MobbyTimeReward;
+  const reward = value as unknown as MobbyTimeReward;
+  if (reward.eventId !== `mobby-time-reward:${reward.entitlementId}`) return null;
+  return reward;
 }
 
 function recoverMobbyTimeReward(
@@ -225,14 +233,14 @@ function recoverMobbyTimeReward(
   const decoded = decodeMobbyTimeReward(value);
   if (decoded) return decoded;
   if (!isRecord(value) || entitlement?.state !== 'opened' ||
-      !isNonEmptyString(value.itemId) || !['key-normal', 'key-small', 'plush'].includes(String(value.variant)) ||
+      !isCollectibleSelection(value) ||
       value.amount !== 1 || !isTimestamp(value.selectedAt) || typeof value.inventoryGranted !== 'boolean') return null;
 
   return {
     eventId: `mobby-time-reward:${entitlement.id}`,
     entitlementId: entitlement.id,
     itemId: value.itemId,
-    variant: value.variant as MobbyTimeReward['variant'],
+    variant: value.variant,
     amount: 1,
     selectedAt: value.selectedAt,
     phase: ['opening', 'revealed', 'placing', 'placed'].includes(String(value.phase))
@@ -296,12 +304,20 @@ export function decodeDailyLoopState(value: unknown): DailyLoopState | null {
   if (!claimed.every((item) => REACTION_MILESTONES.includes(item as ReactionMilestone)) ||
       new Set(claimed).size !== claimed.length || claimed.some((item) => item > reactionCount)) return null;
 
-  const mobbyTime = decodeEntitlement(value.mobbyTime, value.lastSeenAt);
+  let mobbyTime = decodeEntitlement(value.mobbyTime, value.lastSeenAt);
   if (mobbyTime === undefined || (mobbyTime !== null && mobbyTime.grantedOn > logicalDate)) return null;
   // Older snapshots have no reward field. If a write was torn around the
   // event identity/phase, rebuild those fields from the opened entitlement;
   // the selected item and receipt state remain authoritative.
   const mobbyTimeReward = recoverMobbyTimeReward(value.mobbyTimeReward, mobbyTime);
+  if (mobbyTime?.state === 'opened' && (!mobbyTimeReward || mobbyTimeReward.entitlementId !== mobbyTime.id)) {
+    mobbyTime = {
+      ...mobbyTime,
+      state: 'available',
+      openedAt: null,
+      expiresAt: Math.min(MAX_DATE_MS, value.lastSeenAt + MOBBY_TIME_DURATION_MS),
+    };
+  }
 
   return {
     ...(value as unknown as DailyLoopState),

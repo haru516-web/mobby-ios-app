@@ -9,8 +9,16 @@ PowerShellでプロジェクトフォルダを開きます。
 ```powershell
 cd C:\Users\User\Documents\mobby\mobby-ios-app
 npm install
-npm start -- --clear
+npm run start:go -- --clear
 ```
+
+同じWi-Fi上のiPhoneでExpo Goを開く場合は、`start:go` が表示するQRコードを読み取ります。Expo CLIのネットワーク診断が失敗する環境では、代わりに次を使えます。
+
+```powershell
+npm run start:go:offline -- --clear
+```
+
+Expo Go用サーバーはWeb確認用の8081番ポートと分けて、8083番ポートで起動します。
 
 Windowsのブラウザ／Codexのサイドブラウザで確認する場合は、別のPowerShellで次を実行します。起動後に表示された `http://localhost:8081` をブラウザで開いてください。
 
@@ -24,7 +32,7 @@ npm run web:side
 
 1. iPhoneに無料のExpo Goをインストールする
 2. WindowsとiPhoneを同じWi-Fiに接続する
-3. `npm start -- --clear` で表示されたQRコードをExpo Goで読み取る
+3. `npm run start:go -- --clear` で表示されたQRコードをExpo Goで読み取る
 
 Expo Goで読み取れないときは、ターミナルの接続モードを `LAN` にして再起動してください。Windowsファイアウォールが表示された場合は、Node.jsのプライベートネットワーク通信を許可します。
 

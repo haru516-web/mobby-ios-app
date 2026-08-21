@@ -1,9 +1,9 @@
 :root {
   --font-display:
-    'MochiyPopOne_400Regular', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
+    'ZenMaruGothic_900Black', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'MPLUSRounded1c_700Bold', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
+  --font-rounded: 'ZenMaruGothic_500Medium', 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
 
@@ -20,7 +20,7 @@ body {
   font-family: var(--font-rounded);
 }
 
-/* Body copy uses M PLUS Rounded 1c; display headings keep Mochiy Pop One. */
+/* Zen Maru Gothic is the single app typeface; weight communicates hierarchy. */
 #root [dir='auto'],
 #root button {
   font-feature-settings: 'palt' 1;

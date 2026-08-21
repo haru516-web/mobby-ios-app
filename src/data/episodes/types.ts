@@ -1,6 +1,6 @@
 import type { ImageSourcePropType } from 'react-native';
 
-import type { EnemyId } from '@/data/enemyCases';
+import type { EnemyId } from '@/data/enemies';
 import type { MobbyId } from '@/data/mobies';
 
 export type EpisodeId = `episode-${number}`;
@@ -27,6 +27,12 @@ export type Line = {
 };
 
 type InteractionBase = { id: string; prompt: string; successText: string; cue?: Cue };
+export type EpisodeMechanic = {
+  id: string;
+  variant: 'messageFlood' | 'quietOrder' | 'propOrder' | 'decorate' | 'deliveryPlan' | 'callbackOrder';
+  instruction: string;
+  tokens: readonly string[];
+};
 export type TapInteraction = InteractionBase & { kind: 'tap'; targetId: string; requiredTaps?: number };
 export type SwipeInteraction = InteractionBase & { kind: 'swipe'; direction: 'left' | 'right' | 'up' | 'down'; threshold?: number };
 export type HoldInteraction = InteractionBase & { kind: 'hold'; durationMs: number };
@@ -47,6 +53,9 @@ export type Scene = {
   actors?: readonly Actor[];
   /** Text/emoji composition used when dedicated episode art is unavailable. */
   visualOverlay?: { text: string; accessibilityLabel: string };
+  /** Optional featured reaction layer; the player also supplies a safe per-scene fallback. */
+  reactionAssetId?: AssetId;
+  mechanic?: EpisodeMechanic;
   lines: readonly Line[];
   interaction?: Interaction;
   nextSceneId?: SceneId;
@@ -66,6 +75,8 @@ export type EpisodeData = {
   entrySceneId: SceneId;
   scenes: readonly Scene[];
   credits: readonly string[];
+  outcomeCaption?: string;
+  keyVisualAssetId?: AssetId;
 };
 
 export type PlaybackState = {

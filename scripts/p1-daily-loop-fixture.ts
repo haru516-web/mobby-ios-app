@@ -1,4 +1,5 @@
-import { STAMP_REWARDS } from '../src/data/dailyRewards';
+import { ALL_DAILY_REWARDS, STAMP_REWARDS, reactionMilestoneReward, validateRewardCatalog } from '../src/data/dailyRewards';
+import { ITEMS, normalizeCollectibleInventory, resolveCollectibleName } from '../src/data/collectibles';
 import {
   createHydratedDailyLoopQueue,
   createInitialDailyLoopState,
@@ -14,6 +15,10 @@ function assert(condition: unknown, message: string): asserts condition {
 export async function runP1DailyLoopFixture() {
   const now = new Date('2026-08-15T12:00:00+09:00');
   const timestamp = now.getTime();
+  assert(ITEMS.length === 9 && ALL_DAILY_REWARDS.length === 12, 'static catalogs must retain 9 items and 12 rewards');
+  assert(validateRewardCatalog().length === 0, 'reward catalog must validate');
+  assert(ALL_DAILY_REWARDS.every((entry) => entry.label === resolveCollectibleName(entry.itemId, entry.variant)), 'all 12 reward labels must equal their canonical collectible names');
+  assert(ALL_DAILY_REWARDS.filter((entry) => entry.kind === 'reaction-milestone').every((entry) => entry.rewardTitle === `ちょっかい ${entry.id.slice('reaction-'.length)} 回記念グッズ`), 'reaction event titles must remain separate from canonical collectible labels');
   const legacy = {
     version: 1,
     logicalDate: '2026-08-15',
@@ -44,8 +49,7 @@ export async function runP1DailyLoopFixture() {
     ...STAMP_REWARDS[1], eventId: 'stamp:1:2', sourceDate: '2026-08-15', cycle: 1,
   };
   const validReactionReward = {
-    id: 'reaction-25', kind: 'reaction-milestone', amount: 1,
-    label: 'ちょっかい 25 回記念グッズ', itemId: 'babu-key', variant: 'key-small',
+    ...reactionMilestoneReward(25),
     eventId: 'reaction:25', sourceDate: '2026-08-15', cycle: null,
   };
   const salvageSnapshot = {
@@ -135,6 +139,24 @@ export async function runP1DailyLoopFixture() {
   const repeatedGrant = receiptBackedInventoryGrant(firstGrant, receipt, inventory, 1);
   assert(firstGrant[inventory] === 1 && repeatedGrant[inventory] === 1, 'receipt retry must grant exactly once');
   assert(repeatedGrant === firstGrant, 'receipt retry must be a no-op');
+
+  const receiptWithFalseFlag = receiptBackedInventoryGrant({ [receipt]: 1 }, receipt, inventory, 1);
+  assert(receiptWithFalseFlag[inventory] === undefined, 'receipt authority must not regrant when the display flag is torn false');
+  const mixed = normalizeCollectibleInventory({ 'reo-key': 2, 'reo-key::key-normal': 3, 'reo-key::plush': 1 }, () => false);
+  assert(mixed['reo-key::key-normal'] === 5 && mixed['reo-key::plush'] === 1, 'mixed legacy and variant inventory must merge without loss');
+
+  const tamperedPending = decodeDailyLoopState({
+    ...salvageSnapshot,
+    pendingRewards: [{ ...validStampReward, variant: 'plush' }],
+  });
+  assert(tamperedPending?.pendingRewards.length === 0, 'pending reward item and variant must match its canonical definition');
+  const unknownSelection = decodeDailyLoopState({
+    ...salvageSnapshot,
+    missions: { pullReleases: 0, mobbyTimeOpened: true, bonusQueued: false },
+    mobbyTime: { id: 'daily:2026-08-15', grantedOn: '2026-08-15', state: 'opened', openedAt: timestamp, expiresAt: null, carriedFrom: null },
+    mobbyTimeReward: { eventId: 'mobby-time-reward:daily:2026-08-15', entitlementId: 'daily:2026-08-15', itemId: 'unknown', variant: 'key-normal', amount: 1, selectedAt: timestamp, phase: 'opening', inventoryGranted: false },
+  });
+  assert(unknownSelection?.mobbyTimeReward === null && unknownSelection.mobbyTime?.state === 'available', 'unknown opened selection must become safely reselectable');
 }
 
 void runP1DailyLoopFixture().then(() => console.log('P1 daily-loop fixtures passed'));

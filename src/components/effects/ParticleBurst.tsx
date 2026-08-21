@@ -85,7 +85,7 @@ export function ParticleBurst({
       toValue: 1,
       duration: reduceMotion ? 180 : large ? 850 : 680,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: typeof document === 'undefined',
     });
     animation.start();
     return () => animation.stop();

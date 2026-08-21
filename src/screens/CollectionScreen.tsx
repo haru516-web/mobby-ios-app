@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { useDailyLoop } from '@/game/DailyLoopContext';
-import { CollectionScreen as CollectionScreenImplementation } from './screenImplementations';
+import { CollectionVisual as CollectionScreenImplementation } from '@/components/collection/CollectionVisual';
 
 type CollectionScreenProps = Omit<ComponentProps<typeof CollectionScreenImplementation>, 'reactionCount' | 'claimedReactionMilestones' | 'dailyHydrated' | 'onClaimReactionMilestone'>;
 

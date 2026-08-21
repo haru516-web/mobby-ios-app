@@ -1,14 +1,17 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/layout/visualPrimitives';
 
 import { STAMP_REWARDS } from '@/data/dailyRewards';
+import { MobbyAssetSurface } from '@/components/mobby-ui';
 
 type Props = { stampCount: number; cycle?: number; testID?: string };
 
 export function DailyStampCard({ stampCount, cycle = 1, testID }: Props) {
   const completed = Math.max(0, Math.min(7, stampCount));
   return (
-    <View
+    <MobbyAssetSurface
       style={styles.card}
+      contentStyle={styles.cardContent}
       testID={testID}
       accessible
       accessibilityRole="summary"
@@ -30,28 +33,29 @@ export function DailyStampCard({ stampCount, cycle = 1, testID }: Props) {
               accessibilityRole="checkbox"
               accessibilityLabel={`${index + 1}日目、報酬${reward.label}`}
               accessibilityState={{ checked: done }}>
-              <View style={[styles.stamp, done && styles.stampDone]}>
+              <MobbyAssetSurface variant={done ? 'tileSelected' : 'tile'} style={[styles.stamp, done && styles.stampDone]} contentStyle={styles.stampContent}>
                 <Text style={[styles.day, done && styles.dayDone]}>{done ? '✓' : index + 1}</Text>
-              </View>
+              </MobbyAssetSurface>
               <Text numberOfLines={1} style={styles.reward}>{index === 6 ? 'TIME' : reward.amount}</Text>
             </View>
           );
         })}
       </View>
-    </View>
+    </MobbyAssetSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 20, padding: 16, backgroundColor: '#FFF9EC', borderWidth: 1, borderColor: '#E6C8A7' },
+  card: { minHeight: 132 }, cardContent: { padding: 20 },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
   title: { color: '#5C4055', fontSize: 17, fontWeight: '900' },
-  cycle: { color: '#A47A83', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  cycle: { color: '#A47A83', fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   cell: { flex: 1, alignItems: 'center' },
-  stamp: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0E4D8', borderWidth: 1, borderColor: '#DABFA8' },
-  stampDone: { backgroundColor: '#D98494', borderColor: '#C66D82' },
+  stamp: { width: 34, height: 34, overflow: 'hidden' },
+  stampDone: { opacity: 0.92 },
+  stampContent: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   day: { color: '#8D7472', fontSize: 12, fontWeight: '900' },
   dayDone: { color: '#FFF9EC' },
-  reward: { color: '#9B777C', fontSize: 8, fontWeight: '800', marginTop: 5 },
+  reward: { color: '#9B777C', fontSize: 12, fontWeight: '800', marginTop: 5 },
 });

@@ -1,10 +1,10 @@
-import type { EnemyId } from '@/data/enemyCases';
+import type { EnemyId } from '@/data/enemies';
 import { createInitialPlaybackState, normalizePlaybackState } from '@/data/episodes/playback';
 import { getEpisode } from '@/data/episodes/registry';
 import type { EpisodeId, PlaybackState } from '@/data/episodes/types';
 import type { MobbyId } from '@/data/mobies';
 
-export const INCIDENT_STORAGE_SCHEMA_VERSION = 5 as const;
+export const INCIDENT_STORAGE_SCHEMA_VERSION = 6 as const;
 
 export type EpisodeEndingId = string;
 
@@ -26,7 +26,10 @@ export type EpisodeArchiveEntry = {
   endingIds: readonly EpisodeEndingId[];
   lastEndingId: EpisodeEndingId;
   memorableLine: string;
+  outcome: EpisodeOutcome;
 };
+
+export type EpisodeOutcome = { choiceId: string; optionId: string; caption: string; keyVisualAssetId: string; completedAt: number };
 
 export type RelationshipArchiveEntry = {
   enemyId: EnemyId;
@@ -77,11 +80,16 @@ const isTime = (value: unknown): value is number => Number.isSafeInteger(value) 
 const isNullableTime = (value: unknown): value is number | null => value === null || isTime(value);
 
 export function freshEpisodeStorage(): IncidentStorageV5 {
-  return { schemaVersion: 5, archive: { episodes: [], relationships: [], legacyV4: null }, activeEpisode: null, pendingResolution: null };
+  return { schemaVersion: 6, archive: { episodes: [], relationships: [], legacyV4: null }, activeEpisode: null, pendingResolution: null };
 }
 
-function endingFromPlayback(playback: PlaybackState): EpisodeEndingId {
-  return Object.values(playback.choices).at(-1) ?? 'completed';
+export function outcomeFromPlayback(episodeId: EpisodeId, playback: PlaybackState, completedAt: number): EpisodeOutcome {
+  const episode = getEpisode(episodeId);
+  const scene = episode?.scenes.find((candidate) => candidate.interaction?.kind === 'choice' && isString(playback.choices[candidate.interaction.id]));
+  const choiceId = scene?.interaction?.id ?? 'completed';
+  const optionId = scene?.interaction?.kind === 'choice' ? playback.choices[scene.interaction.id] ?? 'completed' : 'completed';
+  const option = scene?.interaction?.kind === 'choice' ? scene.interaction.options.find((candidate) => candidate.id === optionId) : undefined;
+  return { choiceId, optionId, caption: episode?.outcomeCaption ?? option?.label ?? episode?.synopsis ?? 'エピソード完走', keyVisualAssetId: episode?.keyVisualAssetId ?? scene?.backgroundAssetId ?? 'bg-mansion', completedAt };
 }
 
 function sanitizeEpisodeEntries(value: unknown): EpisodeArchiveEntry[] {
@@ -97,7 +105,12 @@ function sanitizeEpisodeEntries(value: unknown): EpisodeArchiveEntry[] {
       : [];
     if (!endingIds.length || !isString(raw.lastEndingId) || !endingIds.includes(raw.lastEndingId) || !isString(raw.memorableLine)) continue;
     if (result.some((entry) => entry.episodeId === raw.episodeId)) continue;
-    result.push({ episodeId: raw.episodeId as EpisodeId, playCount: Number(raw.playCount), firstCompletedAt: raw.firstCompletedAt, lastCompletedAt: raw.lastCompletedAt, endingIds, lastEndingId: raw.lastEndingId, memorableLine: raw.memorableLine });
+    const outcomeRaw = isRecord(raw.outcome) ? raw.outcome : {};
+    const choiceScene = episode?.scenes.find((scene) => scene.interaction?.kind === 'choice');
+    const validOptions = choiceScene?.interaction?.kind === 'choice' ? new Set(choiceScene.interaction.options.map((option) => option.id)) : new Set<string>();
+    const completedAt = isTime(outcomeRaw.completedAt) ? outcomeRaw.completedAt : raw.lastCompletedAt ?? raw.firstCompletedAt ?? 0;
+    const outcome: EpisodeOutcome = { choiceId: isString(outcomeRaw.choiceId) && outcomeRaw.choiceId === choiceScene?.interaction?.id ? outcomeRaw.choiceId : choiceScene?.interaction?.id ?? 'completed', optionId: isString(outcomeRaw.optionId) && (outcomeRaw.optionId === 'completed' || validOptions.has(outcomeRaw.optionId)) ? outcomeRaw.optionId : raw.lastEndingId, caption: isString(outcomeRaw.caption) ? outcomeRaw.caption : episode?.outcomeCaption ?? raw.memorableLine, keyVisualAssetId: isString(outcomeRaw.keyVisualAssetId) && episode?.scenes.some((scene) => scene.backgroundAssetId === outcomeRaw.keyVisualAssetId) ? outcomeRaw.keyVisualAssetId : episode?.keyVisualAssetId ?? 'bg-mansion', completedAt };
+    result.push({ episodeId: raw.episodeId as EpisodeId, playCount: Number(raw.playCount), firstCompletedAt: raw.firstCompletedAt, lastCompletedAt: raw.lastCompletedAt, endingIds, lastEndingId: raw.lastEndingId, memorableLine: raw.memorableLine, outcome });
   }
   return result;
 }
@@ -141,10 +154,10 @@ function sanitizePending(value: unknown, codec: EpisodeStorageCodec): PendingEpi
 
 export function decodeEpisodeStorage(value: unknown, codec: EpisodeStorageCodec): IncidentStorageV5 {
   if (!isRecord(value)) return freshEpisodeStorage();
-  if (value.schemaVersion === 5) {
+  if (value.schemaVersion === 6 || value.schemaVersion === 5) {
     const rawArchive = isRecord(value.archive) ? value.archive : {};
     const pendingResolution = sanitizePending(value.pendingResolution, codec);
-    return { schemaVersion: 5, archive: { episodes: sanitizeEpisodeEntries(rawArchive.episodes), relationships: sanitizeRelationships(rawArchive.relationships, codec), legacyV4: sanitizeLegacy(rawArchive.legacyV4) }, activeEpisode: pendingResolution ? null : sanitizeActive(value.activeEpisode, codec), pendingResolution };
+    return { schemaVersion: 6, archive: { episodes: sanitizeEpisodeEntries(rawArchive.episodes), relationships: sanitizeRelationships(rawArchive.relationships, codec), legacyV4: sanitizeLegacy(rawArchive.legacyV4) }, activeEpisode: pendingResolution ? null : sanitizeActive(value.activeEpisode, codec), pendingResolution };
   }
   if (value.schemaVersion === 4) {
     const rawArchive = isRecord(value.archive) ? value.archive : {};
@@ -182,16 +195,17 @@ export function saveEpisodePlayback(state: IncidentStorageV5, runId: string, pla
 export function completeEpisode(state: IncidentStorageV5, runId: string, playback: PlaybackState, completedAt: number): IncidentStorageV5 {
   const active = state.activeEpisode;
   if (!active || active.runId !== runId || state.pendingResolution) return state;
-  const endingId = endingFromPlayback(playback);
+  const outcome = outcomeFromPlayback(active.episodeId, playback, completedAt);
+  const endingId = outcome.optionId;
   const existing = state.archive.episodes.find((entry) => entry.episodeId === active.episodeId);
   const episode = getEpisode(active.episodeId);
   const choiceScene = episode?.scenes.find((scene) => scene.interaction?.kind === 'choice' && scene.interaction.options.some((option) => option.id === endingId));
   const destination = choiceScene?.interaction?.kind === 'choice' ? choiceScene.interaction.options.find((option) => option.id === endingId)?.nextSceneId : undefined;
-  const memorableLine = episode?.scenes.find((scene) => scene.id === destination)?.lines[0]?.text ?? episode?.synopsis ?? '事件は思わぬ関係を残した。';
-  const relationshipLabel = episode?.credits.find((credit) => credit.startsWith('関係：'))?.replace('関係：', '') ?? (active.episodeId === 'episode-1' ? '王子専属の紅茶係（本人は否定）' : '因縁の相手');
-  const entry: EpisodeArchiveEntry = { episodeId: active.episodeId, playCount: (existing?.playCount ?? 0) + 1, firstCompletedAt: existing?.firstCompletedAt ?? completedAt, lastCompletedAt: completedAt, endingIds: existing?.endingIds.includes(endingId) ? existing.endingIds : [...(existing?.endingIds ?? []), endingId], lastEndingId: endingId, memorableLine };
+  const memorableLine = episode?.scenes.find((scene) => scene.id === destination)?.lines[0]?.text ?? episode?.synopsis ?? 'ふたりには思わぬ関係が残った。';
+  const relationshipLabel = episode?.credits.find((credit) => credit.startsWith('関係：'))?.replace('関係：', '') ?? (active.episodeId === 'episode-1' ? '王子専属の紅茶係（本人は否定）' : '思いがけない名コンビ');
+  const entry: EpisodeArchiveEntry = { episodeId: active.episodeId, playCount: (existing?.playCount ?? 0) + 1, firstCompletedAt: existing?.firstCompletedAt ?? completedAt, lastCompletedAt: completedAt, endingIds: existing?.endingIds.includes(endingId) ? existing.endingIds : [...(existing?.endingIds ?? []), endingId], lastEndingId: endingId, memorableLine, outcome };
   const relationship: RelationshipArchiveEntry = { enemyId: active.enemyId, mobbyId: active.targetMobbyId, label: relationshipLabel, updatedAt: completedAt };
-  return { schemaVersion: 5, archive: { ...state.archive, episodes: existing ? state.archive.episodes.map((item) => item.episodeId === entry.episodeId ? entry : item) : [...state.archive.episodes, entry], relationships: [...state.archive.relationships.filter((item) => !(item.enemyId === relationship.enemyId && item.mobbyId === relationship.mobbyId)), relationship] }, activeEpisode: null, pendingResolution: { runId, episodeId: active.episodeId, targetItemId: active.targetItemId, targetMobbyId: active.targetMobbyId, enemyId: active.enemyId, endingId, completedAt, step: 'returning' } };
+  return { schemaVersion: 6, archive: { ...state.archive, episodes: existing ? state.archive.episodes.map((item) => item.episodeId === entry.episodeId ? entry : item) : [...state.archive.episodes, entry], relationships: [...state.archive.relationships.filter((item) => !(item.enemyId === relationship.enemyId && item.mobbyId === relationship.mobbyId)), relationship] }, activeEpisode: null, pendingResolution: { runId, episodeId: active.episodeId, targetItemId: active.targetItemId, targetMobbyId: active.targetMobbyId, enemyId: active.enemyId, endingId, completedAt, step: 'returning' } };
 }
 
 export function advanceEpisodeResolution(state: IncidentStorageV5, runId: string): IncidentStorageV5 {

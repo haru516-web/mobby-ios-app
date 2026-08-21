@@ -45,8 +45,8 @@ export function MobbyIdleMotion({
     breathe.setValue(1);
     if (!enabled || reduceMotion) return;
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(breathe, { toValue: 1.015, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(breathe, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 1.015, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: typeof document === 'undefined' }),
+      Animated.timing(breathe, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: typeof document === 'undefined' }),
     ]));
     loop.start();
     return () => loop.stop();
@@ -63,8 +63,8 @@ export function MobbyIdleMotion({
         onGesture?.(kind);
         gesture.setValue(0);
         animation = Animated.sequence([
-          Animated.timing(gesture, { toValue: kind === 'tilt' ? 1 : kind === 'wave' ? 2 : 3, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(gesture, { toValue: 0, duration: 340, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(gesture, { toValue: kind === 'tilt' ? 1 : kind === 'wave' ? 2 : 3, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: typeof document === 'undefined' }),
+          Animated.timing(gesture, { toValue: 0, duration: 340, easing: Easing.inOut(Easing.quad), useNativeDriver: typeof document === 'undefined' }),
         ]);
         animation.start(({ finished }) => finished && schedule());
       }, 5000 + Math.random() * 10000);
@@ -81,8 +81,8 @@ export function MobbyIdleMotion({
       timer = setTimeout(() => {
         blink.setValue(0);
         animation = Animated.sequence([
-          Animated.timing(blink, { toValue: 1, duration: 70, useNativeDriver: true }),
-          Animated.timing(blink, { toValue: 0, duration: 90, useNativeDriver: true }),
+          Animated.timing(blink, { toValue: 1, duration: 70, useNativeDriver: typeof document === 'undefined' }),
+          Animated.timing(blink, { toValue: 0, duration: 90, useNativeDriver: typeof document === 'undefined' }),
         ]);
         animation.start(({ finished }) => finished && !cancelled && schedule());
       }, 2400 + Math.random() * 2800);

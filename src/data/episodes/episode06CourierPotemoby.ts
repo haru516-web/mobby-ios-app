@@ -5,4 +5,15 @@ export const EPISODE_06_COURIER_POTEMOBY = createComedyEpisode({
   lair: [['運び屋', '荷札、重量、時刻。配送は約束だ。'], ['ぽてもび', 'おやつ二個の約束も大事。'], ['運び屋', 'その注文は受けていない。']], actions: ['分岐レールを右へ！', '箱がおやつ倉庫方面へ！', 'ブレーキを押さえるよ。', '全箱が安全停止！', '新しい荷札を貼る！', '宛先が「運び屋本人」に！'],
   reversal: [['ナレーション', '運び屋が箱を開けると、中にはぽてもびと受領印が待っていた。'], ['ぽてもび', '本人確認できました。ここにハンコ。'], ['運び屋', '私が私を配送したことになっている！']], choicePrompt: '配送完了は玄関？　おやつ棚？', endings: [{ label: '玄関へ本人を届ける', title: '置き配不可', lines: [['運び屋', '受取人も配達人も私だ。'], ['ぽてもび', 'サインも二回お願い。']] }, { label: 'おやつ棚へ直送', title: 'クール便', lines: [['ぽてもび', 'ポテトは冷める前に届ける！'], ['運び屋', 'その速度だけは認めよう。']] }],
   relationshipLines: [['運び屋', '同じ荷物は二度と運ばない。'], ['ぽてもび', '次はボクがお兄さんを運ぶ。'], ['運び屋', '再配達不可だ。']], key: ['配達員を配達しました', '📦\n🕵️‍♂️「受取人：私」\n🍟', '自分宛ての箱から顔を出し受領印を持つ運び屋', '配送記録には「運び屋を運び屋へ配達、受領済」と残った。'], after: ['荷札：赤い司令印', '荷札の裏に、第7作戦を示す赤い司令印が残っていた。'],
+  outcomeCaption: '配送ラベル：休憩地点経由・本人受領済み',
+  sceneAssets: {
+    opening: 'bg-episode-6-parcel-room', search: 'bg-episode-6-parcel-room', lair: 'bg-episode-6-parcel-room',
+    action: 'bg-episode-6-parcel-room', reversal: 'bg-episode-6-parcel-room', relationship: 'bg-episode-6-parcel-room',
+    keyVisual: 'bg-episode-6-parcel-room', afterCredits: 'bg-episode-6-parcel-room',
+  },
+  sceneTitles: {
+    searchOne: '荷札を照合する', searchTwo: 'リボンの行き先', lair: '配送室の約束',
+    actionOne: '分岐レールを選ぶ', actionTwo: '安全停止の練習', actionThree: '本人宛ての荷札',
+    reversal: '箱の中の受取人', choice: 'どこへ届ける？',
+  },
 });

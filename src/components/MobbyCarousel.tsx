@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 import { MOBBIES, type Mobby, type MobbyId } from '@/data/mobies';
-import { MobbyColors } from './mobby-ui';
+import { MobbyAssetButton, MobbyAssetSurface, MobbyColors } from './mobby-ui';
 
 // Native port of mobby-main/docs/index.html's hero carousel. Its 74%-wide
 // slides, 63% neighbor spacing, 0.76 neighbor scale and 0.34 opacity are kept
@@ -77,13 +77,13 @@ function SelectedJoyArt({
           toValue: 1.18,
           duration: 180,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: typeof document === 'undefined',
         }),
         Animated.timing(scale, {
           toValue: 1,
           duration: 230,
           easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: typeof document === 'undefined',
         }),
         Animated.delay(140),
       ]),
@@ -92,14 +92,14 @@ function SelectedJoyArt({
           toValue: 1,
           duration: 100,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: typeof document === 'undefined',
         }),
         Animated.delay(310),
         Animated.timing(joyOpacity, {
           toValue: 0,
           duration: 140,
           easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: typeof document === 'undefined',
         }),
       ]),
     ]);
@@ -174,12 +174,12 @@ export function MobbyCarousel({ selectedId, onSelect, onInteract, interactionSca
     float.setValue(1);
 
     const bobLoop = Animated.loop(Animated.sequence([
-      Animated.timing(bob, { toValue: 1, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(bob, { toValue: 0, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(bob, { toValue: 1, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: typeof document === 'undefined' }),
+      Animated.timing(bob, { toValue: 0, duration: 1150, easing: Easing.inOut(Easing.sin), useNativeDriver: typeof document === 'undefined' }),
     ]));
     const floatLoop = Animated.loop(Animated.sequence([
-      Animated.timing(float, { toValue: 0, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(float, { toValue: 1, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(float, { toValue: 0, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: typeof document === 'undefined' }),
+      Animated.timing(float, { toValue: 1, duration: 1650, easing: Easing.inOut(Easing.sin), useNativeDriver: typeof document === 'undefined' }),
     ]));
     bobLoop.start();
     floatLoop.start();
@@ -303,24 +303,24 @@ export function MobbyCarousel({ selectedId, onSelect, onInteract, interactionSca
             >
               <Animated.View pointerEvents="none" style={[styles.floatingArt, { transform: [{ translateY }, { rotate }] }]}>
                 {active && joyId === mobby.id ? <SelectedJoyArt key={`${mobby.id}-${joyRevision}`} mobby={mobby} runId={joyRevision} onFinished={finishJoy} /> : <CharacterArt mobby={mobby} />}
-                {active ? <View style={[styles.selectedBadge, { backgroundColor: mobby.color }]}><Text style={styles.selectedBadgeText}>✓</Text></View> : null}
+                {active ? <MobbyAssetSurface variant="tileSelected" pointerEvents="none" style={styles.selectedBadge} contentStyle={styles.selectedBadgeContent}><Text style={styles.selectedBadgeText}>✓</Text></MobbyAssetSurface> : null}
               </Animated.View>
             </Pressable>
           );
         })}
       </View>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="前のモビー" onPress={() => setActive(activeIndexRef.current - 1)} style={[styles.arrow, styles.arrowLeft]}>
+      <MobbyAssetButton accessibilityLabel="前のモビー" tone="cream" onPress={() => setActive(activeIndexRef.current - 1)} style={[styles.arrow, styles.arrowLeft]} contentStyle={styles.arrowContent}>
         <Image source={ICONS.left} resizeMode="contain" style={styles.arrowIconLeft} />
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="次のモビー" onPress={() => setActive(activeIndexRef.current + 1)} style={[styles.arrow, styles.arrowRight]}>
+      </MobbyAssetButton>
+      <MobbyAssetButton accessibilityLabel="次のモビー" tone="cream" onPress={() => setActive(activeIndexRef.current + 1)} style={[styles.arrow, styles.arrowRight]} contentStyle={styles.arrowContent}>
         <Image source={ICONS.right} resizeMode="contain" style={styles.arrowIconRight} />
-      </Pressable>
+      </MobbyAssetButton>
 
-      <View pointerEvents="none" accessibilityLiveRegion="polite" style={styles.characterName}>
+      <MobbyAssetSurface variant="labelPill" pointerEvents="none" accessibilityLiveRegion="polite" style={styles.characterName} contentStyle={styles.characterNameContent}>
         <Text style={styles.name}>{DISPLAY_NAMES[activeMobby.id]}</Text>
         <Text style={styles.characterMeta}>{activeMobby.catchphrase} ・ 全{MOBBIES.length}キャラ中 {activeIndex + 1}キャラ目</Text>
-      </View>
+      </MobbyAssetSurface>
     </View>
   );
 }
@@ -335,14 +335,17 @@ const styles = StyleSheet.create({
   characterArt: { width: 286, height: 286 },
   selectionPop: { width: 286, height: 286, alignItems: 'center', justifyContent: 'center' },
   characterArtLayer: { position: 'absolute', width: 286, height: 286 },
-  selectedBadge: { position: 'absolute', top: 30, right: 29, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF9E9', shadowColor: '#5B3A58', shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  selectedBadge: { position: 'absolute', top: 30, right: 29, width: 30, height: 30 },
+  selectedBadgeContent: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', padding: 0 },
   selectedBadgeText: { color: '#FFF', fontSize: 15, lineHeight: 18, fontWeight: '900' },
   name: { color: MobbyColors.ink, fontSize: 18, lineHeight: 22, fontWeight: '900', letterSpacing: 0.5 },
-  characterMeta: { color: '#97717A', fontSize: 9, lineHeight: 12, fontWeight: '800', marginTop: 2 },
-  arrow: { position: 'absolute', top: '50%', width: 50, height: 50, marginTop: -56, borderRadius: 25, borderWidth: 2, borderColor: '#D9A76C', backgroundColor: '#FFF4D9', alignItems: 'center', justifyContent: 'center', shadowColor: '#7B4C2E', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 3 }, elevation: 3, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  characterMeta: { color: '#97717A', fontSize: 12, lineHeight: 12, fontWeight: '800', marginTop: 2 },
+  arrow: { position: 'absolute', top: '50%', width: 50, height: 50, marginTop: -56, overflow: 'hidden', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  arrowContent: { minHeight: 50, paddingHorizontal: 0, paddingVertical: 0, alignItems: 'center', justifyContent: 'center' },
   arrowLeft: { left: 8 },
   arrowRight: { right: 8 },
   arrowIconLeft: { width: 25, height: 25, transform: [{ rotate: '-90deg' }], tintColor: '#7B916E' },
   arrowIconRight: { width: 25, height: 25, transform: [{ rotate: '90deg' }], tintColor: '#7B916E' },
-  characterName: { position: 'absolute', top: '50%', left: 58, right: 58, height: 51, marginTop: 120, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,248,229,0.96)', borderWidth: 1.5, borderColor: '#E3B878' },
+  characterName: { position: 'absolute', top: '50%', left: 58, right: 58, height: 51, marginTop: 120, overflow: 'hidden' },
+  characterNameContent: { height: 51, alignItems: 'center', justifyContent: 'center' },
 });

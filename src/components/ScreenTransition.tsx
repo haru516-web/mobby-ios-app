@@ -1,15 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 
 type Props = {
   children: ReactNode;
   screenKey: string;
-  loadingImage: ImageSourcePropType;
   reduceMotion: boolean;
-  onTransitioningChange?: (transitioning: boolean) => void;
 };
 
-export function ScreenTransition({ children, screenKey, loadingImage, reduceMotion, onTransitioningChange }: Props) {
+export function ScreenTransition({ children, screenKey, reduceMotion }: Props) {
   const [shown, setShown] = useState({ key: screenKey, node: children });
   const [incoming, setIncoming] = useState<{ key: string; node: ReactNode } | null>(null);
   const progress = useRef(new Animated.Value(1)).current;
@@ -21,58 +20,70 @@ export function ScreenTransition({ children, screenKey, loadingImage, reduceMoti
   useLayoutEffect(() => {
     if (screenKey === shown.key) return;
     const id = ++transitionId.current;
-    if (reduceMotion) {
-      setIncoming(null);
-      setShown(pending.current);
-      onTransitioningChange?.(false);
-      return;
-    }
-
-    onTransitioningChange?.(true);
     progress.setValue(0);
     const next = pending.current;
-    const animation = Animated.sequence([
-      Animated.timing(progress, { toValue: 0.42, duration: 150, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(progress, { toValue: 0.58, duration: 90, easing: Easing.linear, useNativeDriver: true }),
-      Animated.timing(progress, { toValue: 1, duration: 190, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]);
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: reduceMotion ? 180 : 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: typeof document === 'undefined',
+    });
     setIncoming(next);
     animation.start(({ finished }) => {
       if (!finished || transitionId.current !== id) return;
       setShown(pending.current);
       setIncoming(null);
-      onTransitioningChange?.(false);
     });
     return () => animation.stop();
-  }, [onTransitioningChange, progress, reduceMotion, screenKey, shown.key]);
+  }, [progress, reduceMotion, screenKey, shown.key]);
 
   useEffect(() => () => {
     transitionId.current += 1;
     progress.stopAnimation();
-    onTransitioningChange?.(false);
-  }, [onTransitioningChange, progress]);
+  }, [progress]);
 
-  const outgoingOpacity = progress.interpolate({ inputRange: [0, 0.42, 0.58, 1], outputRange: [1, 0, 0, 0] });
-  const outgoingX = progress.interpolate({ inputRange: [0, 0.42], outputRange: [0, -22], extrapolate: 'clamp' });
-  const incomingOpacity = progress.interpolate({ inputRange: [0, 0.58, 1], outputRange: [0, 0, 1] });
-  const incomingX = progress.interpolate({ inputRange: [0, 0.58, 1], outputRange: [22, 22, 0] });
-  const loaderOpacity = progress.interpolate({ inputRange: [0, 0.36, 0.5, 0.64, 1], outputRange: [0, 0, 1, 0, 0] });
+  const outgoingOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const outgoingX = progress.interpolate({ inputRange: [0, 1], outputRange: [0, reduceMotion ? -12 : -30] });
+  const outgoingScale = progress.interpolate({ inputRange: [0, 1], outputRange: [1, reduceMotion ? 0.99 : 0.97] });
+  const incomingOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const incomingX = progress.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 12 : 36, 0] });
+  const incomingScale = progress.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 0.99 : 0.96, 1] });
 
   if (!incoming) return <View style={styles.fill}>{shown.node}</View>;
   return (
     <View style={styles.fill} pointerEvents="none">
-      <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.layer, { opacity: outgoingOpacity, transform: [{ translateX: outgoingX }] }]}>{shown.node}</Animated.View>
-      <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.layer, { opacity: incomingOpacity, transform: [{ translateX: incomingX }] }]}>{incoming.node}</Animated.View>
-      <Animated.View style={[styles.loader, { opacity: loaderOpacity }]}>
-        <Image source={loadingImage} resizeMode="contain" style={styles.loaderImage} />
-      </Animated.View>
+      <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.layer, { opacity: outgoingOpacity, transform: [{ translateX: outgoingX }, { scale: outgoingScale }] }]}>{shown.node}</Animated.View>
+      <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.layer, { opacity: incomingOpacity, transform: [{ translateX: incomingX }, { scale: incomingScale }] }]}>{incoming.node}</Animated.View>
     </View>
   );
+}
+
+/** A small focus transition for tab routes that render outside the shell scene. */
+export function TabFocusTransition({ children, reduceMotion }: { children: ReactNode; reduceMotion: boolean }) {
+  const focused = useIsFocused();
+  const progress = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!focused) return undefined;
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: reduceMotion ? 380 : 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: typeof document === 'undefined',
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [focused, progress, reduceMotion]);
+
+  const opacity = progress.interpolate({ inputRange: [0, 0.72, 1], outputRange: reduceMotion ? [0.58, 0.9, 1] : [0, 0.82, 1] });
+  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [12, 0] : [8, 0], extrapolate: 'clamp' });
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [0.96, 1] : [0.97, 1], extrapolate: 'clamp' });
+  return <Animated.View style={[styles.focusFill, { opacity, transform: [{ translateY }, { scale }] }]}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1, position: 'relative' },
   layer: { ...StyleSheet.absoluteFillObject },
-  loader: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  loaderImage: { width: 54, height: 54 },
+  focusFill: { flex: 1 },
 });

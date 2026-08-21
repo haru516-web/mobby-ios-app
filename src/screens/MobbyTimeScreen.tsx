@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { useDailyLoop } from '@/game/DailyLoopContext';
-import { MobbyTimeScreen as MobbyTimeScreenImplementation } from './screenImplementations';
+import { isItemId } from '@/data/collectibles';
+import { MobbyTimeVisual as MobbyTimeScreenImplementation } from '@/components/mobby-time/MobbyTimeVisual';
 
 type MobbyTimeScreenProps = Omit<
   ComponentProps<typeof MobbyTimeScreenImplementation>,
   'dailyStatus' | 'dailyHydrated' | 'rewardInProgress' | 'flow'
 > & {
   flow?: 'daily' | 'onboarding';
+  entryNonce?: number;
 };
 
 export function MobbyTimeScreen(props: MobbyTimeScreenProps) {
@@ -18,7 +20,6 @@ export function MobbyTimeScreen(props: MobbyTimeScreenProps) {
     grantMobbyTime,
     openMobbyTime,
     setMobbyTimeRewardPhase,
-    completeMobbyTimeReward,
     reconcile,
   } = useDailyLoop();
   const [now, setNow] = useState(Date.now());
@@ -62,7 +63,7 @@ export function MobbyTimeScreen(props: MobbyTimeScreenProps) {
     }
     if (!dailyHydrated || (status !== 'available' && status !== 'carryover')) return;
     try {
-      if (await openMobbyTime({ itemId: props.today.id, variant: props.todayVariant })) props.onOpen();
+      if (isItemId(props.today.id) && await openMobbyTime({ itemId: props.today.id, variant: props.todayVariant })) props.onOpen();
     } catch {
       // The entitlement remains available because daily mutations publish
       // only after persistence succeeds.
@@ -78,8 +79,10 @@ export function MobbyTimeScreen(props: MobbyTimeScreenProps) {
       }
       return;
     }
-    if (reward) await setMobbyTimeRewardPhase(reward.eventId, 'revealed');
-    props.onReveal();
+    if (reward) {
+      const transition = await setMobbyTimeRewardPhase(reward.eventId, 'opening', 'revealed');
+      if (transition.committed) props.onReveal();
+    }
   };
   const onPlace = async () => {
     if (isOnboarding) {
@@ -91,8 +94,10 @@ export function MobbyTimeScreen(props: MobbyTimeScreenProps) {
       }
       return;
     }
-    if (reward) await setMobbyTimeRewardPhase(reward.eventId, 'placing');
-    props.onPlace();
+    if (reward) {
+      const transition = await setMobbyTimeRewardPhase(reward.eventId, 'revealed', 'placing');
+      if (transition.committed) props.onPlace();
+    }
   };
   const onPlaced = async () => {
     if (isOnboarding) {
@@ -104,11 +109,13 @@ export function MobbyTimeScreen(props: MobbyTimeScreenProps) {
       }
       return;
     }
-    if (reward) await completeMobbyTimeReward(reward.eventId);
-    props.onPlaced();
+    if (reward) {
+      const transition = await setMobbyTimeRewardPhase(reward.eventId, 'placing', 'placed');
+      if (transition.committed) props.onPlaced();
+    }
   };
   const stage = isOnboarding
     ? onboardingStage
     : reward?.phase ?? ((status === 'available' || status === 'carryover') ? 'arrived' : props.stage);
-  return <MobbyTimeScreenImplementation {...props} flow={flow} stage={stage} secondsLeft={secondsLeft} dailyStatus={status} dailyHydrated={isOnboarding || dailyHydrated} rewardInProgress={isOnboarding ? stage !== 'arrived' : Boolean(reward)} onOpen={onOpen} onReveal={() => void onReveal()} onPlace={() => void onPlace()} onPlaced={() => void onPlaced()} />;
+  return <MobbyTimeScreenImplementation {...props} flow={flow} stage={stage} secondsLeft={secondsLeft} dailyStatus={status} dailyHydrated={isOnboarding || dailyHydrated} rewardInProgress={isOnboarding ? stage !== 'arrived' : Boolean(reward)} onOpen={onOpen} onReveal={() => void onReveal()} onPlace={() => void onPlace()} onPlaced={() => void onPlaced()} entryNonce={props.entryNonce} />;
 }
