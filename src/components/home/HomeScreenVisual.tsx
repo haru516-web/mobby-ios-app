@@ -332,6 +332,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
       collectedIds={collectedReactionIds}
       onClose={() => setReactionBookOpen(false)}
       onSelectMobby={setReactionTabId}
+      reduceMotion={reduceMotion}
       selectedMobbyId={reactionTabId}
     /> : null}
   </View>;

@@ -57,6 +57,11 @@ import { TouchScreen } from '@/screens/TouchScreen';
 import { styles } from '@/ui/layout/appStyles';
 import { ScreenTransition } from '@/components/ScreenTransition';
 import { WallPlacementFlight } from '@/components/mobby-time/WallPlacementFlight';
+import { DailyRecordPopover } from '@/components/shell/DailyRecordPopover';
+import { MobbyTimePopover } from '@/components/shell/MobbyTimePopover';
+import { NotificationsPopover } from '@/components/shell/NotificationsPopover';
+import { SettingsPopover } from '@/components/shell/SettingsPopover';
+import { ShellDetailPopover } from '@/components/shell/ShellDetailPopover';
 import { selectTabScene } from '@/state/selectTabScene';
 import { MISSION_BONUS, STAMP_REWARDS, reactionMilestoneReward } from '@/data/dailyRewards';
 import { useDailyLoop } from '@/game/DailyLoopContext';
@@ -151,7 +156,6 @@ const UI_WIDE_PAPER = require('../../assets/home-ui/panels/wide-paper.png');
 const MODAL_SURFACE = require('../../assets/generated-ui/surface-modal-portrait-v1.png');
 const NOTICE_SURFACE = require('../../assets/generated-ui/surface-status-wide-v1.png');
 const HEADER_SETTINGS_ICON = require('../../assets/generated-ui/header-settings-icon-v1.png');
-const HEADER_NOTICE_ICON = require('../../assets/home-ui/icons/notice.png');
 const TAKARA_MOBBY_LOGO = require('../../assets/home-ui/logo/takara-mobby-logo-transparent.png');
 const BELL = require('../../assets/home-ui/icons/bell.png');
 const MOBIYAN_LOADING = require('../../assets/loading/mobiyan-loading.webp');
@@ -238,15 +242,14 @@ const OPENING_KEY_DECORATIONS = [
 ] as const;
 
 
-function Header({ onBell, onInvestigation, onSettings, hasUnresolvedIncident }: { onBell: () => void; onInvestigation: () => void; onSettings: () => void; hasUnresolvedIncident: boolean }) {
+function Header({ onBell, onSettings }: { onBell: () => void; onSettings: () => void }) {
   return (
     <View style={styles.header}>
       <View style={styles.brandWrap}><Image source={TAKARA_MOBBY_LOGO} resizeMode="contain" style={styles.headerLogoImage} /></View>
       <View style={styles.headerSpacer} />
       <View style={styles.headerActions}>
         <MobbyAssetIconButton accessibilityLabel="設定を開く" icon={HEADER_SETTINGS_ICON} iconStyle={styles.headerSettingsIcon} onPress={onSettings} style={styles.soundButton} />
-        <MobbyAssetIconButton accessibilityLabel={hasUnresolvedIncident ? '続きのおはなしを開く' : '関係性エピソードを確認する'} icon={HEADER_NOTICE_ICON} iconStyle={styles.caseHeaderIcon} onPress={onInvestigation} style={[styles.caseHeaderButton, styles.pressableFocusReset]} badge={<View style={[styles.caseHeaderBadge, !hasUnresolvedIncident && styles.caseHeaderBadgeWaiting]}><Text style={styles.caseHeaderBadgeText}>{hasUnresolvedIncident ? '!' : '·'}</Text></View>} />
-        <MobbyAssetIconButton accessibilityLabel="お知らせ" icon={BELL} iconStyle={styles.bellIcon} onPress={onBell} style={[styles.bellButton, styles.pressableFocusReset]} badge={<View style={styles.bellBadge}><Text style={styles.bellBadgeText}>4</Text></View>} />
+        <MobbyAssetIconButton accessibilityLabel="お知らせ" icon={BELL} iconStyle={styles.bellIcon} onPress={onBell} style={[styles.bellButton, styles.pressableFocusReset]} badge={<View style={styles.bellBadge}><Text style={styles.bellBadgeText}>1</Text></View>} />
       </View>
     </View>
   );
@@ -620,6 +623,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const [incidentCutInVisible, setIncidentCutInVisible] = useState(false);
   const [casebookInitialTab, setCasebookInitialTab] = useState<IncidentCasebookTab>('active');
   const [notice, setNotice] = useState('');
+  const [headerPopover, setHeaderPopover] = useState<'settings' | 'notifications' | 'daily' | 'mobby-time' | 'stories' | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [wallPlacement, setWallPlacement] = useState<CollectibleReward | null>(null);
@@ -684,7 +688,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const incidentEpisodeActive = screen === 'episode';
   const incidentResolutionActive = Boolean(pendingIncidentReward && appStarted && storageReady && tutorialComplete);
   const incidentExperienceActive = incidentCutInActive || incidentEpisodeActive || incidentResolutionActive;
-  const appBaseIsolated = !appStarted || incidentExperienceActive;
+  const appBaseIsolated = !appStarted || incidentExperienceActive || headerPopover !== null;
   const bgmMode = incidentResolutionPhase === 'returning'
     ? 'silent' as const
     : hasUnresolvedIncident ? 'incident' as const : 'normal' as const;
@@ -708,7 +712,16 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const effectiveMobbyTimeStage: MobbyTimeStage = onboardingRewardActive
     ? onboardingReward?.phase ?? 'arrived'
     : persistedMobbyTimeReward?.phase ?? mobbyTimeStage;
+  const mobbyTimeResultReady = effectiveMobbyTimeStage === 'placed' && (
+    onboardingRewardActive
+      ? owned[ONBOARDING_REWARD_RECEIPT] === 1
+      : Boolean(persistedMobbyTimeReward && owned[`${DAILY_REWARD_RECEIPT_PREFIX}${persistedMobbyTimeReward.eventId}`] === 1)
+  );
   const viewportHeight = Math.max(1, responsive.height - safeAreaInsets.top - safeAreaInsets.bottom);
+
+  useEffect(() => {
+    if (incidentExperienceActive) setHeaderPopover(null);
+  }, [incidentExperienceActive]);
 
   ownedRef.current = owned;
   incidentStorageRef.current = incidentStorage;
@@ -1128,7 +1141,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     if (alreadyActive) {
       setCasebookInitialTab('active');
       setNotice(alreadyActive.episodeId === episode.id ? 'このおはなしは進行中です。「続きから」または「最初から」を選んでください' : '別のおはなしが進行中です。先に進行中のおはなしを続けてください');
-      navigateTo('casebook');
+      if (headerPopover !== 'stories') navigateTo('casebook');
       return;
     }
     try {
@@ -1140,6 +1153,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     if (incidentStorageRef.current.activeEpisode?.runId !== runId || incidentStorageRef.current.activeEpisode.episodeId !== episode.id) return;
     setIncidentCutInVisible(false);
     if (mode === 'direct') {
+      setHeaderPopover(null);
       router.push({ pathname: '/story/[episodeId]', params: { episodeId: episode.id } });
     } else if (mode === 'demo') {
       navigateTo('home'); setNotice(`新しいおはなし：${getEnemy(episode.enemyId).name}と${getMobby(episode.featuredMobbyId).name}`);
@@ -1147,7 +1161,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       navigateTo('home'); setTimeout(() => setIncidentCutInVisible(true), 80); setNotice(`${getEnemy(episode.enemyId).name}と${getMobby(episode.featuredMobbyId).name}のおはなしが始まります`);
     }
     playSfx('incidentSting');
-  }, [commitIncidentStorage, incidentResolutionPhase, navigateTo, playSfx, tutorialComplete]);
+  }, [commitIncidentStorage, headerPopover, incidentResolutionPhase, navigateTo, playSfx, tutorialComplete]);
 
   const triggerIncident = useCallback((mode: 'automatic' | 'demo' | 'direct' = 'automatic') => startEpisodeById(FEATURED_EPISODE_ID, mode), [startEpisodeById]);
 
@@ -1163,7 +1177,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     playSfx('tap');
     try { await commitIncidentStorage((current) => acknowledgeEpisode(current, activeIncident.runId, true)); } catch { setNotice('進行状況を保存できませんでした。もう一度お試しください'); return; }
     if (incidentStorageRef.current.activeEpisode?.runId !== activeIncident.runId || incidentStorageRef.current.activeEpisode.episodeId !== activeIncident.episodeId) return;
-    setIncidentCutInVisible(false); router.push({ pathname: '/story/[episodeId]', params: { episodeId: activeIncident.episodeId } });
+    setIncidentCutInVisible(false); setHeaderPopover(null); router.push({ pathname: '/story/[episodeId]', params: { episodeId: activeIncident.episodeId } });
   }, [activeIncident, commitIncidentStorage, playSfx]);
 
   const restartIncident = useCallback(async () => {
@@ -1172,7 +1186,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     playSfx('tap');
     try { await commitIncidentStorage((current) => current.activeEpisode?.runId === activeIncident.runId && activeEpisodeData ? { ...current, activeEpisode: { ...current.activeEpisode, playback: createInitialPlaybackState(activeEpisodeData), notification: { pending: false, cutInSeen: true } } } : current); } catch { setNotice('最初からの状態を保存できませんでした。もう一度お試しください'); return; }
     if (incidentStorageRef.current.activeEpisode?.runId !== activeIncident.runId || incidentStorageRef.current.activeEpisode.episodeId !== activeIncident.episodeId) return;
-    setIncidentCutInVisible(false); router.push({ pathname: '/story/[episodeId]', params: { episodeId: activeIncident.episodeId } });
+    setIncidentCutInVisible(false); setHeaderPopover(null); router.push({ pathname: '/story/[episodeId]', params: { episodeId: activeIncident.episodeId } });
   }, [activeEpisodeData, activeIncident, commitIncidentStorage, playSfx, triggerIncident]);
 
   const dismissIncidentCutIn = useCallback(async () => {
@@ -1321,6 +1335,25 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     toggleSound();
   }, [soundEnabled, toggleSound]);
 
+  const closeHeaderPopover = useCallback(() => {
+    playSfx('tap');
+    setHeaderPopover(null);
+  }, [playSfx]);
+
+  const returnToNotifications = useCallback(() => {
+    playSfx('tap');
+    setHeaderPopover('notifications');
+  }, [playSfx]);
+
+  const finishMobbyTimePopover = useCallback(async (destination: '/' | '/collection') => {
+    const reward = daily.state.mobbyTimeReward;
+    if (!reward || reward.phase !== 'placed' || !mobbyTimeResultReady) return;
+    if (!await daily.completeMobbyTimeReward(reward.eventId)) return;
+    playSfx('tap');
+    setHeaderPopover(null);
+    if (pathname !== destination) requestAnimationFrame(() => router.navigate(destination));
+  }, [daily, mobbyTimeResultReady, pathname, playSfx]);
+
   const setFavorite = useCallback((id: string) => {
     if (!ITEMS.some((item) => item.id === id)) return false;
     const item = ITEMS.find((candidate) => candidate.id === id)!;
@@ -1442,12 +1475,13 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
                 <Image source={COLLECTION_WALL_BACKGROUND} resizeMode="cover" style={styles.collectionReferenceBackground} />
               </> : <Image source={screen === 'home' ? HOME_WALL_BACKGROUND : ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />}
               {incidentExperienceActive ? <View pointerEvents="none" style={styles.globalHeaderPlaceholder} /> : <Header
-                onSettings={() => router.push('/settings')}
-                onInvestigation={openIncident}
-                hasUnresolvedIncident={hasUnresolvedIncident}
+                onSettings={() => {
+                  playSfx('tap');
+                  setHeaderPopover('settings');
+                }}
                 onBell={() => {
                   playSfx('notification');
-                  router.push('/notifications');
+                  setHeaderPopover('notifications');
                 }}
               />}
               {notice && !tutorialRewardActive ? <Pressable accessibilityRole="button" accessibilityLabel={`${notice}。閉じる`} accessibilityLiveRegion="polite" onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><ImageBackground accessible={false} source={NOTICE_SURFACE} resizeMode="stretch" style={styles.noticeToastImage} /><View style={styles.noticeToastContent}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></View></Pressable> : null}
@@ -1455,7 +1489,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
                 <ScreenTransition screenKey={screen ?? `route:${pathname}`} reduceMotion={reduceMotion}>
                 {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={owned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallItemId={wallPlacement?.item.id} onIncidentPress={openIncident} wallItemIds={homeWallItemIds} wallVariants={homeWallVariants} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={(firstId, secondId) => swapHomeItems(setHomeWallItemIds, firstId, secondId)} onSwapPlushItems={(firstId, secondId) => swapHomeItems(setHomePlushItemIds, firstId, secondId)} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
-                {screen === 'time' ? <MobbyTimeScreen flow={onboardingRewardActive ? 'onboarding' : 'daily'} today={today} todayVariant={effectiveTodayVariant} stage={effectiveMobbyTimeStage} reduceMotion={reduceMotion} onOpen={handleRewardOpen} onReveal={handleRewardReveal} onPlace={handleRewardPlace} onPlaced={handleRewardPlaced} secondsLeft={secondsLeft} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'time' && headerPopover !== 'mobby-time' ? <MobbyTimeScreen flow={onboardingRewardActive ? 'onboarding' : 'daily'} today={today} todayVariant={effectiveTodayVariant} stage={effectiveMobbyTimeStage} reduceMotion={reduceMotion} onOpen={handleRewardOpen} onReveal={handleRewardReveal} onPlace={handleRewardPlace} onPlaced={handleRewardPlaced} secondsLeft={secondsLeft} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
                 {screen === 'casebook' ? <IncidentCasebookScreen activeEpisode={casebookActiveCase} episodes={casebookEpisodes} relationships={casebookRelationships} initialTab={casebookInitialTab} onResume={resumeIncident} onRestart={restartIncident} onStart={() => triggerIncident('direct')} onPlayEpisode={playEpisodeFromCasebook} onClose={() => navigateTo('home')} entryNonce={tabEntryNonce} /> : null}
                 </ScreenTransition>
@@ -1465,6 +1499,75 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               {onboardingStep === 'favorite' ? <FavoriteMobbyPicker selectedId={favoriteDraftId} onSelect={(id) => { playSfx('tap'); setFavoriteDraftId(id); }} onConfirm={confirmFavorite} /> : null}
               </> : null}
               </View>
+              {appStarted && headerPopover === 'settings' ? <SettingsPopover
+                soundEnabled={soundEnabled}
+                reduceMotion={reduceMotion}
+                onSoundEnabledChange={setSoundPreference}
+                onClose={closeHeaderPopover}
+              /> : null}
+              {appStarted && headerPopover === 'notifications' ? <NotificationsPopover
+                onOpenDaily={() => {
+                  playSfx('tap');
+                  setHeaderPopover('daily');
+                }}
+                onClose={closeHeaderPopover}
+              /> : null}
+              {appStarted && headerPopover === 'daily' ? <DailyRecordPopover
+                stampCount={daily.state.stampCount}
+                missions={daily.state.missions}
+                isHydrated={daily.isHydrated}
+                onBack={returnToNotifications}
+                onClose={closeHeaderPopover}
+                onOpenMobbyTime={() => {
+                  playSfx('tap');
+                  setHeaderPopover('mobby-time');
+                }}
+              /> : null}
+              {appStarted && headerPopover === 'mobby-time' ? <MobbyTimePopover
+                resultReady={Boolean(!onboardingRewardActive && persistedMobbyTimeReward?.phase === 'placed' && mobbyTimeResultReady)}
+                onBack={returnToNotifications}
+                onClose={closeHeaderPopover}
+                onOpenHome={() => void finishMobbyTimePopover('/')}
+                onOpenCollection={() => void finishMobbyTimePopover('/collection')}
+              >
+                <MobbyTimeScreen
+                  flow={onboardingRewardActive ? 'onboarding' : 'daily'}
+                  today={today}
+                  todayVariant={effectiveTodayVariant}
+                  stage={effectiveMobbyTimeStage}
+                  reduceMotion={reduceMotion}
+                  onOpen={handleRewardOpen}
+                  onReveal={handleRewardReveal}
+                  onPlace={handleModalRewardPlace}
+                  onPlaced={handleModalRewardPlaced}
+                  presentation="popover"
+                  secondsLeft={secondsLeft}
+                />
+              </MobbyTimePopover> : null}
+              {appStarted && headerPopover === 'stories' ? <ShellDetailPopover
+                accessibilityLabel="関係性アルバム"
+                eyebrow="RELATIONSHIP ALBUM"
+                flush
+                onBack={returnToNotifications}
+                onClose={closeHeaderPopover}
+                scrollable={false}
+                subtitle="ふたりのおはなしを見返そう"
+                title="関係性アルバム"
+              >
+                <IncidentCasebookScreen
+                  activeEpisode={casebookActiveCase}
+                  embedded
+                  episodes={casebookEpisodes}
+                  relationships={casebookRelationships}
+                  initialTab={casebookInitialTab}
+                  onResume={resumeIncident}
+                  onRestart={restartIncident}
+                  onStart={() => triggerIncident('direct')}
+                  onPlayEpisode={playEpisodeFromCasebook}
+                  onClose={closeHeaderPopover}
+                  entryNonce={tabEntryNonce}
+                />
+              </ShellDetailPopover> : null}
               {!appStarted ? <OpeningScreen onBegin={() => { engageBgm(); playSfx('reward'); }} onStart={startApp} /> : null}
               {appStarted && (!storageReady || (!fontsLoaded && !fontError)) ? <LoadingOverlay /> : null}
               {incidentCutInActive && activeEpisodeEnemy && activeEpisodeData && cutInTargetItem ? <IncidentCutIn enemyName={activeEpisodeEnemy.name} enemyImage={activeEpisodeEnemy.image} targetName={getMobby(activeEpisodeData.featuredMobbyId).name} targetImage={cutInTargetItem.image} onPlay={startIncidentInvestigation} onLater={dismissIncidentCutIn} /> : null}
@@ -1505,18 +1608,14 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     hasUnresolvedEpisode: hasUnresolvedIncident,
     unresolvedEpisodeTitle: activeEpisodeData?.title ?? null,
     mobbyTimeOpenScene,
-    mobbyTimeResultReady: effectiveMobbyTimeStage === 'placed' && (
-      onboardingRewardActive
-        ? owned[ONBOARDING_REWARD_RECEIPT] === 1
-        : Boolean(persistedMobbyTimeReward && owned[`${DAILY_REWARD_RECEIPT_PREFIX}${persistedMobbyTimeReward.eventId}`] === 1)
-    ),
+    mobbyTimeResultReady,
     activeEpisode: activeIncident,
     activeEpisodeData: activeEpisodeData ?? null,
     saveEpisodeProgress: handleEpisodeProgress,
     interruptEpisode,
     completeActiveEpisode,
     emitEpisodeCue: handleEpisodeCue,
-  }), [activeEpisodeData, activeIncident, appStarted, completeActiveEpisode, daily.isHydrated, effectiveMobbyTimeStage, handleEpisodeCue, handleEpisodeProgress, hasUnresolvedIncident, incidentExperienceActive, interruptEpisode, mobbyTimeOpenScene, onboardingRewardActive, owned, persistedMobbyTimeReward, reduceMotion, selectedId, setFavorite, setSoundPreference, shellCharacters, soundEnabled, storageReady]);
+  }), [activeEpisodeData, activeIncident, appStarted, completeActiveEpisode, daily.isHydrated, effectiveMobbyTimeStage, handleEpisodeCue, handleEpisodeProgress, hasUnresolvedIncident, incidentExperienceActive, interruptEpisode, mobbyTimeOpenScene, mobbyTimeResultReady, owned, reduceMotion, selectedId, setFavorite, setSoundPreference, shellCharacters, soundEnabled, storageReady]);
 
   return (
     <MobbyShellContext.Provider value={shellValue}>

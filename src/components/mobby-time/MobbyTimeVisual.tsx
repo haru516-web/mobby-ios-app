@@ -17,11 +17,18 @@ const MOBBY_TIME_TIMER_PLAQUE = require('../../../assets/mobby-time/timer-plaque
 const MOBBY_TIME_MESSAGE_PLAQUE = require('../../../assets/mobby-time/message-plaque.png');
 const MOBBY_TIME_REWARD_SEAL = require('../../../assets/mobby-time/reward-seal.png');
 const MOBBY_ICON = require('../../../assets/home-ui/icons/mobby.png');
+const POPOVER_PANEL_ASPECT_RATIO = 978 / 1485;
+const POPOVER_PANEL_MAX_WIDTH = 410;
+const POPOVER_PANEL_MAX_HEIGHT = 680;
+const POPOVER_PANEL_INSET = 32;
+const POPOVER_VERTICAL_INSET = 48;
+const POPOVER_GENERIC_HEADER_HEIGHT = 100;
+const POPOVER_TIME_HEADER_HEIGHT = 86;
 
 export function MobbyTimeVisual({
   today, todayVariant, stage, onOpen, onReveal, onPlace, onPlaced, secondsLeft,
   dailyStatus = 'available', dailyHydrated = true, rewardInProgress = false, reduceMotion = false,
-  flow = 'daily', entryNonce = 0,
+  flow = 'daily', entryNonce = 0, presentation = 'screen',
 }: {
   today: Item;
   todayVariant: CollectibleVariant;
@@ -37,9 +44,11 @@ export function MobbyTimeVisual({
   reduceMotion?: boolean;
   flow?: 'daily' | 'onboarding';
   entryNonce?: number;
+  presentation?: 'screen' | 'popover';
 }) {
   const { width: appWidth, height: appHeight } = useAppLayout();
-  const [headerHeight, setHeaderHeight] = useState(110);
+  const popover = presentation === 'popover';
+  const [headerHeight, setHeaderHeight] = useState(popover ? POPOVER_TIME_HEADER_HEIGHT : 110);
   const onboardingFlow = flow === 'onboarding';
   const canOpen = dailyHydrated && secondsLeft > 0 && (dailyStatus === 'available' || dailyStatus === 'carryover');
   const active = canOpen || rewardInProgress;
@@ -242,11 +251,25 @@ export function MobbyTimeVisual({
   const rewardName = collectibleName(today, todayVariant);
   const encounterBoardBaseWidth = 370;
   const encounterBoardBaseHeight = 520;
-  const encounterBoardScale = Math.min(
-    1,
-    (appWidth - 28) / encounterBoardBaseWidth,
-    Math.max(390, appHeight - 74 - headerHeight - 105) / encounterBoardBaseHeight,
-  );
+  const popoverAvailableHeight = Math.max(0, Math.min(appHeight * 0.82, appHeight - POPOVER_VERTICAL_INSET, POPOVER_PANEL_MAX_HEIGHT));
+  const popoverPanelWidth = Math.max(0, Math.min(
+    appWidth - POPOVER_PANEL_INSET,
+    POPOVER_PANEL_MAX_WIDTH,
+    popoverAvailableHeight * POPOVER_PANEL_ASPECT_RATIO,
+  ));
+  const popoverPanelHeight = popoverPanelWidth / POPOVER_PANEL_ASPECT_RATIO;
+  const popoverContentHeight = Math.max(0, popoverPanelHeight - POPOVER_GENERIC_HEADER_HEIGHT);
+  const encounterBoardScale = popover
+    ? Math.max(0, Math.min(
+        1,
+        (popoverPanelWidth - 28) / encounterBoardBaseWidth,
+        (popoverContentHeight - headerHeight) / encounterBoardBaseHeight,
+      ))
+    : Math.min(
+        1,
+        (appWidth - 28) / encounterBoardBaseWidth,
+        Math.max(390, appHeight - 74 - headerHeight - 105) / encounterBoardBaseHeight,
+      );
   const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
     const nextHeight = Math.ceil(event.nativeEvent.layout.height);
     setHeaderHeight((current) => current === nextHeight ? current : nextHeight);
@@ -296,7 +319,7 @@ export function MobbyTimeVisual({
   const packageArtwork = <Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={styles.mobbyTimePackageAsset} />;
   return (
     <Animated.View style={[styles.timeScrollContent, { opacity: entryMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0.86, 1] }), transform: [{ translateY: entryMotion.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [18, 0] : [22, 0] }) }, { scale: entryMotion.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [0.94, 1] : [0.965, 1] }) }] }]}>
-        <View onLayout={handleHeaderLayout} style={styles.timeHeader}><Text style={styles.timeTitle}>{onboardingFlow ? 'はじめてのBOX' : 'MOBBY TIME'}</Text><Text style={styles.timeHeaderSub}>{statusTitle}</Text><ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} resizeMode="contain" style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{onboardingFlow ? 'WELCOME' : canOpen ? 'あと' : '状態'}</Text><Text style={styles.bigTimerValue}>{onboardingFlow ? !dailyHydrated ? '準備中' : opening ? '開封中' : rewardInProgress ? '受取中' : 'BOX' : canOpen ? `${minutes}:${seconds}` : opening ? '開封中' : rewardInProgress ? '受取中' : !dailyHydrated ? '読込中' : dailyStatus === 'opened' ? '開封済' : dailyStatus === 'expired' ? '期限切れ' : '待機中'}</Text></ImageBackground></View>
+        <View onLayout={handleHeaderLayout} style={[styles.timeHeader, popover && styles.timeHeaderPopover]}>{!popover ? <Text style={styles.timeTitle}>{onboardingFlow ? 'はじめてのBOX' : 'MOBBY TIME'}</Text> : null}<Text style={styles.timeHeaderSub}>{statusTitle}</Text><ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} resizeMode="contain" style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{onboardingFlow ? 'WELCOME' : canOpen ? 'あと' : '状態'}</Text><Text style={styles.bigTimerValue}>{onboardingFlow ? !dailyHydrated ? '準備中' : opening ? '開封中' : rewardInProgress ? '受取中' : 'BOX' : canOpen ? `${minutes}:${seconds}` : opening ? '開封中' : rewardInProgress ? '受取中' : !dailyHydrated ? '読込中' : dailyStatus === 'opened' ? '開封済' : dailyStatus === 'expired' ? '期限切れ' : '待機中'}</Text></ImageBackground></View>
       <View style={{ width: encounterBoardBaseWidth * encounterBoardScale, height: encounterBoardBaseHeight * encounterBoardScale }}>
       <ImageBackground source={MOBBY_TIME_BOARD} resizeMode="stretch" style={[styles.encounterCard, { width: encounterBoardBaseWidth, height: encounterBoardBaseHeight, transform: [{ scale: encounterBoardScale }], transformOrigin: 'top left' }]} imageStyle={styles.encounterCardImage}>
         <View style={styles.arrivalNotice}><Text style={styles.arrivalNoticeText}>{statusMessage}</Text></View>
