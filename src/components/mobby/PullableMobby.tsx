@@ -308,7 +308,7 @@ export function PullableMobby({ selected, onPull, size = 320, onCharacterPickerP
           </Animated.View>
           <MobbyPullMesh ref={meshRef} source={pullAsset.body} size={size} visible={meshVisible} />
           {!isPullReaction ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pullableFaceLayer]}> 
-            <Image source={activeEye} resizeMode="contain" style={pullFaceFrameStyle(eyeFrame, pullAsset, size)} />
+            <Image source={activeEye} resizeMode={eyeIndex >= 0 ? pullAsset.eyeResizeMode ?? 'contain' : 'contain'} style={pullFaceFrameStyle(eyeFrame, pullAsset, size)} />
             {activeMouth ? <Image source={activeMouth} resizeMode="contain" style={pullFaceFrameStyle(pullAsset.mouthFrame, pullAsset, size)} /> : null}
           </Animated.View> : null}
           {reactionFrames ? <Animated.View pointerEvents="none" style={[styles.pullableReactionLayer, {

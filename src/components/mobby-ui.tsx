@@ -92,6 +92,8 @@ export function MobbyAssetButton({
   accessibilityLabel,
   accessibilityState,
   tone = 'coral',
+  backgroundSource,
+  backgroundResizeMode,
   onPress,
   style,
   contentStyle,
@@ -101,6 +103,8 @@ export function MobbyAssetButton({
   accessibilityLabel: string;
   accessibilityState?: AccessibilityState;
   tone?: 'coral' | 'cream';
+  backgroundSource?: ImageSourcePropType;
+  backgroundResizeMode?: 'cover' | 'contain' | 'stretch';
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
@@ -120,7 +124,12 @@ export function MobbyAssetButton({
         style,
       ]}
     >
-      <View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ImageBackground accessible={false} source={ASSET_BUTTON_SOURCES[tone]} resizeMode="cover" style={styles.assetButtonImage} /></View>
+      <Image
+        accessible={false}
+        source={backgroundSource ?? ASSET_BUTTON_SOURCES[tone]}
+        resizeMode={backgroundResizeMode ?? (backgroundSource ? 'stretch' : 'cover')}
+        style={styles.assetButtonImage}
+      />
       <View style={[styles.assetButtonContent, contentStyle]}>{children}</View>
     </Pressable>
   );
@@ -290,8 +299,8 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.55 },
   buttonPressed: { transform: [{ translateY: 2 }], opacity: 0.84 },
   assetButton: { minHeight: 48, borderRadius: 16, overflow: 'hidden' },
-  assetButtonImage: { ...StyleSheet.absoluteFillObject },
-  assetButtonContent: { flex: 1, width: '100%', minHeight: 48, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  assetButtonImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  assetButtonContent: { zIndex: 1, flex: 1, width: '100%', minHeight: 48, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   iconButton: { width: 44, height: 44, overflow: 'hidden', position: 'relative' },
   iconButtonSurface: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   iconButtonImage: { width: 22, height: 22 },

@@ -438,10 +438,9 @@ export function CollectionVisual({
       <View pointerEvents="none" style={[styles.collectionBoardShadow, { height: boardHeight - 10 }]} />
       <Image source={COLLECTION_DISPLAY_BOARD} resizeMode="stretch" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
       <View style={styles.collectionHeaderBar}>
-        <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" style={styles.collectionHeaderCopy}><Text style={styles.collectionHeaderTitle}>集めたモビー</Text></ImageBackground>
         <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" accessibilityRole="tablist" accessibilityLabel="コレクションの種類" style={styles.collectionModeTabs}>
-          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいキー" accessibilityState={{ selected: mode === 'ぬいキー' }} onPress={() => setMode('ぬいキー')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}><Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text>{mode === 'ぬいキー' ? <View pointerEvents="none" style={styles.collectionKeySizeTabUnderline} /> : null}</Pressable>
-          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいぐるみ" accessibilityState={{ selected: mode === 'ぬいぐるみ' }} onPress={() => setMode('ぬいぐるみ')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}><Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text>{mode === 'ぬいぐるみ' ? <View pointerEvents="none" style={styles.collectionKeySizeTabUnderline} /> : null}</Pressable>
+          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいキー" accessibilityState={{ selected: mode === 'ぬいキー' }} onPress={() => setMode('ぬいキー')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>{mode === 'ぬいキー' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}<Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいぐるみ" accessibilityState={{ selected: mode === 'ぬいぐるみ' }} onPress={() => setMode('ぬいぐるみ')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>{mode === 'ぬいぐるみ' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}<Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable>
         </ImageBackground>
       </View>
       {mode === 'ぬいキー' ? (
@@ -454,8 +453,8 @@ export function CollectionVisual({
             onPress={() => setKeyImageSize('normal')}
             style={({ pressed }) => [styles.collectionKeySizeTab, pressed && styles.collectionKeySizeTabPressed]}
           >
+            {keyImageSize === 'normal' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}
             <Text style={[styles.collectionKeySizeText, keyImageSize === 'normal' && styles.collectionKeySizeTextActive]}>ノーマル</Text>
-            {keyImageSize === 'normal' ? <View pointerEvents="none" style={styles.collectionKeySizeTabUnderline} /> : null}
           </Pressable>
           <Pressable
             accessibilityRole="tab"
@@ -464,8 +463,8 @@ export function CollectionVisual({
             onPress={() => setKeyImageSize('small')}
             style={({ pressed }) => [styles.collectionKeySizeTab, pressed && styles.collectionKeySizeTabPressed]}
           >
+            {keyImageSize === 'small' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}
             <Text style={[styles.collectionKeySizeText, keyImageSize === 'small' && styles.collectionKeySizeTextActive]}>S</Text>
-            {keyImageSize === 'small' ? <View pointerEvents="none" style={styles.collectionKeySizeTabUnderline} /> : null}
           </Pressable>
         </ImageBackground>
       ) : null}

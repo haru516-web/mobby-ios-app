@@ -398,7 +398,7 @@ function OnboardingGuide({ step, onNext, onSkip }: { step: OnboardingStep; onNex
 }
 
 function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () => void }) {
-  const { height: appHeight } = useAppLayout();
+  const { width: appWidth, height: appHeight } = useAppLayout();
   const intro = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
@@ -467,6 +467,14 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
   const openingPackageSize = compactOpeningGroup ? 110 : 140;
   const openingCompositionHeight = Math.max(openingCoreHeight, openingPackageTop + openingPackageSize);
   const openingSceneTop = Math.max(0, (appHeight - openingCompositionHeight) / 2);
+  // The key art was authored on a 440px-wide canvas.  Keep the center
+  // composition on its existing anchor, but scale and center the surrounding
+  // keychains so narrow phones never crop the left/right characters.
+  const openingKeyDesignWidth = 440;
+  const openingKeyHorizontalInset = 12;
+  const openingKeyScale = Math.min(1, Math.max(0, (appWidth - openingKeyHorizontalInset * 2) / openingKeyDesignWidth));
+  const openingKeyGroupWidth = openingKeyDesignWidth * openingKeyScale;
+  const openingKeyGroupLeft = (appWidth - openingKeyGroupWidth) / 2;
   return (
     <View
       accessibilityLabel="MOBBY COLLECTION 起動画面"
@@ -502,10 +510,10 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
               style={[
                 styles.openingKeyDecoration,
                 {
-                  left: decoration.left,
-                  top: decoration.top + (compactOpeningGroup && index >= 6 ? -70 : 0),
-                  width: decoration.size,
-                  height: decoration.size * 1.18,
+                  left: openingKeyGroupLeft + decoration.left * openingKeyScale,
+                  top: decoration.top,
+                  width: decoration.size * openingKeyScale,
+                  height: decoration.size * 1.18 * openingKeyScale,
                   zIndex: decoration.layer,
                   opacity: intro,
                   transform: [
@@ -639,6 +647,12 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const pendingEpisodeProgressRef = useRef<{ runId: string; playback: PlaybackState } | null>(null);
   const completedEpisodeRunIdsRef = useRef(new Set<string>());
   const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
+  const shellCharacters = useMemo<MobbyShellCharacter[]>(() => ITEMS.map((item) => ({
+    id: item.id,
+    name: getMobby(ITEM_MOBBY_IDS[item.id] ?? 'mobichi').name,
+    image: item.image,
+    owned: COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(owned, item.id, variant) > 0),
+  })), [owned]);
   const persistedMobbyTimeReward = daily.state.mobbyTimeReward;
   const onboardingRewardActive = Boolean(
     !tutorialComplete && onboardingReward && ['mobbyTime', 'opening', 'place', 'wallFlight'].includes(onboardingStep),
@@ -1439,7 +1453,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               {notice && !tutorialRewardActive ? <Pressable accessibilityRole="button" accessibilityLabel={`${notice}。閉じる`} accessibilityLiveRegion="polite" onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><ImageBackground accessible={false} source={NOTICE_SURFACE} resizeMode="stretch" style={styles.noticeToastImage} /><View style={styles.noticeToastContent}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></View></Pressable> : null}
               <View style={styles.screenBody}>
                 <ScreenTransition screenKey={screen ?? `route:${pathname}`} reduceMotion={reduceMotion}>
-                {screen === 'home' ? <HomeScreen hasUnresolvedEpisode={hasUnresolvedIncident} selected={selected} owned={owned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallItemId={wallPlacement?.item.id} onIncidentPress={openIncident} wallItemIds={homeWallItemIds} wallVariants={homeWallVariants} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={(firstId, secondId) => swapHomeItems(setHomeWallItemIds, firstId, secondId)} onSwapPlushItems={(firstId, secondId) => swapHomeItems(setHomePlushItemIds, firstId, secondId)} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={owned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallItemId={wallPlacement?.item.id} onIncidentPress={openIncident} wallItemIds={homeWallItemIds} wallVariants={homeWallVariants} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={(firstId, secondId) => swapHomeItems(setHomeWallItemIds, firstId, secondId)} onSwapPlushItems={(firstId, secondId) => swapHomeItems(setHomePlushItemIds, firstId, secondId)} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'time' ? <MobbyTimeScreen flow={onboardingRewardActive ? 'onboarding' : 'daily'} today={today} todayVariant={effectiveTodayVariant} stage={effectiveMobbyTimeStage} reduceMotion={reduceMotion} onOpen={handleRewardOpen} onReveal={handleRewardReveal} onPlace={handleRewardPlace} onPlaced={handleRewardPlaced} secondsLeft={secondsLeft} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
@@ -1481,12 +1495,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     appStarted,
     opening: !appStarted || incidentExperienceActive || effectiveMobbyTimeStage === 'opening',
     isHydrated: storageReady && daily.isHydrated,
-    characters: ITEMS.map((item) => ({
-      id: item.id,
-      name: getMobby(ITEM_MOBBY_IDS[item.id] ?? 'mobichi').name,
-      image: item.image,
-      owned: COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(owned, item.id, variant) > 0),
-    })),
+    characters: shellCharacters,
     collectibleInventory: owned,
     favoriteId: selectedId,
     setFavorite,
@@ -1507,7 +1516,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     interruptEpisode,
     completeActiveEpisode,
     emitEpisodeCue: handleEpisodeCue,
-  }), [activeEpisodeData, activeIncident, appStarted, completeActiveEpisode, daily.isHydrated, effectiveMobbyTimeStage, handleEpisodeCue, handleEpisodeProgress, hasUnresolvedIncident, incidentExperienceActive, interruptEpisode, mobbyTimeOpenScene, onboardingRewardActive, owned, persistedMobbyTimeReward, reduceMotion, selectedId, setFavorite, setSoundPreference, soundEnabled, storageReady]);
+  }), [activeEpisodeData, activeIncident, appStarted, completeActiveEpisode, daily.isHydrated, effectiveMobbyTimeStage, handleEpisodeCue, handleEpisodeProgress, hasUnresolvedIncident, incidentExperienceActive, interruptEpisode, mobbyTimeOpenScene, onboardingRewardActive, owned, persistedMobbyTimeReward, reduceMotion, selectedId, setFavorite, setSoundPreference, shellCharacters, soundEnabled, storageReady]);
 
   return (
     <MobbyShellContext.Provider value={shellValue}>
