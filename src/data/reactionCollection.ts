@@ -28,9 +28,11 @@ export const REACTION_STICKERS: Readonly<Record<MobbyId, readonly ReactionSticke
   ]),
 ) as unknown as Readonly<Record<MobbyId, readonly ReactionSticker[]>>;
 
-const REACTION_IDS = new Set(
-  REACTION_MOBBY_IDS.flatMap((mobbyId) => REACTION_STICKERS[mobbyId].map((sticker) => sticker.id)),
+export const ALL_REACTION_IDS: readonly string[] = REACTION_MOBBY_IDS.flatMap(
+  (mobbyId) => REACTION_STICKERS[mobbyId].map((sticker) => sticker.id),
 );
+
+const REACTION_IDS = new Set(ALL_REACTION_IDS);
 
 export function normalizeCollectedReactionIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];

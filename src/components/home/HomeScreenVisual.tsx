@@ -1,15 +1,26 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementRef, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AccessibilityInfo, Animated, Easing, Image, ImageBackground, Platform, Pressable, View, type LayoutChangeEvent } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Image, ImageBackground, PanResponder, Platform, Pressable, View, type LayoutChangeEvent } from 'react-native';
 
 import { CharacterPickerPopover, type CharacterPickerCharacter } from '@/components/home/CharacterPickerPopover';
+import { HomeInventoryTray } from '@/components/home/HomeInventoryTray';
 import { MobbyIdleMotion } from '@/components/mobby';
 import { MobbyAssetButton } from '@/components/mobby-ui';
 import { PullableMobby } from '@/components/mobby/PullableMobby';
 import { ReactionCollectionPopover } from '@/components/home/ReactionCollectionPopover';
-import { EMPTY_OWNED, ITEMS, ITEM_MOBBY_IDS, collectibleImage, ownedCollectibleCount, type CollectibleVariant, type Item } from '@/data/collectibles';
+import { EMPTY_OWNED, ITEM_MOBBY_IDS, collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectibleVariant, type Item } from '@/data/collectibles';
 import { getMobby, type MobbyId } from '@/data/mobies';
-import { normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY } from '@/data/reactionCollection';
+import { ALL_REACTION_IDS, normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY } from '@/data/reactionCollection';
+import {
+  HOME_SHELF_SLOT_COUNT,
+  HOME_WALL_SLOT_COUNT,
+  moveHomePlacement,
+  ownedHomePlacementIds,
+  resolveHomePlacement,
+  type HomeLayoutV1,
+  type HomePlacementId,
+  type HomePlacementKind,
+} from '@/domain/home/homeLayout';
 import { styles } from '@/ui/layout/appStyles';
 import { Text, useAppLayout } from '@/ui/layout/visualPrimitives';
 
@@ -29,8 +40,93 @@ const PLUSH_CONTACT_REFERENCE = PLUSH_VISIBLE_BOTTOM_RATIO['mobiyan-plush'];
 
 type HomeKeySwing = (notify?: boolean) => void;
 
-function HomeWallKeychain({ item, variant, index, selectedId, ownedCount, incidentState, editSelected, editing, onPress, onEditPress, onSwing, registerSwing }: {
+const HOME_WALL_COLUMNS = 5;
+const HOME_WALL_ROWS = Math.ceil(HOME_WALL_SLOT_COUNT / HOME_WALL_COLUMNS);
+
+type HomeDropFrame = { x: number; y: number; width: number; height: number };
+
+type HomeDragSession = {
+  id: HomePlacementId;
+  kind: HomePlacementKind;
+  origin: 'slot' | 'tray';
+  originIndex: number | null;
+  baseLayout: HomeLayoutV1;
+  previewLayout: HomeLayoutV1;
+  targetIndex: number | null;
+  pageX: number;
+  pageY: number;
+};
+
+function DraggableHomePlacement({ children, disabled, editing, index, onCancel, onDragMove, onDragStart, onDrop, onTap, reduceMotion }: {
+  children: ReactNode;
+  disabled?: boolean;
+  editing: boolean;
+  index: number;
+  onCancel: () => void;
+  onDragMove: (pageX: number, pageY: number) => void;
+  onDragStart: (pageX: number, pageY: number) => void;
+  onDrop: (pageX: number, pageY: number) => void;
+  onTap: () => void;
+  reduceMotion: boolean;
+}) {
+  const jiggle = useRef(new Animated.Value(0)).current;
+  const nativeDriver = Platform.OS !== 'web';
+  const callbacksRef = useRef({ onCancel, onDragMove, onDragStart, onDrop, onTap });
+  callbacksRef.current = { onCancel, onDragMove, onDragStart, onDrop, onTap };
+
+  useEffect(() => {
+    jiggle.stopAnimation();
+    jiggle.setValue(0);
+    if (!editing || reduceMotion || disabled) return undefined;
+    const motion = Animated.loop(Animated.sequence([
+      Animated.delay((index % 4) * 22),
+      Animated.timing(jiggle, { toValue: -1, duration: 92, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
+      Animated.timing(jiggle, { toValue: 1, duration: 184, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
+      Animated.timing(jiggle, { toValue: 0, duration: 92, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
+    ]));
+    motion.start();
+    return () => motion.stop();
+  }, [disabled, editing, index, jiggle, nativeDriver, reduceMotion]);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => editing && !disabled,
+    onStartShouldSetPanResponderCapture: () => editing && !disabled,
+    onMoveShouldSetPanResponder: (_event, gesture) => editing && !disabled && Math.hypot(gesture.dx, gesture.dy) > 4,
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => editing && !disabled && Math.hypot(gesture.dx, gesture.dy) > 4,
+    onPanResponderGrant: (event) => {
+      callbacksRef.current.onDragStart(event.nativeEvent.pageX, event.nativeEvent.pageY);
+    },
+    onPanResponderMove: (event) => {
+      callbacksRef.current.onDragMove(event.nativeEvent.pageX, event.nativeEvent.pageY);
+    },
+    onPanResponderRelease: (event, gesture) => {
+      if (Math.hypot(gesture.dx, gesture.dy) > 5) callbacksRef.current.onDrop(event.nativeEvent.pageX, event.nativeEvent.pageY);
+      else callbacksRef.current.onTap();
+    },
+    onPanResponderTerminate: () => {
+      callbacksRef.current.onCancel();
+    },
+    onPanResponderTerminationRequest: () => false,
+  }), [disabled, editing]);
+
+  return <Animated.View
+    style={[
+      styles.homeArrangeDraggable,
+      {
+        transform: [
+          { rotate: jiggle.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-1.8deg', '0deg', '1.8deg'] }) },
+        ],
+      },
+    ]}
+  >
+    <View style={styles.homeArrangeContent}>{children}</View>
+    {editing && !disabled ? <View {...panResponder.panHandlers} style={styles.homeArrangeGestureSurface} /> : null}
+  </Animated.View>;
+}
+
+function HomeWallKeychain({ item, placementId, variant, index, selectedId, ownedCount, incidentState, editSelected, editing, onPress, onEditPress, onEditStart, onSwing, registerSwing }: {
   item: Item;
+  placementId: HomePlacementId;
   variant: Exclude<CollectibleVariant, 'plush'>;
   index: number;
   selectedId: string;
@@ -40,6 +136,7 @@ function HomeWallKeychain({ item, variant, index, selectedId, ownedCount, incide
   editing: boolean;
   onPress?: () => void;
   onEditPress: () => void;
+  onEditStart: () => void;
   onSwing: () => void;
   registerSwing?: (id: string, swing: HomeKeySwing) => void | (() => void);
 }) {
@@ -54,15 +151,20 @@ function HomeWallKeychain({ item, variant, index, selectedId, ownedCount, incide
     ]).start();
   }, [incidentState, onSwing, owned, rotation]);
   useEffect(() => {
-    const unregister = registerSwing?.(item.id, swing);
+    const unregister = registerSwing?.(placementId, swing);
     return typeof unregister === 'function' ? unregister : undefined;
-  }, [item.id, registerSwing, swing]);
+  }, [placementId, registerSwing, swing]);
   const name = item.name.replace(' ぬいキー', '').replace(' ぬい', '');
+  const variantName = variant === 'key-small' ? 'Sぬいキー' : '通常ぬいキー';
+  const copyNumber = resolveHomePlacement(placementId)?.copyNumber ?? 1;
+  const copyLabel = ownedCount > 1 ? ` ${copyNumber}個目／${ownedCount}個中` : '';
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel={incidentState === 'stolen' ? `${name}のおはなしを続ける` : editing && owned && incidentState === 'normal' ? `${name}を並べ替え対象に選ぶ` : owned ? `${name}を揺らす` : `未所持の壁フック${index + 1}`}
+    accessibilityLabel={incidentState === 'stolen' ? `${name}${copyLabel}のおはなしを続ける` : editing && owned && incidentState === 'normal' ? `${name} ${variantName}${copyLabel}を移動` : owned ? `${name} ${variantName}${copyLabel}を揺らす` : `未所持の壁フック${index + 1}`}
     accessibilityState={{ selected: editSelected, disabled: incidentState !== 'stolen' && (!owned || (editing && incidentState !== 'normal')) }}
     disabled={incidentState !== 'stolen' && (!owned || (editing && incidentState !== 'normal'))}
+    delayLongPress={420}
+    onLongPress={() => { if (!editing && owned && incidentState === 'normal') onEditStart(); }}
     onPress={() => { if (incidentState === 'stolen') onPress?.(); else if (editing && owned && incidentState === 'normal') onEditPress(); else if (!editing) swing(); }}
     style={({ pressed }) => [
       styles.homeWallKey,
@@ -87,20 +189,21 @@ function HomeWallKeychain({ item, variant, index, selectedId, ownedCount, incide
   </Pressable>;
 }
 
-export function HomeScreenVisual({ selected, characters, onSelectCharacter, owned = EMPTY_OWNED, incidentWallItemId, incidentWallState, placementHiddenWallItemId, onIncidentPress, wallItemIds, wallVariants, plushItemIds, onSwapWallItems, onSwapPlushItems, onUiTap, onInteract, onKeychainSwing, reaction, dailyHydrated = true, onDailyPullRelease, onDailyReaction, entryNonce = 0 }: {
+export function HomeScreenVisual({ selected, characters, onSelectCharacter, owned = EMPTY_OWNED, incidentWallItemId, incidentWallState, placementHiddenWallPlacementId, onIncidentPress, homeLayout, onCommitHomeLayout, onMoveHomePlacement, onRemoveHomePlacement, onArrangeStart, onArrangeMove, onUiTap, onInteract, onKeychainSwing, reaction, dailyHydrated = true, onDailyPullRelease, onDailyReaction, entryNonce = 0 }: {
   selected: Item;
   characters: readonly CharacterPickerCharacter[];
   onSelectCharacter: (id: string) => boolean;
   owned?: Record<string, number>;
   incidentWallItemId?: string;
   incidentWallState: 'none' | 'stolen' | 'returning';
-  placementHiddenWallItemId?: string;
+  placementHiddenWallPlacementId?: HomePlacementId;
   onIncidentPress: () => void;
-  wallItemIds: string[];
-  wallVariants: Record<string, Exclude<CollectibleVariant, 'plush'>>;
-  plushItemIds: string[];
-  onSwapWallItems: (firstId: string, secondId: string) => void;
-  onSwapPlushItems: (firstId: string, secondId: string) => void;
+  homeLayout: HomeLayoutV1;
+  onCommitHomeLayout: (layout: HomeLayoutV1) => void;
+  onMoveHomePlacement: (placementId: HomePlacementId, targetIndex: number) => void;
+  onRemoveHomePlacement: (placementId: HomePlacementId) => void;
+  onArrangeStart?: () => void;
+  onArrangeMove?: () => void;
   onUiTap: () => void;
   onInteract: (kind: string) => number;
   onKeychainSwing: () => void;
@@ -116,27 +219,51 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   const [homeLayoutReady, setHomeLayoutReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [reorderSelection, setReorderSelection] = useState<{ kind: 'wall' | 'plush'; id: string } | null>(null);
+  const [inventoryKind, setInventoryKind] = useState<HomePlacementKind>('wall');
+  const [inventoryKeyVariant, setInventoryKeyVariant] = useState<Exclude<CollectibleVariant, 'plush'>>('key-normal');
+  const [placementSelection, setPlacementSelection] = useState<HomePlacementId | null>(null);
+  const [dragSession, setDragSession] = useState<HomeDragSession | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
   const selectedMobby = getMobby(ITEM_MOBBY_IDS[selected.id] ?? 'mobichi');
   const [characterPickerOpen, setCharacterPickerOpen] = useState(false);
   const [reactionBookOpen, setReactionBookOpen] = useState(false);
   const [reactionTabId, setReactionTabId] = useState<MobbyId>(selectedMobby.id);
-  const [collectedReactionIds, setCollectedReactionIds] = useState<string[]>([]);
+  const [collectedReactionIds, setCollectedReactionIds] = useState<string[]>(() => __DEV__ ? [...ALL_REACTION_IDS] : []);
   const entryMotion = useRef(new Animated.Value(0)).current;
   const entryPlayedRef = useRef<string | null>(null);
   const entryAnimationFinishedRef = useRef(false);
   const keySwingsRef = useRef<Record<string, HomeKeySwing>>({});
-  const wallItems = wallItemIds.map((id) => ITEMS.find((item) => item.id === id)).filter((item): item is Item => Boolean(item));
-  const plushItems = plushItemIds.map((id) => ITEMS.find((item) => item.id === id)).filter((item): item is Item => Boolean(item));
-  const homeWallItemsRef = useRef(wallItems);
+  const roomRef = useRef<ElementRef<typeof View>>(null);
+  const wallGridRef = useRef<ElementRef<typeof View>>(null);
+  const shelfGridRef = useRef<ElementRef<typeof View>>(null);
+  const roomWindowRef = useRef({ x: 0, y: 0 });
+  const wallDropFrameRef = useRef<HomeDropFrame>({ x: 30, y: 40, width: 378, height: 278 });
+  const shelfDropFrameRef = useRef<HomeDropFrame>({ x: 35, y: 280, width: 370, height: 116 });
+  const dragSessionRef = useRef<HomeDragSession | null>(null);
+  const visualLayout = dragSession?.previewLayout ?? homeLayout;
+  const wallPlacements = useMemo(() => visualLayout.wallSlots.map(resolveHomePlacement), [visualLayout.wallSlots]);
+  const shelfPlacements = useMemo(() => visualLayout.shelfSlots.map(resolveHomePlacement), [visualLayout.shelfSlots]);
+  const renderedWallPlacements = useMemo(() => {
+    if (editing || !incidentWallItemId || incidentWallState === 'none' || wallPlacements.some((placement) => placement?.item.id === incidentWallItemId)) return wallPlacements;
+    const candidate = ownedHomePlacementIds(owned, 'wall').map(resolveHomePlacement).find((placement) => placement?.item.id === incidentWallItemId);
+    if (!candidate) return wallPlacements;
+    const next = [...wallPlacements];
+    next[next.length - 1] = candidate;
+    return next;
+  }, [editing, incidentWallItemId, incidentWallState, owned, wallPlacements]);
+  const incidentWallPlacementId = useMemo(() => renderedWallPlacements.find((placement) => placement?.item.id === incidentWallItemId)?.id, [incidentWallItemId, renderedWallPlacements]);
+  const homeWallPlacementsRef = useRef(renderedWallPlacements);
   const homeOwnedRef = useRef(owned);
-  homeWallItemsRef.current = wallItems;
+  homeWallPlacementsRef.current = renderedWallPlacements;
   homeOwnedRef.current = owned;
   useEffect(() => {
     setReactionTabId(selectedMobby.id);
   }, [selectedMobby.id]);
   useEffect(() => {
+    if (__DEV__) {
+      setCollectedReactionIds([...ALL_REACTION_IDS]);
+      return undefined;
+    }
     let mounted = true;
     void AsyncStorage.getItem(REACTION_COLLECTION_STORAGE_KEY).then((raw) => {
       if (!mounted || !raw) return;
@@ -184,7 +311,10 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
     };
   }, []);
 
-  const homeEntrySignature = useMemo(() => wallItems.map((item) => `${item.id}:${ownedCollectibleCount(owned, item.id, 'key-normal') + ownedCollectibleCount(owned, item.id, 'key-small')}`).join('|'), [owned, wallItems]);
+  const homeEntrySignature = useMemo(() => homeLayout.wallSlots.map((id) => {
+    const placement = resolveHomePlacement(id);
+    return placement ? `${placement.id}:${ownedCollectibleCount(owned, placement.item.id, placement.variant)}` : 'empty';
+  }).join('|'), [homeLayout.wallSlots, owned]);
   useEffect(() => {
     const entryKey = `${entryNonce}:${homeEntrySignature}`;
     if (!dailyHydrated || !homeLayoutReady || (entryPlayedRef.current === entryKey && entryAnimationFinishedRef.current)) return undefined;
@@ -204,9 +334,9 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
     let attempts = 0;
     const playKeychainEntry = () => {
       if (cancelled) return;
-      const ownedIds = homeWallItemsRef.current
-        .filter((item) => ownedCollectibleCount(homeOwnedRef.current, item.id, 'key-normal') + ownedCollectibleCount(homeOwnedRef.current, item.id, 'key-small') > 0)
-        .map((item) => item.id);
+      const ownedIds = homeWallPlacementsRef.current
+        .filter((placement) => placement && ownedCollectibleCount(homeOwnedRef.current, placement.item.id, placement.variant) > 0)
+        .map((placement) => placement!.id);
       const readyIds = ownedIds.filter((id) => Boolean(keySwingsRef.current[id]));
       if (!readyIds.length && attempts < 12) {
         attempts += 1;
@@ -236,53 +366,213 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
       swingTimers.forEach((timer) => clearTimeout(timer));
     };
   }, [dailyHydrated, entryMotion, entryNonce, homeEntrySignature, homeLayoutReady, reduceMotion]);
-  const handleLayout = (event: LayoutChangeEvent) => {
+
+  const setCurrentDragSession = useCallback((next: HomeDragSession | null) => {
+    dragSessionRef.current = next;
+    setDragSession(next);
+  }, []);
+  const measureDropFrames = useCallback(() => {
+    roomRef.current?.measureInWindow((x, y) => {
+      roomWindowRef.current = { x, y };
+    });
+    wallGridRef.current?.measureInWindow((x, y, width, height) => {
+      wallDropFrameRef.current = { x, y, width, height };
+    });
+    shelfGridRef.current?.measureInWindow((x, y, width, height) => {
+      shelfDropFrameRef.current = { x, y, width, height };
+    });
+  }, []);
+  const slotAtPagePoint = useCallback((kind: HomePlacementKind, pageX: number, pageY: number) => {
+    const frame = kind === 'wall' ? wallDropFrameRef.current : shelfDropFrameRef.current;
+    const columns = kind === 'wall' ? HOME_WALL_COLUMNS : HOME_SHELF_SLOT_COUNT;
+    const rows = kind === 'wall' ? HOME_WALL_ROWS : 1;
+    const usableHeight = kind === 'wall' ? frame.height * 0.86 : frame.height;
+    const localX = pageX - frame.x;
+    const localY = pageY - frame.y;
+    if (localX < 0 || localX >= frame.width || localY < 0 || localY >= usableHeight) return null;
+    const column = Math.min(columns - 1, Math.floor(localX / Math.max(1, frame.width / columns)));
+    const row = Math.min(rows - 1, Math.floor(localY / Math.max(1, usableHeight / rows)));
+    const index = row * columns + column;
+    const capacity = kind === 'wall' ? HOME_WALL_SLOT_COUNT : HOME_SHELF_SLOT_COUNT;
+    return index < capacity ? index : null;
+  }, []);
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
     setRoomSize(event.nativeEvent.layout);
     setHomeLayoutReady(true);
-  };
-  const selectForReorder = (kind: 'wall' | 'plush', id: string) => {
+    measureDropFrames();
+  }, [measureDropFrames]);
+  const cancelPlacementDrag = useCallback(() => {
+    setCurrentDragSession(null);
+  }, [setCurrentDragSession]);
+  const startPlacementDrag = useCallback((id: HomePlacementId, origin: 'slot' | 'tray', originIndex: number | null, pageX: number, pageY: number) => {
+    const placement = resolveHomePlacement(id);
+    if (!placement) return;
+    measureDropFrames();
+    setInventoryKind(placement.kind);
+    if (placement.variant !== 'plush') setInventoryKeyVariant(placement.variant);
+    setPlacementSelection(null);
+    setCurrentDragSession({
+      id: placement.id,
+      kind: placement.kind,
+      origin,
+      originIndex,
+      baseLayout: homeLayout,
+      previewLayout: homeLayout,
+      targetIndex: originIndex,
+      pageX,
+      pageY,
+    });
+    onArrangeStart?.();
+  }, [homeLayout, measureDropFrames, onArrangeStart, setCurrentDragSession]);
+  const updatePlacementDrag = useCallback((pageX: number, pageY: number) => {
+    const current = dragSessionRef.current;
+    if (!current) return;
+    const targetIndex = slotAtPagePoint(current.kind, pageX, pageY);
+    if (targetIndex === current.targetIndex) {
+      setCurrentDragSession({ ...current, pageX, pageY });
+      return;
+    }
+    // Every hover preview is recalculated from the layout captured when the
+    // drag began. This makes the current target swap with the dragged item's
+    // original slot instead of carrying earlier provisional swaps forward.
+    const previewLayout = targetIndex === null
+      ? current.baseLayout
+      : moveHomePlacement(current.baseLayout, current.id, targetIndex);
+    if (previewLayout !== current.previewLayout) onArrangeMove?.();
+    setCurrentDragSession({ ...current, previewLayout, targetIndex, pageX, pageY });
+  }, [onArrangeMove, setCurrentDragSession, slotAtPagePoint]);
+  const finishPlacementDrag = useCallback((pageX: number, pageY: number) => {
+    updatePlacementDrag(pageX, pageY);
+    const completed = dragSessionRef.current;
+    if (completed && completed.targetIndex !== null) {
+      onCommitHomeLayout(completed.previewLayout);
+      AccessibilityInfo.announceForAccessibility('配置を変更しました');
+    }
+    setCurrentDragSession(null);
+  }, [onCommitHomeLayout, setCurrentDragSession, updatePlacementDrag]);
+  const beginEditing = useCallback((kind: HomePlacementKind = inventoryKind, selection: HomePlacementId | null = null) => {
+    if (!editing) {
+      onUiTap();
+      onArrangeStart?.();
+    }
+    setEditing(true);
+    setInventoryKind(kind);
+    const selectedPlacement = resolveHomePlacement(selection);
+    if (selectedPlacement && selectedPlacement.variant !== 'plush') setInventoryKeyVariant(selectedPlacement.variant);
+    setPlacementSelection(selection);
+    setCharacterPickerOpen(false);
+    setReactionBookOpen(false);
+  }, [editing, inventoryKind, onArrangeStart, onUiTap]);
+  const finishEditing = useCallback(() => {
     onUiTap();
-    if (!reorderSelection || reorderSelection.kind !== kind) {
-      setReorderSelection({ kind, id });
-      return;
+    cancelPlacementDrag();
+    setEditing(false);
+    setPlacementSelection(null);
+  }, [cancelPlacementDrag, onUiTap]);
+  const selectPlacement = useCallback((id: HomePlacementId) => {
+    const placement = resolveHomePlacement(id);
+    if (!placement) return;
+    onUiTap();
+    setInventoryKind(placement.kind);
+    if (placement.variant !== 'plush') setInventoryKeyVariant(placement.variant);
+    setPlacementSelection((current) => current === id ? null : id);
+  }, [onUiTap]);
+  const activateSlot = useCallback((kind: HomePlacementKind, index: number, slotId: HomePlacementId | null) => {
+    cancelPlacementDrag();
+    if (placementSelection) {
+      const selectedPlacement = resolveHomePlacement(placementSelection);
+      if (selectedPlacement?.kind === kind) {
+        if (slotId === placementSelection) {
+          setPlacementSelection(null);
+          return;
+        }
+        onMoveHomePlacement(placementSelection, index);
+        onArrangeMove?.();
+        setPlacementSelection(null);
+        return;
+      }
     }
-    if (reorderSelection.id === id) {
-      setReorderSelection(null);
-      return;
-    }
-    if (kind === 'wall') onSwapWallItems(reorderSelection.id, id);
-    else onSwapPlushItems(reorderSelection.id, id);
-    setReorderSelection(null);
-  };
+    if (slotId) selectPlacement(slotId);
+  }, [cancelPlacementDrag, onArrangeMove, onMoveHomePlacement, placementSelection, selectPlacement]);
+  const removePlacement = useCallback((id: HomePlacementId) => {
+    onUiTap();
+    cancelPlacementDrag();
+    onRemoveHomePlacement(id);
+    setPlacementSelection((current) => current === id ? null : current);
+  }, [cancelPlacementDrag, onRemoveHomePlacement, onUiTap]);
   return <View style={styles.homeScreenBackground}>
-    <View style={styles.homeRoom} onLayout={handleLayout}>
-      <MobbyAssetButton backgroundSource={HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" accessibilityLabel={editing ? '並べ替えを終了' : '壁と棚を並べ替え'} accessibilityState={{ expanded: editing }} onPress={() => { onUiTap(); setEditing((current) => !current); setReorderSelection(null); }} style={styles.homeReorderButton} contentStyle={styles.homeReorderButtonContent}>
+    <View ref={roomRef} style={styles.homeRoom} onLayout={handleLayout}>
+      <Pressable accessibilityLabel={editing ? '並べ替えを完了' : '長押しして並べ替え'} delayLongPress={440} onLongPress={() => beginEditing()} onPress={editing ? finishEditing : undefined} style={styles.homeArrangeBackgroundTarget} />
+      <MobbyAssetButton backgroundSource={HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" accessibilityLabel={editing ? '並べ替えを終了' : '壁と棚を並べ替え'} accessibilityState={{ expanded: editing }} onPress={editing ? finishEditing : () => beginEditing()} style={styles.homeReorderButton} contentStyle={styles.homeReorderButtonContent}>
         <Text style={[styles.homeReorderButtonText, editing && styles.homeReorderButtonTextActive]}>{editing ? '完了' : '並べ替え'}</Text>
       </MobbyAssetButton>
       <Image source={PLUSH_SHELF_BASE} resizeMode="contain" style={styles.homeShelfBase} />
       <View pointerEvents="none" style={styles.homeGarland}><Image source={HOME_GARLAND} resizeMode="contain" style={styles.homeDecorAsset} /></View>
-      <View style={styles.homeWallKeys}>{wallItems.map((item, index) => <HomeWallKeychain
-        key={item.id} item={item} variant={wallVariants[item.id] ?? 'key-normal'} index={index} selectedId={selected.id}
-        ownedCount={ownedCollectibleCount(owned, item.id, 'key-normal') + ownedCollectibleCount(owned, item.id, 'key-small')}
-        incidentState={item.id === incidentWallItemId && incidentWallState !== 'none' ? incidentWallState : item.id === placementHiddenWallItemId ? 'placement-hidden' : 'normal'}
-        editing={editing} editSelected={reorderSelection?.kind === 'wall' && reorderSelection.id === item.id}
-        onPress={onIncidentPress} onEditPress={() => selectForReorder('wall', item.id)} onSwing={onKeychainSwing} registerSwing={registerKeySwing}
-      />)}</View>
-      <View style={[styles.homePlushShelf, { top: shelfSurfaceY - roomSize.height * 0.18 }]}>{plushItems.map((item) => {
-        const rendered = Math.min(plushImageSize.width, plushImageSize.height);
-        const belowFeet = plushImageSize.height - ((plushImageSize.height - rendered) / 2 + rendered * (PLUSH_VISIBLE_BOTTOM_RATIO[item.id] ?? PLUSH_CONTACT_REFERENCE));
-        const editSelected = reorderSelection?.kind === 'plush' && reorderSelection.id === item.id;
-        return <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={editing ? `${item.name}を並べ替え対象に選ぶ` : `${item.name}を揺らす`} accessibilityState={{ selected: editSelected }} onPress={editing ? () => selectForReorder('plush', item.id) : onKeychainSwing} style={[styles.homePlushItem, editSelected && styles.homeReorderSelected]}>
-          <View style={styles.homePlushSwing}><Image source={item.image} resizeMode="contain" style={[styles.homePlushImage, plushImageSize, { bottom: -belowFeet }]} /></View>
-        </Pressable>;
+      <View ref={wallGridRef} onLayout={measureDropFrames} style={styles.homeWallKeys}>{renderedWallPlacements.map((placement, index) => {
+        const source = dragSession?.origin === 'slot' && dragSession.kind === 'wall' && dragSession.originIndex === index;
+        const placementIncidentState = !editing && placement?.id === incidentWallPlacementId && incidentWallState !== 'none' ? incidentWallState : placement?.id === placementHiddenWallPlacementId ? 'placement-hidden' : 'normal';
+        const target = dragSession?.kind === 'wall' && dragSession.targetIndex === index;
+        const dragged = placement?.id === dragSession?.id;
+        const placementOwnedCount = placement ? ownedCollectibleCount(owned, placement.item.id, placement.variant) : 0;
+        const wallCopyLabel = placement && placementOwnedCount > 1 ? ` ${placement.copyNumber}個目／${placementOwnedCount}個中` : '';
+        return <View key={`wall-slot-${index}`} style={[styles.homeWallSlot, editing && styles.homeArrangeSlot, placementSelection === placement?.id && styles.homeArrangeActiveSlot, source && styles.homeArrangeSourceSlot, target && styles.homeArrangeDropTarget]}>
+          <DraggableHomePlacement
+            disabled={!source && (!placement || placementIncidentState !== 'normal')}
+            editing={editing}
+            index={index}
+            onCancel={cancelPlacementDrag}
+            onDragMove={updatePlacementDrag}
+            onDragStart={(pageX, pageY) => { if (placement) startPlacementDrag(placement.id, 'slot', index, pageX, pageY); }}
+            onDrop={finishPlacementDrag}
+            onTap={() => { cancelPlacementDrag(); activateSlot('wall', index, placement?.id ?? null); }}
+            reduceMotion={reduceMotion}
+          >
+            {placement ? <View style={[styles.homeArrangePlacementVisual, dragged && styles.homeArrangeDraggedItem]}>
+              <HomeWallKeychain
+                item={placement.item} placementId={placement.id} variant={placement.variant as Exclude<CollectibleVariant, 'plush'>} index={index} selectedId={selected.id}
+                ownedCount={placementOwnedCount} incidentState={placementIncidentState}
+                editing={editing} editSelected={placementSelection === placement.id}
+                onPress={onIncidentPress} onEditPress={() => activateSlot('wall', index, placement.id)} onEditStart={() => beginEditing('wall', placement.id)} onSwing={onKeychainSwing} registerSwing={registerKeySwing}
+              />
+            </View> : editing ? <Pressable accessibilityLabel={`壁の空き位置${index + 1}${placementSelection ? 'に選択中のアイテムを飾る' : ''}`} accessibilityRole="button" onPress={() => activateSlot('wall', index, null)} style={styles.homeArrangeEmptySlot}><Text style={styles.homeArrangeEmptyPlus}>＋</Text></Pressable> : null}
+          </DraggableHomePlacement>
+          {editing && !dragSession && placement && placementIncidentState === 'normal' ? <Pressable accessibilityLabel={`${itemCharacterName(placement.item)} ${placement.variant === 'key-small' ? 'Sぬいキー' : '通常ぬいキー'}${wallCopyLabel}をホームから外す`} accessibilityRole="button" hitSlop={8} onPress={() => removePlacement(placement.id)} style={styles.homeArrangeRemoveButton}><Text style={styles.homeArrangeRemoveText}>−</Text></Pressable> : null}
+        </View>;
       })}</View>
-      <View accessible accessibilityLabel={`${selectedMobby.name}。ほっぺを引っぱれます`} style={[styles.homeMainCharacter, styles.homeMainCharacterPullable, compact && styles.homeMainCharacterCompact]}>
+      <View ref={shelfGridRef} onLayout={measureDropFrames} style={[styles.homePlushShelf, { top: shelfSurfaceY - roomSize.height * 0.18 }]}>{shelfPlacements.map((placement, index) => {
+        const source = dragSession?.origin === 'slot' && dragSession.kind === 'plush' && dragSession.originIndex === index;
+        const target = dragSession?.kind === 'plush' && dragSession.targetIndex === index;
+        const dragged = placement?.id === dragSession?.id;
+        const rendered = placement ? Math.min(plushImageSize.width, plushImageSize.height) : 0;
+        const belowFeet = placement ? plushImageSize.height - ((plushImageSize.height - rendered) / 2 + rendered * (PLUSH_VISIBLE_BOTTOM_RATIO[placement.item.id] ?? PLUSH_CONTACT_REFERENCE)) : 0;
+        const placementOwnedCount = placement ? ownedCollectibleCount(owned, placement.item.id, placement.variant) : 0;
+        const shelfCopyLabel = placement && placementOwnedCount > 1 ? ` ${placement.copyNumber}個目／${placementOwnedCount}個中` : '';
+        return <View key={`shelf-slot-${index}`} style={[styles.homePlushSlot, editing && styles.homeArrangeSlot, placementSelection === placement?.id && styles.homeArrangeActiveSlot, source && styles.homeArrangeSourceSlot, target && styles.homeArrangeDropTarget]}>
+          <DraggableHomePlacement
+            disabled={!source && !placement}
+            editing={editing}
+            index={index}
+            onCancel={cancelPlacementDrag}
+            onDragMove={updatePlacementDrag}
+            onDragStart={(pageX, pageY) => { if (placement) startPlacementDrag(placement.id, 'slot', index, pageX, pageY); }}
+            onDrop={finishPlacementDrag}
+            onTap={() => { cancelPlacementDrag(); activateSlot('plush', index, placement?.id ?? null); }}
+            reduceMotion={reduceMotion}
+          >
+            {placement ? <View style={[styles.homeArrangePlacementVisual, dragged && styles.homeArrangeDraggedItem]}><Pressable accessibilityRole="button" accessibilityLabel={editing ? `${itemCharacterName(placement.item)} ぬいぐるみ${shelfCopyLabel}を移動` : `${itemCharacterName(placement.item)} ぬいぐるみ${shelfCopyLabel}を揺らす`} accessibilityState={{ selected: placementSelection === placement.id }} delayLongPress={420} onLongPress={() => { if (!editing) beginEditing('plush', placement.id); }} onPress={editing ? () => activateSlot('plush', index, placement.id) : onKeychainSwing} style={[styles.homePlushItem, placementSelection === placement.id && styles.homeReorderSelected]}>
+              <View style={styles.homePlushSwing}><Image source={collectibleImage(placement.item, placement.variant)} resizeMode="contain" style={[styles.homePlushImage, plushImageSize, { bottom: -belowFeet }]} /></View>
+            </Pressable></View> : editing ? <Pressable accessibilityLabel={`棚の空き位置${index + 1}${placementSelection ? 'に選択中のアイテムを飾る' : ''}`} accessibilityRole="button" onPress={() => activateSlot('plush', index, null)} style={styles.homeArrangeEmptySlot}><Text style={styles.homeArrangeEmptyPlus}>＋</Text></Pressable> : null}
+          </DraggableHomePlacement>
+          {editing && !dragSession && placement ? <Pressable accessibilityLabel={`${itemCharacterName(placement.item)} ぬいぐるみ${shelfCopyLabel}をホームから外す`} accessibilityRole="button" hitSlop={8} onPress={() => removePlacement(placement.id)} style={styles.homeArrangeRemoveButton}><Text style={styles.homeArrangeRemoveText}>−</Text></Pressable> : null}
+        </View>;
+      })}</View>
+      <View accessible={!editing} accessibilityLabel={`${selectedMobby.name}。ほっぺを引っぱれます`} pointerEvents={editing ? 'none' : 'auto'} style={[styles.homeMainCharacter, styles.homeMainCharacterPullable, compact && styles.homeMainCharacterCompact, editing && styles.homeArrangeMainDimmed]}>
         <Animated.View style={{ transform: [
           { translateY: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? [0, 4, -32, -8, -20, -7, 0] : [0, 16, -88, -18, -48, -12, 0] }) },
           { scale: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? [1, 0.94, 1.28, 1.04, 1.16, 1.05, 1] : [1, 0.82, 1.78, 1.08, 1.42, 1.1, 1] }) },
           { rotate: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? ['0deg', '-3deg', '4deg', '-3deg', '2deg', '-1deg', '0deg'] : ['0deg', '-9deg', '13deg', '-8deg', '7deg', '-3deg', '0deg'] }) },
         ] }}>
-          <MobbyIdleMotion enabled={!busy}><PullableMobby selected={selected} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={dailyHydrated} onValidRelease={onDailyPullRelease} onReaction={collectReaction} /></MobbyIdleMotion>
+          <MobbyIdleMotion enabled={!busy && !editing}><PullableMobby selected={selected} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={dailyHydrated && !editing} onValidRelease={onDailyPullRelease} onReaction={collectReaction} /></MobbyIdleMotion>
         </Animated.View>
         <MobbyAssetButton accessibilityLabel={`メインモビーを選ぶ（現在：${selectedMobby.name}）`} backgroundSource={HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" onPress={() => { onUiTap(); setReactionBookOpen(false); setCharacterPickerOpen(true); }} style={[styles.characterPickerButton, styles.characterPickerButtonCompact]} contentStyle={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></MobbyAssetButton>
         <Animated.View pointerEvents="none" style={{
@@ -309,14 +599,47 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
           <Text style={styles.reactionBookButtonLabel}>図鑑</Text>
         </MobbyAssetButton>
       </View>
-      {reaction ? <ImageBackground
+      {reaction && !editing ? <ImageBackground
         accessible={false}
         accessibilityLiveRegion="polite"
         source={SPEECH_BUBBLE_PAPER}
         resizeMode="stretch"
         imageStyle={styles.homeReactionBubbleImage}
-        style={[styles.homeReactionBubble, { pointerEvents: 'none', top: shelfSurfaceY + 4 }]}
+      style={[styles.homeReactionBubble, { pointerEvents: 'none', top: shelfSurfaceY + 4 }]}
       ><Text accessibilityRole="alert" style={styles.homeReactionBubbleText}>{reaction}</Text></ImageBackground> : null}
+      {editing ? <>
+        <View pointerEvents="none" style={styles.homeArrangeHint}><Text style={styles.homeArrangeHintText}>{dragSession ? '重なったアイテムと仮に入れ替え中。指を離すと確定' : placementSelection ? '飾りたい場所をタップするか、そのまま上へドラッグ' : '選択不要：下のアイテムをそのまま上へドラッグ'}</Text></View>
+        <View style={styles.homeInventoryTray}>
+          <HomeInventoryTray
+            activeKeyVariant={inventoryKeyVariant}
+            activeKind={inventoryKind}
+            draggingId={dragSession?.id}
+            homeLayout={visualLayout}
+            orderLayout={dragSession?.baseLayout ?? homeLayout}
+            onChangeKeyVariant={(variant) => { onUiTap(); cancelPlacementDrag(); setInventoryKeyVariant(variant); setPlacementSelection(null); }}
+            onChangeKind={(kind) => { onUiTap(); cancelPlacementDrag(); setInventoryKind(kind); setPlacementSelection(null); }}
+            onDragCancel={() => cancelPlacementDrag()}
+            onDragEnd={(_id, pageX, pageY) => finishPlacementDrag(pageX, pageY)}
+            onDragMove={(_id, pageX, pageY) => updatePlacementDrag(pageX, pageY)}
+            onDragStart={(id, pageX, pageY) => startPlacementDrag(id, 'tray', null, pageX, pageY)}
+            onSelect={selectPlacement}
+            owned={owned}
+            selectedId={placementSelection}
+          />
+        </View>
+        {dragSession ? (() => {
+          const placement = resolveHomePlacement(dragSession.id);
+          if (!placement) return null;
+          const width = placement.variant === 'plush' ? plushImageSize.width : placement.variant === 'key-small' ? 76 : 96;
+          const height = placement.variant === 'plush' ? plushImageSize.height : placement.variant === 'key-small' ? 84 : 106;
+          return <View pointerEvents="none" style={[styles.homeArrangeDragOverlay, {
+            left: dragSession.pageX - roomWindowRef.current.x - width / 2,
+            top: dragSession.pageY - roomWindowRef.current.y - height / 2,
+            width,
+            height,
+          }]}><Image source={collectibleImage(placement.item, placement.variant)} resizeMode="contain" style={styles.homeArrangeDragOverlayImage} /></View>;
+        })() : null}
+      </> : null}
     </View>
     {characterPickerOpen ? <CharacterPickerPopover
       characters={characters}

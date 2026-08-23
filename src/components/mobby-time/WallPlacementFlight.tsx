@@ -5,11 +5,12 @@ import { Text } from '@/ui/layout/visualPrimitives';
 import { ITEMS, collectibleImage, type CollectibleVariant, type Item } from '@/data/collectibles';
 import { useResponsiveLayout } from '@/ui/layout/responsive';
 
-export function WallPlacementFlight({ item, variant, onComplete }: { item: Item; variant: Exclude<CollectibleVariant, 'plush'>; onComplete: () => void }) {
+export function WallPlacementFlight({ item, variant, targetSlotIndex, onComplete }: { item: Item; variant: Exclude<CollectibleVariant, 'plush'>; targetSlotIndex?: number; onComplete: () => void }) {
   const { width, height } = useResponsiveLayout();
   const progress = useRef(new Animated.Value(0)).current;
   const onCompleteRef = useRef(onComplete);
-  const itemIndex = Math.max(0, ITEMS.findIndex((candidate) => candidate.id === item.id));
+  const fallbackIndex = Math.max(0, ITEMS.findIndex((candidate) => candidate.id === item.id));
+  const itemIndex = typeof targetSlotIndex === 'number' && targetSlotIndex >= 0 && targetSlotIndex < 10 ? targetSlotIndex : fallbackIndex;
   const row = Math.floor(itemIndex / 5);
   const column = itemIndex % 5;
   const roomHeight = Math.max(520, height - 74);

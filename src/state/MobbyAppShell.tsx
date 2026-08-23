@@ -75,9 +75,20 @@ import {
   normalizeCollectibleInventory, ownedCollectibleCount,
   type CollectibleVariant, type Item,
 } from '@/data/collectibles';
+import {
+  createDefaultHomeLayout,
+  decodeHomeLayout,
+  homePlacementId,
+  moveHomePlacement,
+  placeHomeReward,
+  reconcileHomeLayout,
+  removeHomePlacement,
+  type HomeLayoutV1,
+  type HomePlacementId,
+} from '@/domain/home/homeLayout';
 
 type Screen = 'home' | 'collection' | 'time' | 'touch' | 'casebook' | 'episode';
-type CollectibleReward = { item: Item; variant: CollectibleVariant };
+type CollectibleReward = { item: Item; variant: CollectibleVariant; placementId: HomePlacementId };
 type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placing' | 'placed';
 type OnboardingRewardState = {
   version: 1;
@@ -168,6 +179,7 @@ const STORAGE_ONBOARDING_REWARD = '@mobby/onboarding-first-reward-v1';
 const ONBOARDING_REWARD_EVENT_ID = 'onboarding:first-reward:v1';
 const ONBOARDING_REWARD_RECEIPT = '@onboarding-reward:first-reward:v1';
 const STORAGE_CASES = '@mobby/case-files-v2';
+const STORAGE_HOME_LAYOUT = '@mobby/home-layout-v1';
 const FEATURED_EPISODE_ID = 'episode-1' as const;
 const EPISODE_PROGRESS_DEBOUNCE_MS = 180;
 const MOBBY_TIME_STAGES: readonly MobbyTimeStage[] = ['arrived', 'opening', 'revealed', 'placing', 'placed'];
@@ -191,10 +203,23 @@ function decodeOnboardingReward(raw: string | null): OnboardingRewardState | nul
   }
 }
 
-const INITIAL_OWNED: Record<string, number> = ITEMS.reduce<Record<string, number>>((inventory, item) => {
+function ensureAllCollectiblesOwned(inventory: Record<string, number>) {
+  const unlocked = { ...inventory };
+  for (const item of ITEMS) {
+    for (const variant of COLLECTIBLE_VARIANTS) {
+      const key = collectibleInventoryKey(item.id, variant);
+      unlocked[key] = Math.max(1, inventory[key] ?? 0);
+    }
+  }
+  return unlocked;
+}
+
+const DEFAULT_OWNED: Record<string, number> = ITEMS.reduce<Record<string, number>>((inventory, item) => {
   inventory[collectibleInventoryKey(item.id, legacyVariantForItem(item))] = 1;
   return inventory;
 }, { ...EMPTY_OWNED });
+
+const INITIAL_OWNED: Record<string, number> = __DEV__ ? ensureAllCollectiblesOwned(DEFAULT_OWNED) : DEFAULT_OWNED;
 
 function normalizeOwnedInventory(raw: Record<string, unknown>) {
   return normalizeCollectibleInventory(raw, (key) => key.startsWith(DAILY_REWARD_RECEIPT_PREFIX) || key === ONBOARDING_REWARD_RECEIPT);
@@ -627,9 +652,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [wallPlacement, setWallPlacement] = useState<CollectibleReward | null>(null);
-  const [homeWallItemIds, setHomeWallItemIds] = useState(() => ITEMS.map((item) => item.id));
-  const [homeWallVariants, setHomeWallVariants] = useState<Record<string, Exclude<CollectibleVariant, 'plush'>>>(() => Object.fromEntries(ITEMS.map((item) => [item.id, 'key-normal'])));
-  const [homePlushItemIds, setHomePlushItemIds] = useState(() => ITEMS.map((item) => item.id));
+  const [homeLayout, setHomeLayout] = useState(() => createDefaultHomeLayout(INITIAL_OWNED));
   const [storageReady, setStorageReady] = useState(false);
   const [tutorialComplete, setTutorialComplete] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('none');
@@ -752,21 +775,22 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    AsyncStorage.multiGet([STORAGE_TUTORIAL_COMPLETE, STORAGE_FAVORITE, STORAGE_OWNED, STORAGE_OWNED_LEGACY, STORAGE_ONBOARDING_REWARD, STORAGE_CASES])
+    AsyncStorage.multiGet([STORAGE_TUTORIAL_COMPLETE, STORAGE_FAVORITE, STORAGE_OWNED, STORAGE_OWNED_LEGACY, STORAGE_ONBOARDING_REWARD, STORAGE_CASES, STORAGE_HOME_LAYOUT])
       .then((entries) => {
         if (!mounted) return;
         const values = Object.fromEntries(entries);
         const completed = values[STORAGE_TUTORIAL_COMPLETE] === 'true';
         const favoriteValue = values[STORAGE_FAVORITE] ?? ITEMS[0].id;
         const storedFavorite = ITEMS.some((item) => item.id === favoriteValue) ? favoriteValue : ITEMS[0].id;
-        let storedOwned = completed ? INITIAL_OWNED : EMPTY_OWNED;
+        let storedOwned = __DEV__ ? INITIAL_OWNED : completed ? INITIAL_OWNED : EMPTY_OWNED;
         const storedInventory = values[STORAGE_OWNED] ?? values[STORAGE_OWNED_LEGACY];
         if (storedInventory) {
           try {
             const parsed = JSON.parse(storedInventory) as Record<string, unknown>;
-            storedOwned = normalizeOwnedInventory(parsed);
+            const normalizedInventory = normalizeOwnedInventory(parsed);
+            storedOwned = __DEV__ ? ensureAllCollectiblesOwned(normalizedInventory) : normalizedInventory;
           } catch {
-            storedOwned = completed ? INITIAL_OWNED : EMPTY_OWNED;
+            storedOwned = __DEV__ ? INITIAL_OWNED : completed ? INITIAL_OWNED : EMPTY_OWNED;
           }
         }
         const decodedOnboardingReward = decodeOnboardingReward(values[STORAGE_ONBOARDING_REWARD] ?? null);
@@ -777,6 +801,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
         setFavoriteDraftId(storedFavorite);
         setSelectedId(storedFavorite);
         setOwned(storedOwned);
+        setHomeLayout(decodeHomeLayout(values[STORAGE_HOME_LAYOUT] ?? null, storedOwned));
         setOnboardingReward(storedOnboardingReward);
         if (values[STORAGE_CASES]) {
           try {
@@ -794,11 +819,12 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
             setIncidentCutInVisible(false);
           }
         }
-        setHomeWallVariants(Object.fromEntries(ITEMS.map((item) => [item.id, ownedCollectibleCount(storedOwned, item.id, 'key-small') > 0 && ownedCollectibleCount(storedOwned, item.id, 'key-normal') === 0 ? 'key-small' : 'key-normal'])));
       })
       .catch(() => {
         if (!mounted) return;
-        setOwned(EMPTY_OWNED);
+        const fallbackOwned = __DEV__ ? INITIAL_OWNED : EMPTY_OWNED;
+        setOwned(fallbackOwned);
+        setHomeLayout(createDefaultHomeLayout(fallbackOwned));
       })
       .finally(() => { if (mounted) setStorageReady(true); });
     return () => { mounted = false; };
@@ -806,7 +832,10 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!storageReady) return;
-    const entries: [string, string][] = [[STORAGE_CASES, JSON.stringify(incidentStorage)]];
+    const entries: [string, string][] = [
+      [STORAGE_CASES, JSON.stringify(incidentStorage)],
+      [STORAGE_HOME_LAYOUT, JSON.stringify(homeLayout)],
+    ];
     if (tutorialComplete) {
       entries.push(
         [STORAGE_TUTORIAL_COMPLETE, 'true'],
@@ -818,7 +847,12 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       .catch(() => undefined)
       .then(() => AsyncStorage.multiSet(entries))
       .catch(() => undefined);
-  }, [incidentStorage, owned, selectedId, storageReady, tutorialComplete]);
+  }, [homeLayout, incidentStorage, owned, selectedId, storageReady, tutorialComplete]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    setHomeLayout((current) => reconcileHomeLayout(current, owned));
+  }, [owned, storageReady]);
 
   const enqueueStorageWrite = useCallback(async (operation: () => Promise<void>) => {
     const write = storageWriteChainRef.current
@@ -994,15 +1028,16 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     }
     revealToday();
   }, [onboardingRewardActive, persistOnboardingRewardPhase, revealToday]);
-  const finalizePlacement = useCallback((item: Item, variant: CollectibleVariant) => {
+  const finalizePlacement = useCallback((item: Item, variant: CollectibleVariant, exactPlacementId?: HomePlacementId) => {
+    const placementId = exactPlacementId ?? homePlacementId(
+      item.id,
+      variant,
+      Math.max(1, ownedCollectibleCount(ownedRef.current, item.id, variant)),
+    );
     setMobbyTimeStage('placed');
     setSelectedId(item.id);
     const placement = variant === 'plush' ? '棚' : '壁';
-    if (variant === 'plush') {
-      setHomePlushItemIds((current) => [item.id, ...current.filter((id) => id !== item.id)]);
-    } else {
-      setHomeWallVariants((current) => ({ ...current, [item.id]: variant }));
-    }
+    setHomeLayout((current) => placeHomeReward(current, placementId));
     setNotice(`NEW! ${collectibleName(item, variant)}を${placement}に追加しました`);
     if (['place', 'opening', 'mobbyTime', 'wallFlight'].includes(onboardingStep)) {
       navigateTo('home');
@@ -1010,19 +1045,26 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     }
   }, [navigateTo, onboardingStep]);
   const placeToday = useCallback(() => {
-    const rewardKey = collectibleInventoryKey(today.id, effectiveTodayVariant);
-    if (placementHandledIdRef.current === rewardKey) return;
-    placementHandledIdRef.current = rewardKey;
+    // The inventory grant completes before this placement callback. Therefore
+    // the current owned count is the exact newly-earned copy number (not +1).
+    const placementId = homePlacementId(
+      today.id,
+      effectiveTodayVariant,
+      Math.max(1, ownedCollectibleCount(ownedRef.current, today.id, effectiveTodayVariant)),
+    );
+    if (placementHandledIdRef.current === placementId) return;
+    placementHandledIdRef.current = placementId;
     setSelectedId(today.id);
     if (effectiveTodayVariant !== 'plush') {
       setNotice('');
-      setWallPlacement({ item: today, variant: effectiveTodayVariant });
+      setHomeLayout((current) => placeHomeReward(current, placementId));
+      setWallPlacement({ item: today, variant: effectiveTodayVariant, placementId });
       navigateTo('home');
       if (onboardingStep === 'place') setOnboardingStep('wallFlight');
       return;
     }
     playSfx('place');
-    finalizePlacement(today, effectiveTodayVariant);
+    finalizePlacement(today, effectiveTodayVariant, placementId);
     // Plush placement finishes its in-card motion before this callback runs.
     // Return to the home shelf for all sessions, including users who have
     // already completed onboarding (the wall-flight branch does this before
@@ -1082,21 +1124,18 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       return;
     }
     playSfx('place');
-    finalizePlacement(wallPlacement.item, wallPlacement.variant);
+    finalizePlacement(wallPlacement.item, wallPlacement.variant, wallPlacement.placementId);
     setWallPlacement(null);
   }, [finalizePlacement, onboardingRewardActive, persistOnboardingRewardPhase, playSfx, wallPlacement]);
-  const visibleHomePlushItemIds = useMemo(
-    () => homePlushItemIds.filter((id) => ownedCollectibleCount(owned, id, 'plush') > 0).slice(0, 4),
-    [homePlushItemIds, owned],
-  );
-  const swapHomeItems = (setter: typeof setHomeWallItemIds, firstId: string, secondId: string) => setter((current) => {
-    const firstIndex = current.indexOf(firstId);
-    const secondIndex = current.indexOf(secondId);
-    if (firstIndex < 0 || secondIndex < 0 || firstIndex === secondIndex) return current;
-    const next = [...current];
-    [next[firstIndex], next[secondIndex]] = [next[secondIndex], next[firstIndex]];
-    return next;
-  });
+  const commitHomeLayout = useCallback((nextLayout: HomeLayoutV1) => {
+    setHomeLayout(nextLayout);
+  }, []);
+  const moveHomeItem = useCallback((placementId: HomePlacementId, targetIndex: number) => {
+    setHomeLayout((current) => moveHomePlacement(current, placementId, targetIndex));
+  }, []);
+  const hideHomeItem = useCallback((placementId: HomePlacementId) => {
+    setHomeLayout((current) => removeHomePlacement(current, placementId));
+  }, []);
   const incidentWallState: 'none' | 'stolen' | 'returning' = incidentResolutionPhase === 'returning'
     ? 'returning'
     : hasUnresolvedIncident ? 'stolen' : 'none';
@@ -1487,14 +1526,14 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               {notice && !tutorialRewardActive ? <Pressable accessibilityRole="button" accessibilityLabel={`${notice}。閉じる`} accessibilityLiveRegion="polite" onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><ImageBackground accessible={false} source={NOTICE_SURFACE} resizeMode="stretch" style={styles.noticeToastImage} /><View style={styles.noticeToastContent}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></View></Pressable> : null}
               <View style={styles.screenBody}>
                 <ScreenTransition screenKey={screen ?? `route:${pathname}`} reduceMotion={reduceMotion}>
-                {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={owned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallItemId={wallPlacement?.item.id} onIncidentPress={openIncident} wallItemIds={homeWallItemIds} wallVariants={homeWallVariants} plushItemIds={visibleHomePlushItemIds} onSwapWallItems={(firstId, secondId) => swapHomeItems(setHomeWallItemIds, firstId, secondId)} onSwapPlushItems={(firstId, secondId) => swapHomeItems(setHomePlushItemIds, firstId, secondId)} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={owned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallPlacementId={wallPlacement && wallPlacement.variant !== 'plush' ? wallPlacement.placementId : undefined} onIncidentPress={openIncident} homeLayout={homeLayout} onCommitHomeLayout={commitHomeLayout} onMoveHomePlacement={moveHomeItem} onRemoveHomePlacement={hideHomeItem} onArrangeStart={haptics.medium} onArrangeMove={haptics.threshold} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'time' && headerPopover !== 'mobby-time' ? <MobbyTimeScreen flow={onboardingRewardActive ? 'onboarding' : 'daily'} today={today} todayVariant={effectiveTodayVariant} stage={effectiveMobbyTimeStage} reduceMotion={reduceMotion} onOpen={handleRewardOpen} onReveal={handleRewardReveal} onPlace={handleRewardPlace} onPlaced={handleRewardPlaced} secondsLeft={secondsLeft} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
                 {screen === 'casebook' ? <IncidentCasebookScreen activeEpisode={casebookActiveCase} episodes={casebookEpisodes} relationships={casebookRelationships} initialTab={casebookInitialTab} onResume={resumeIncident} onRestart={restartIncident} onStart={() => triggerIncident('direct')} onPlayEpisode={playEpisodeFromCasebook} onClose={() => navigateTo('home')} entryNonce={tabEntryNonce} /> : null}
                 </ScreenTransition>
               </View>
-              {wallPlacement && wallPlacement.variant !== 'plush' ? <WallPlacementFlight item={wallPlacement.item} variant={wallPlacement.variant} onComplete={completeWallPlacement} /> : null}
+              {wallPlacement && wallPlacement.variant !== 'plush' ? <WallPlacementFlight item={wallPlacement.item} variant={wallPlacement.variant} targetSlotIndex={homeLayout.wallSlots.indexOf(wallPlacement.placementId)} onComplete={completeWallPlacement} /> : null}
               {onboardingStep !== 'none' && onboardingStep !== 'favorite' ? <OnboardingGuide step={onboardingStep} onNext={advanceOnboarding} onSkip={finishOnboarding} /> : null}
               {onboardingStep === 'favorite' ? <FavoriteMobbyPicker selectedId={favoriteDraftId} onSelect={(id) => { playSfx('tap'); setFavoriteDraftId(id); }} onConfirm={confirmFavorite} /> : null}
               </> : null}

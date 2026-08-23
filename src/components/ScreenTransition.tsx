@@ -49,11 +49,16 @@ export function ScreenTransition({ children, screenKey, reduceMotion }: Props) {
   const incomingX = progress.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 12 : 36, 0] });
   const incomingScale = progress.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 0.99 : 0.96, 1] });
 
-  if (!incoming) return <View style={styles.fill}>{shown.node}</View>;
+  // Keep the active screen's props live after its entrance transition. The
+  // stored node is only needed while a different screen is crossing over;
+  // rendering it forever would freeze same-screen updates such as home-item
+  // reordering until the route changed.
+  if (!incoming) return <View style={styles.fill}>{screenKey === shown.key ? children : shown.node}</View>;
+  const incomingNode = screenKey === incoming.key ? children : incoming.node;
   return (
     <View style={styles.fill} pointerEvents="none">
       <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.layer, { opacity: outgoingOpacity, transform: [{ translateX: outgoingX }, { scale: outgoingScale }] }]}>{shown.node}</Animated.View>
-      <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.layer, { opacity: incomingOpacity, transform: [{ translateX: incomingX }, { scale: incomingScale }] }]}>{incoming.node}</Animated.View>
+      <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.layer, { opacity: incomingOpacity, transform: [{ translateX: incomingX }, { scale: incomingScale }] }]}>{incomingNode}</Animated.View>
     </View>
   );
 }

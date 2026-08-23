@@ -1,5 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Image,
+  ImageBackground,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ImageSourcePropType,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 
 import { ParticleBurst } from '@/components/effects';
 import { getMobby, type MobbyId } from '@/data/mobies';
@@ -10,6 +26,16 @@ import { Text } from '@/ui/layout/visualPrimitives';
 const REACTION_COLLECTION_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-reaction-collection-v1.png');
 const REACTION_COLLECTION_PANEL_ASPECT_RATIO = 957 / 1462;
 const REACTION_COLLECTION_BACKGROUND_SCALE = 1536 / 1462;
+const REACTION_TAB_WIDTH = 58;
+const REACTION_TAB_GAP = 8;
+const REACTION_TAB_PADDING = 4;
+
+type WebWheelEvent = {
+  deltaX?: number;
+  deltaY?: number;
+  nativeEvent?: { deltaX?: number; deltaY?: number };
+  preventDefault?: () => void;
+};
 
 // Mirror PullableMobby's home reaction timing, wobble, and first-four effects.
 // The preview repeats the one-shot with a short pause so the saved reaction
@@ -100,6 +126,9 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
   const stickers = REACTION_STICKERS[selectedMobbyId] ?? [];
   const collected = useMemo(() => new Set(collectedIds), [collectedIds]);
   const [previewStickerId, setPreviewStickerId] = useState<string | null>(null);
+  const characterTabsRef = useRef<ScrollView>(null);
+  const characterTabsOffsetRef = useRef(0);
+  const characterTabsDragStartRef = useRef(0);
   const previewSticker = stickers.find((sticker) => sticker.id === previewStickerId) ?? null;
   const collectedCount = stickers.reduce((count, sticker) => count + Number(collected.has(sticker.id)), 0);
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
@@ -107,6 +136,29 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
   const panelWidth = Math.max(0, Math.min(viewportWidth - 32, 410, availableHeight * REACTION_COLLECTION_PANEL_ASPECT_RATIO));
   const panelHeight = panelWidth / REACTION_COLLECTION_PANEL_ASPECT_RATIO;
   const previewSize = Math.max(0, Math.min(panelWidth * 0.84, panelHeight * 0.58, 340));
+  const characterTabsPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_event, gesture) => Platform.OS === 'web' && Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => Platform.OS === 'web' && Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderGrant: () => {
+      characterTabsDragStartRef.current = characterTabsOffsetRef.current;
+    },
+    onPanResponderMove: (_event, gesture) => {
+      characterTabsRef.current?.scrollTo({ x: Math.max(0, characterTabsDragStartRef.current - gesture.dx), animated: false });
+    },
+  }), []);
+  const handleCharacterTabsScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    characterTabsOffsetRef.current = event.nativeEvent.contentOffset.x;
+  };
+  const handleCharacterTabsWheel = (event: WebWheelEvent) => {
+    const deltaX = event.deltaX ?? event.nativeEvent?.deltaX ?? 0;
+    const deltaY = event.deltaY ?? event.nativeEvent?.deltaY ?? 0;
+    const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+    if (!delta) return;
+    event.preventDefault?.();
+    characterTabsRef.current?.scrollTo({ x: Math.max(0, characterTabsOffsetRef.current + delta), animated: false });
+  };
+  const webCharacterTabsProps = Platform.OS === 'web' ? { onWheel: handleCharacterTabsWheel } : {};
   const dismissPreviewOrClose = () => {
     if (previewSticker) {
       setPreviewStickerId(null);
@@ -115,6 +167,20 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
     onClose();
   };
   useEffect(() => setPreviewStickerId(null), [selectedMobbyId]);
+  useEffect(() => {
+    const selectedIndex = REACTION_MOBBY_IDS.indexOf(selectedMobbyId);
+    const viewport = Math.max(0, panelWidth - 52);
+    const contentWidth = REACTION_TAB_PADDING * 2
+      + REACTION_MOBBY_IDS.length * REACTION_TAB_WIDTH
+      + Math.max(0, REACTION_MOBBY_IDS.length - 1) * REACTION_TAB_GAP;
+    const selectedCenter = REACTION_TAB_PADDING + selectedIndex * (REACTION_TAB_WIDTH + REACTION_TAB_GAP) + REACTION_TAB_WIDTH / 2;
+    const targetOffset = Math.max(0, Math.min(contentWidth - viewport, selectedCenter - viewport / 2));
+    const frame = requestAnimationFrame(() => {
+      characterTabsOffsetRef.current = targetOffset;
+      characterTabsRef.current?.scrollTo({ x: targetOffset, animated: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [panelWidth, selectedMobbyId]);
   return <Modal animationType="none" onRequestClose={dismissPreviewOrClose} presentationStyle="overFullScreen" transparent visible>
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable accessibilityLabel={previewSticker ? 'リアクションの拡大表示を閉じる' : 'リアクション図鑑を閉じる'} accessibilityRole="button" onPress={dismissPreviewOrClose} style={styles.backdrop} />
@@ -137,7 +203,19 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
           <Text style={styles.closeText}>×</Text>
         </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs} style={styles.tabsScroll}>
+      <View {...(Platform.OS === 'web' ? characterTabsPanResponder.panHandlers : {})} style={styles.tabsGestureArea}>
+      <ScrollView
+        {...webCharacterTabsProps}
+        contentContainerStyle={styles.tabs}
+        directionalLockEnabled
+        horizontal
+        nestedScrollEnabled
+        onScroll={handleCharacterTabsScroll}
+        ref={characterTabsRef}
+        scrollEventThrottle={16}
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+      >
         {REACTION_MOBBY_IDS.map((id) => {
           const tabMobby = getMobby(id);
           const selected = id === selectedMobbyId;
@@ -155,10 +233,11 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
           </Pressable>;
         })}
       </ScrollView>
+      </View>
       <ScrollView
         contentContainerStyle={styles.stickerScrollContent}
         nestedScrollEnabled
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
         style={styles.stickerScroll}
       >
         <View style={styles.grid}>
@@ -235,7 +314,8 @@ const styles = StyleSheet.create({
   subtitle: { color: '#8A6C79', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 3 },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#7E4C60', fontSize: 30, lineHeight: 32, fontWeight: '900' },
-  tabsScroll: { flexGrow: 0, marginHorizontal: 26 },
+  tabsGestureArea: { marginHorizontal: 26 },
+  tabsScroll: { flexGrow: 0 },
   tabs: { gap: 8, paddingHorizontal: 4, paddingBottom: 9 },
   tab: { width: 58, minHeight: 62, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, paddingBottom: 5 },
   tabSelected: { transform: [{ scale: 1.04 }] },
