@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 
 import { MobbyCarousel } from '@/components/MobbyCarousel';
+import { INCIDENTS_ENABLED } from '@/config/features';
 import { getMobby } from '@/data/mobies';
 import { getEnemy } from '@/data/enemies';
 import { useMobbyAudio } from '@/hooks/useMobbyAudio';
@@ -53,6 +54,8 @@ import { useMobbyHaptics } from '@/hooks/useMobbyHaptics';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { CollectionScreen } from '@/screens/CollectionScreen';
 import { MobbyTimeScreen } from '@/screens/MobbyTimeScreen';
+import { TradeScreen } from '@/screens/TradeScreen';
+import { StoriesScreen } from '@/screens/StoriesScreen';
 import { TouchScreen } from '@/screens/TouchScreen';
 import { styles } from '@/ui/layout/appStyles';
 import { ScreenTransition } from '@/components/ScreenTransition';
@@ -87,7 +90,7 @@ import {
   type HomePlacementId,
 } from '@/domain/home/homeLayout';
 
-type Screen = 'home' | 'collection' | 'time' | 'touch' | 'casebook' | 'episode';
+type Screen = 'home' | 'collection' | 'time' | 'trade' | 'touch' | 'casebook' | 'episode';
 type CollectibleReward = { item: Item; variant: CollectibleVariant; placementId: HomePlacementId };
 type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placing' | 'placed';
 type OnboardingRewardState = {
@@ -697,8 +700,10 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     previousRouteScreenRef.current = routeScreen;
   }, [routeScreen]);
   const screen: Screen | null = experienceScreen ?? routeScreen;
-  const activeIncident = incidentStorage.activeEpisode;
-  const pendingIncidentReward = incidentStorage.pendingResolution;
+  // Preserve incident progress in storage while the feature is paused, but do
+  // not let that saved state alter Home, audio, navigation, or overlays.
+  const activeIncident = INCIDENTS_ENABLED ? incidentStorage.activeEpisode : null;
+  const pendingIncidentReward = INCIDENTS_ENABLED ? incidentStorage.pendingResolution : null;
   const activeIncidentId = activeIncident?.runId ?? null;
   const incidentTargetItemId = activeIncident?.targetItemId ?? null;
   const incidentTargetItem = useMemo(() => ITEMS.find((item) => item.id === incidentTargetItemId) ?? null, [incidentTargetItemId]);
@@ -707,9 +712,9 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const incidentResolutionPhase: IncidentResolutionPhase = pendingIncidentReward?.step ?? 'none';
   const cutInTargetItem = incidentTargetItem;
   const hasUnresolvedIncident = Boolean(activeIncident);
-  const incidentCutInActive = Boolean(incidentCutInVisible && appStarted && tutorialComplete && cutInTargetItem && !pendingIncidentReward);
-  const incidentEpisodeActive = screen === 'episode';
-  const incidentResolutionActive = Boolean(pendingIncidentReward && appStarted && storageReady && tutorialComplete);
+  const incidentCutInActive = Boolean(INCIDENTS_ENABLED && incidentCutInVisible && appStarted && tutorialComplete && cutInTargetItem && !pendingIncidentReward);
+  const incidentEpisodeActive = INCIDENTS_ENABLED && screen === 'episode';
+  const incidentResolutionActive = Boolean(INCIDENTS_ENABLED && pendingIncidentReward && appStarted && storageReady && tutorialComplete);
   const incidentExperienceActive = incidentCutInActive || incidentEpisodeActive || incidentResolutionActive;
   const appBaseIsolated = !appStarted || incidentExperienceActive || headerPopover !== null;
   const bgmMode = incidentResolutionPhase === 'returning'
@@ -719,7 +724,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const navigateTo = useCallback((nextScreen: Screen, cue: 'transition' | 'tab' | 'silent' = 'transition') => {
     if (nextScreen === screen) return;
     if (cue !== 'silent') playSfx(cue);
-    const topLevelRoute = nextScreen === 'home' ? '/' : nextScreen === 'collection' ? '/collection' : nextScreen === 'time' ? '/mobby-time' : nextScreen === 'casebook' ? '/stories' : null;
+    const topLevelRoute = nextScreen === 'home' ? '/' : nextScreen === 'collection' ? '/collection' : nextScreen === 'time' ? '/mobby-time' : nextScreen === 'trade' ? '/trade' : nextScreen === 'casebook' ? '/stories' : null;
     if (topLevelRoute) {
       setExperienceScreen(null);
       if (pathname !== topLevelRoute) router.navigate(topLevelRoute);
@@ -813,7 +818,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               targetItemIdForMobby: (mobbyId) => ITEMS.find((item) => ITEM_MOBBY_IDS[item.id] === mobbyId)?.id ?? null,
             });
             setIncidentStorage(decoded);
-            setIncidentCutInVisible(Boolean(decoded.activeEpisode && !decoded.activeEpisode.notification.pending && !decoded.activeEpisode.notification.cutInSeen));
+            setIncidentCutInVisible(Boolean(INCIDENTS_ENABLED && decoded.activeEpisode && !decoded.activeEpisode.notification.pending && !decoded.activeEpisode.notification.cutInSeen));
           } catch {
             setIncidentStorage(freshEpisodeStorage());
             setIncidentCutInVisible(false);
@@ -1167,6 +1172,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const resolutionRelationshipLabel = pendingIncidentReward ? incidentStorage.archive.relationships.find((entry) => entry.enemyId === pendingIncidentReward.enemyId && entry.mobbyId === pendingIncidentReward.targetMobbyId)?.label ?? '思いがけない名コンビ' : '';
 
   const startEpisodeById = useCallback(async (episodeId: EpisodeId, mode: 'automatic' | 'demo' | 'direct' = 'direct') => {
+    if (!INCIDENTS_ENABLED) return;
     const episode = getEpisode(episodeId);
     if (incidentResolutionPhase !== 'none' || !tutorialComplete || !episode) return;
     const episodeIndex = EPISODES.findIndex((candidate) => candidate.id === episode.id);
@@ -1205,6 +1211,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const triggerIncident = useCallback((mode: 'automatic' | 'demo' | 'direct' = 'automatic') => startEpisodeById(FEATURED_EPISODE_ID, mode), [startEpisodeById]);
 
   const openIncident = useCallback(() => {
+    if (!INCIDENTS_ENABLED) return;
     playSfx('tap');
     setIncidentCutInVisible(false);
     setCasebookInitialTab('active');
@@ -1249,7 +1256,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   }, [activeIncident, commitIncidentStorage, playSfx]);
 
   useEffect(() => {
-    if (!storageReady || !appStarted || !tutorialComplete || activeIncidentId || incidentResolutionPhase !== 'none') return;
+    if (!INCIDENTS_ENABLED || !storageReady || !appStarted || !tutorialComplete || activeIncidentId || incidentResolutionPhase !== 'none') return;
     const delay = 14000 + Math.floor(Math.random() * 12000);
     const timer = setTimeout(() => triggerIncident(), delay);
     return () => clearTimeout(timer);
@@ -1529,8 +1536,9 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
                 {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={owned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallPlacementId={wallPlacement && wallPlacement.variant !== 'plush' ? wallPlacement.placementId : undefined} onIncidentPress={openIncident} homeLayout={homeLayout} onCommitHomeLayout={commitHomeLayout} onMoveHomePlacement={moveHomeItem} onRemoveHomePlacement={hideHomeItem} onArrangeStart={haptics.medium} onArrangeMove={haptics.threshold} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'time' && headerPopover !== 'mobby-time' ? <MobbyTimeScreen flow={onboardingRewardActive ? 'onboarding' : 'daily'} today={today} todayVariant={effectiveTodayVariant} stage={effectiveMobbyTimeStage} reduceMotion={reduceMotion} onOpen={handleRewardOpen} onReveal={handleRewardReveal} onPlace={handleRewardPlace} onPlaced={handleRewardPlaced} secondsLeft={secondsLeft} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'trade' ? <TradeScreen collectibleInventory={owned} isHydrated={storageReady && daily.isHydrated} reduceMotion={reduceMotion} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
-                {screen === 'casebook' ? <IncidentCasebookScreen activeEpisode={casebookActiveCase} episodes={casebookEpisodes} relationships={casebookRelationships} initialTab={casebookInitialTab} onResume={resumeIncident} onRestart={restartIncident} onStart={() => triggerIncident('direct')} onPlayEpisode={playEpisodeFromCasebook} onClose={() => navigateTo('home')} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'casebook' ? <StoriesScreen entryNonce={tabEntryNonce} /> : null}
                 </ScreenTransition>
               </View>
               {wallPlacement && wallPlacement.variant !== 'plush' ? <WallPlacementFlight item={wallPlacement.item} variant={wallPlacement.variant} targetSlotIndex={homeLayout.wallSlots.indexOf(wallPlacement.placementId)} onComplete={completeWallPlacement} /> : null}
@@ -1583,7 +1591,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
                   secondsLeft={secondsLeft}
                 />
               </MobbyTimePopover> : null}
-              {appStarted && headerPopover === 'stories' ? <ShellDetailPopover
+              {INCIDENTS_ENABLED && appStarted && headerPopover === 'stories' ? <ShellDetailPopover
                 accessibilityLabel="関係性アルバム"
                 eyebrow="RELATIONSHIP ALBUM"
                 flush

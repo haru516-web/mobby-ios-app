@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 
+import { INCIDENTS_ENABLED } from '@/config/features';
 import { getEpisode } from '@/data/episodes/registry';
 import type { EpisodeId, PlaybackState } from '@/data/episodes/types';
 import { EpisodeScreen } from '@/screens/EpisodeScreen';
@@ -15,10 +16,10 @@ export default function StoryRoute() {
   const matchesActiveRun = Boolean(episode && shell.activeEpisode && shell.activeEpisode.episodeId === episode.id && shell.activeEpisodeData?.id === episode.id);
 
   useEffect(() => {
-    if (shell.isHydrated && !matchesActiveRun) router.replace('/stories');
+    if (!INCIDENTS_ENABLED || (shell.isHydrated && !matchesActiveRun)) router.replace('/stories');
   }, [matchesActiveRun, shell.isHydrated]);
 
-  if (!episode || !shell.activeEpisode || !matchesActiveRun) return null;
+  if (!INCIDENTS_ENABLED || !episode || !shell.activeEpisode || !matchesActiveRun) return null;
   const interrupt = async (playback: PlaybackState) => {
     if (leaving.current) return;
     leaving.current = true;

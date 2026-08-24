@@ -37,7 +37,7 @@ function ImageTabButton({ children, style, ...props }: BottomTabBarButtonProps) 
 }
 
 export default function TabLayout() {
-  const { hasUnresolvedEpisode, opening } = useMobbyAppShell();
+  const { opening } = useMobbyAppShell();
   return (
     <Tabs
       initialRouteName="index"
@@ -57,7 +57,7 @@ export default function TabLayout() {
       <Tabs.Screen name="collection" options={{ title: 'コレクション', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={COLLECTION_ICON} focused={focused} /> }} />
       <Tabs.Screen name="mobby-time" options={{ title: 'MOBBY TIME', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={MOBBY_TIME_ICON} focused={focused} /> }} />
       <Tabs.Screen name="trade" options={{ title: '交換', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarAccessibilityLabel: '交換', tabBarIcon: ({ focused }) => <TabIcon source={TRADE_ICON} focused={focused} compact /> }} />
-      <Tabs.Screen name="stories" options={{ title: '事件', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarAccessibilityLabel: hasUnresolvedEpisode ? '事件、未解決あり' : '事件', tabBarIcon: ({ focused }) => <TabIcon source={STORIES_ICON} focused={focused} compact badge={hasUnresolvedEpisode} /> }} />
+      <Tabs.Screen name="stories" options={{ title: 'ストーリー', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarAccessibilityLabel: 'ストーリー', tabBarIcon: ({ focused }) => <TabIcon source={STORIES_ICON} focused={focused} compact /> }} />
     </Tabs>
   );
 }
