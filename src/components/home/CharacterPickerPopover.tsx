@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Image, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 
 import { MobbyAssetButton } from '@/components/mobby-ui';
+import { BlackStarToggle } from '@/components/characters';
 import { Text } from '@/ui/layout/visualPrimitives';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 const CHARACTER_PICKER_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-character-picker-v1.png');
 const CHARACTER_PICKER_PANEL_ASPECT_RATIO = 950 / 1460;
@@ -13,6 +15,7 @@ export type CharacterPickerCharacter = {
   name: string;
   image: ImageSourcePropType;
   owned: boolean;
+  faction: 'mobby' | 'kuroboshi';
 };
 
 export function CharacterPickerPopover({ characters, selectedId, disabled, onConfirm, onClose, onUiTap }: {
@@ -24,10 +27,13 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
   onUiTap?: () => void;
 }) {
   const [draftId, setDraftId] = useState(selectedId);
+  const [showBlackStars, setShowBlackStars] = useState(false);
+  const { activeTheme } = useGachaTheme();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const availableHeight = Math.max(0, Math.min(viewportHeight * 0.82, viewportHeight - 48, 680));
   const panelWidth = Math.max(0, Math.min(viewportWidth - 32, 410, availableHeight * CHARACTER_PICKER_PANEL_ASPECT_RATIO));
   const panelHeight = panelWidth / CHARACTER_PICKER_PANEL_ASPECT_RATIO;
+  const visibleCharacters = characters.filter((character) => character.faction === (showBlackStars ? 'kuroboshi' : 'mobby'));
 
   useEffect(() => {
     setDraftId(selectedId);
@@ -46,7 +52,7 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable accessibilityLabel="キャラ選択を閉じる" accessibilityRole="button" onPress={close} style={styles.backdrop} />
       <View accessibilityViewIsModal accessibilityLabel="メインモビーのキャラ選択" style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
-      <ImageBackground accessible={false} imageStyle={[styles.panelImage, styles.backgroundImage]} resizeMode="cover" source={CHARACTER_PICKER_POPUP_BACKGROUND} style={styles.panelBackground}>
+      <ImageBackground accessible={false} imageStyle={[styles.panelImage, !activeTheme && styles.backgroundImage]} resizeMode={activeTheme ? 'stretch' : 'cover'} source={activeTheme?.assets.popup ?? CHARACTER_PICKER_POPUP_BACKGROUND} style={styles.panelBackground}>
       <View style={styles.panelContent}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
@@ -59,13 +65,25 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
         </Pressable>
       </View>
 
+      <BlackStarToggle
+        active={showBlackStars}
+        onChange={(active) => {
+          setShowBlackStars(active);
+          const candidates = characters.filter((character) => character.faction === (active ? 'kuroboshi' : 'mobby'));
+          const next = candidates.find((character) => character.id === draftId) ?? candidates.find((character) => character.owned) ?? candidates[0];
+          if (next) setDraftId(next.id);
+        }}
+        style={styles.blackStarToggle}
+        testID="character-picker-black-star-toggle"
+      />
+
       <ScrollView
         contentContainerStyle={styles.grid}
         nestedScrollEnabled
         showsVerticalScrollIndicator
         style={styles.characterScroll}
       >
-        {characters.map((character) => {
+        {visibleCharacters.map((character) => {
           const selected = character.id === draftId;
           const unavailable = disabled || !character.owned;
           return <Pressable
@@ -81,7 +99,7 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
             style={({ pressed }) => [styles.character, unavailable && styles.characterUnavailable, pressed && styles.characterPressed]}
           >
             <View style={[styles.characterImageWrap, selected && styles.characterImageWrapSelected]}>
-              <Image accessible={false} source={character.image} resizeMode="contain" style={styles.characterImage} />
+              <Image accessible={false} source={character.image} resizeMode="contain" style={[styles.characterImage, !character.owned && character.faction === 'kuroboshi' && styles.characterSilhouette]} />
               {selected ? <Text pointerEvents="none" style={styles.selectedMark}>✓</Text> : null}
             </View>
             <Text numberOfLines={1} style={[styles.characterName, selected && styles.characterNameSelected]}>{character.name}</Text>
@@ -136,6 +154,7 @@ const styles = StyleSheet.create({
   subtitle: { color: '#8A6C79', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 3 },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#7E4C60', fontSize: 30, lineHeight: 32, fontWeight: '900' },
+  blackStarToggle: { alignSelf: 'flex-end', minWidth: 88, minHeight: 36, marginRight: 29, marginTop: -7, marginBottom: 2, transform: [{ scale: 0.86 }] },
   pressed: { opacity: 0.68, transform: [{ scale: 0.94 }] },
   characterScroll: { flex: 1, minHeight: 0 },
   grid: {
@@ -162,6 +181,7 @@ const styles = StyleSheet.create({
   },
   characterImageWrapSelected: { borderColor: '#ED8A86' },
   characterImage: { width: '94%', height: '94%' },
+  characterSilhouette: { tintColor: '#17131D', opacity: 0.72 },
   selectedMark: {
     position: 'absolute',
     top: 0,

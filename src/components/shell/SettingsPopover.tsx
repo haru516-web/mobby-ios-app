@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 const SETTINGS_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-settings-v1.png');
@@ -27,6 +28,7 @@ export function SettingsPopover({
   onSoundEnabledChange: (enabled: boolean) => void;
   onClose: () => void;
 }) {
+  const { activeTheme } = useGachaTheme();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const availableHeight = Math.max(0, Math.min(viewportHeight * 0.82, viewportHeight - 48, 680));
   const panelWidth = Math.max(0, Math.min(viewportWidth - 32, 410, availableHeight * SETTINGS_PANEL_ASPECT_RATIO));
@@ -43,9 +45,9 @@ export function SettingsPopover({
         <View style={styles.panelClip}>
           <ImageBackground
             accessible={false}
-            imageStyle={[styles.panelImage, styles.backgroundImage]}
+            imageStyle={[styles.panelImage, !activeTheme && styles.backgroundImage]}
             resizeMode="stretch"
-            source={SETTINGS_POPUP_BACKGROUND}
+            source={activeTheme?.assets.popup ?? SETTINGS_POPUP_BACKGROUND}
             style={styles.panelBackground}
           >
             <View style={styles.panelContent}>

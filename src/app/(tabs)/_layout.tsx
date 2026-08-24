@@ -5,14 +5,13 @@ import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 import { useMobbyAppShell } from '@/state/MobbyAppShell';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 const BOTTOM_STRIP = require('../../../assets/home-ui/panels/nav-backdrop-v4.png');
 const HOME_ICON = require('../../../assets/home-ui/icons/nav-home-v1.png');
 const COLLECTION_ICON = require('../../../assets/home-ui/icons/nav-collection-v1.png');
 const MOBBY_TIME_ICON = require('../../../assets/home-ui/icons/nav-time-v1.png');
-// The exchange arrows are an existing transparent icon asset.  Keep it in the
-// same image-driven tab treatment as the other navigation icons.
-const TRADE_ICON = require('../../../assets/home-ui/icons/nav-trade-v1.png');
+const GACHA_ICON = require('../../../assets/home-ui/icons/nav-gacha-v1.png');
 const STORIES_ICON = require('../../../assets/home-ui/icons/nav-stories-v1.png');
 
 const ACTIVE_TINT = '#705178';
@@ -37,27 +36,34 @@ function ImageTabButton({ children, style, ...props }: BottomTabBarButtonProps) 
 }
 
 export default function TabLayout() {
-  const { opening } = useMobbyAppShell();
+  const { opening, resetMobbyTimeHub } = useMobbyAppShell();
+  const { activeTheme } = useGachaTheme();
+  const activeTint = activeTheme?.character.accent ?? ACTIVE_TINT;
   return (
     <Tabs
       initialRouteName="index"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: ACTIVE_TINT,
+        tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: INACTIVE_TINT,
         tabBarShowLabel: true,
         tabBarStyle: opening ? styles.tabBarHidden : styles.tabBar,
         tabBarItemStyle: styles.tabBarItem,
         tabBarIconStyle: styles.tabBarIcon,
         tabBarLabelStyle: styles.tabBarLabel,
-        tabBarBackground: () => <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no-hide-descendants" source={BOTTOM_STRIP} resizeMode="stretch" style={styles.tabBarBackground} />,
+        tabBarBackground: () => <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no-hide-descendants" source={activeTheme?.assets.navigation ?? BOTTOM_STRIP} resizeMode="stretch" style={styles.tabBarBackground} />,
         sceneStyle: { backgroundColor: 'transparent' },
       }}>
       <Tabs.Screen name="index" options={{ title: 'ホーム', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={HOME_ICON} focused={focused} /> }} />
       <Tabs.Screen name="collection" options={{ title: 'コレクション', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={COLLECTION_ICON} focused={focused} /> }} />
-      <Tabs.Screen name="mobby-time" options={{ title: 'MOBBY TIME', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={MOBBY_TIME_ICON} focused={focused} /> }} />
-      <Tabs.Screen name="trade" options={{ title: '交換', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarAccessibilityLabel: '交換', tabBarIcon: ({ focused }) => <TabIcon source={TRADE_ICON} focused={focused} compact /> }} />
+      <Tabs.Screen
+        name="mobby-time"
+        listeners={{ tabPress: resetMobbyTimeHub }}
+        options={{ title: 'MOBBY TIME', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={MOBBY_TIME_ICON} focused={focused} /> }}
+      />
+      <Tabs.Screen name="gacha" options={{ title: 'ガチャ', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarAccessibilityLabel: 'ガチャ', tabBarIcon: ({ focused }) => <TabIcon source={GACHA_ICON} focused={focused} compact /> }} />
       <Tabs.Screen name="stories" options={{ title: 'ストーリー', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarAccessibilityLabel: 'ストーリー', tabBarIcon: ({ focused }) => <TabIcon source={STORIES_ICON} focused={focused} compact /> }} />
+      <Tabs.Screen name="trade" options={{ href: null }} />
     </Tabs>
   );
 }

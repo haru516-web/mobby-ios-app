@@ -3,6 +3,8 @@ import { Animated, Easing, Image, ImageBackground, Pressable, ScrollView, StyleS
 import { useIsFocused } from '@react-navigation/native';
 
 import { MobbyAssetButton } from '@/components/mobby-ui';
+import { BlackStarToggle } from '@/components/characters';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import {
   COLLECTIBLE_VARIANTS,
   ITEMS,
@@ -15,8 +17,9 @@ import {
 } from '@/data/collectibles';
 import { Text } from '@/ui/layout/visualPrimitives';
 
-const TRADE_BOARD = require('../../assets/backgrounds/trade-exchange-board.png');
+const TRADE_BOARD = require('../../assets/backgrounds/trade-exchange-board-transparent-v1.png');
 const TRADE_ICON = require('../../assets/home-ui/icons/nav-trade-v1.png');
+const RESELECT_BUTTON = require('../../assets/generated-ui/button-exchange-reselect-v1.png');
 
 const QR_PATTERN = [
   '1111111010101111111', '1000001011101000001', '1011101010101011101',
@@ -53,23 +56,26 @@ type TradeScreenProps = {
 };
 
 export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: TradeScreenProps) {
+  const { activeTheme } = useGachaTheme();
   const focused = useIsFocused();
   const [stageSize, setStageSize] = useState({ width: MAX_BOARD_WIDTH + 16, height: 760 });
   const [variant, setVariant] = useState<CollectibleVariant>('key-normal');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [showBlackStars, setShowBlackStars] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
   const boardDrop = useRef(new Animated.Value(0)).current;
 
-  const ownedOptions = useMemo(() => COLLECTIBLE_VARIANTS.flatMap((candidateVariant) => ITEMS
+  const allOwnedOptions = useMemo(() => COLLECTIBLE_VARIANTS.flatMap((candidateVariant) => ITEMS
     .filter((item) => ownedCollectibleCount(collectibleInventory, item.id, candidateVariant) > 0)
     .map((item) => ({
       item,
       variant: candidateVariant,
       count: ownedCollectibleCount(collectibleInventory, item.id, candidateVariant),
     }))), [collectibleInventory]);
+  const ownedOptions = allOwnedOptions.filter((option) => option.item.faction === (showBlackStars ? 'kuroboshi' : 'mobby'));
   const filtered = ownedOptions.filter((option) => option.variant === variant);
-  const selected = ownedOptions.find((option) => `${option.item.id}:${option.variant}` === selectedKey) ?? ownedOptions[0];
+  const selected = allOwnedOptions.find((option) => `${option.item.id}:${option.variant}` === selectedKey) ?? allOwnedOptions[0];
 
   const availableWidth = Math.max(1, stageSize.width - 16);
   const availableHeight = Math.max(1, stageSize.height - TAB_BAR_CLEARANCE - 8);
@@ -97,8 +103,10 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
   const boardScale = boardDrop.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
 
   const openPicker = () => {
-    setVariant(selected?.variant ?? 'key-normal');
-    setSelectedKey(selected ? `${selected.item.id}:${selected.variant}` : null);
+    setShowBlackStars(false);
+    const firstMobby = allOwnedOptions.find((option) => option.item.faction !== 'kuroboshi');
+    setVariant(firstMobby?.variant ?? 'key-normal');
+    setSelectedKey(firstMobby ? `${firstMobby.item.id}:${firstMobby.variant}` : null);
     setPickerOpen(true);
   };
 
@@ -119,7 +127,7 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
         height: boardHeight,
         transform: [{ translateY: boardTranslateY }, { scale: boardScale }],
       }]}>
-        <ImageBackground imageStyle={styles.boardImage} source={TRADE_BOARD} resizeMode="contain" style={styles.board}>
+        <ImageBackground imageStyle={styles.boardImage} source={activeTheme?.assets.card ?? TRADE_BOARD} resizeMode={activeTheme ? 'stretch' : 'contain'} style={styles.board}>
           {pickerOpen ? <>
             <View style={styles.topPanel}>
               <Text style={styles.eyebrow}>CHOOSE YOUR ITEM</Text>
@@ -141,6 +149,20 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
                   <Text style={[styles.variantText, value === variant && styles.variantTextActive]}>{shortVariantLabel(value)}</Text>
                 </Pressable>)}
               </View>
+              <BlackStarToggle
+                active={showBlackStars}
+                onChange={(active) => {
+                  setShowBlackStars(active);
+                  const next = allOwnedOptions.find((option) => option.item.faction === (active ? 'kuroboshi' : 'mobby') && option.variant === variant)
+                    ?? allOwnedOptions.find((option) => option.item.faction === (active ? 'kuroboshi' : 'mobby'));
+                  if (next) {
+                    setVariant(next.variant);
+                    setSelectedKey(`${next.item.id}:${next.variant}`);
+                  } else setSelectedKey(null);
+                }}
+                style={styles.blackStarToggle}
+                testID="trade-black-star-toggle"
+              />
               <Text style={styles.pickerHelp}>横にスライドして、交換するグッズを選んでね</Text>
             </View>
             <View style={styles.bottomPanel}>
@@ -220,8 +242,8 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
                   <Text style={styles.selectedCount}>所持 ×{selected.count}</Text>
                 </View>
               </View> : <View style={styles.emptySelection}><Text style={styles.empty}>{isHydrated ? '交換できるグッズはまだありません' : 'グッズを確認しています'}</Text></View>}
-              <MobbyAssetButton accessibilityLabel="交換するグッズを選び直す" tone="cream" disabled={!ownedOptions.length} onPress={openPicker} style={styles.chooseButton} contentStyle={styles.chooseButtonContent}>
-                <Text style={styles.secondaryText}>交換する子を選び直す</Text>
+              <MobbyAssetButton accessibilityLabel="交換するモビーを選び直す" backgroundSource={RESELECT_BUTTON} backgroundResizeMode="stretch" disabled={!allOwnedOptions.length} onPress={openPicker} style={styles.chooseButton} contentStyle={styles.chooseButtonContent}>
+                <Text style={styles.secondaryText}>交換するモビーを選び直す</Text>
               </MobbyAssetButton>
             </View>
           </>}
@@ -269,6 +291,7 @@ const styles = StyleSheet.create({
   primaryText: { color: '#FFF9EC', fontSize: 13, lineHeight: 18, fontWeight: '900', textAlign: 'center' },
   secondaryText: { color: '#704B5F', fontSize: 13, lineHeight: 18, fontWeight: '900', textAlign: 'center' },
   variantTabs: { flex: 1, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 2 },
+  blackStarToggle: { minWidth: 82, minHeight: 34, height: 34, paddingHorizontal: 10, paddingVertical: 3, transform: [{ scale: 0.82 }] },
   variantTab: { width: 66, height: 66, borderBottomWidth: 3, borderBottomColor: 'transparent', alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
   variantTabCompact: { width: 58, height: 58 },
   variantTabSelected: { borderBottomColor: '#A64F62' },

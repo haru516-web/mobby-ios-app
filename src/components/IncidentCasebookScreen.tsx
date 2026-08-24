@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { MobbyAssetButton, MobbyAssetSelectable } from '@/components/mobby-ui';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 export type IncidentCasebookTab = 'active' | 'episodes' | 'relationships';
@@ -65,6 +66,7 @@ export function IncidentCasebookScreen({
   entryNonce = 0,
   embedded = false,
 }: IncidentCasebookScreenProps) {
+  const { activeTheme } = useGachaTheme();
   const [tab, setTab] = useState(initialTab);
   const [episodeIndex, setEpisodeIndex] = useState(0);
   const [relationshipIndex, setRelationshipIndex] = useState(0);
@@ -170,8 +172,8 @@ export function IncidentCasebookScreen({
     <ImageBackground
       accessible={false}
       imageStyle={styles.backgroundImage}
-      resizeMode={embedded ? 'cover' : 'contain'}
-      source={CASEBOOK_BACKGROUND}
+      resizeMode={activeTheme ? 'stretch' : embedded ? 'cover' : 'contain'}
+      source={activeTheme?.assets.appBackground ?? CASEBOOK_BACKGROUND}
       style={[styles.background, embedded ? styles.backgroundEmbedded : backgroundSize]}
     >
       {embedded ? null : <View style={styles.header}>
@@ -186,7 +188,7 @@ export function IncidentCasebookScreen({
         </MobbyAssetSelectable>)}
       </View>
       <View onLayout={handleStageLayout} style={styles.stage}>
-        <ImageBackground accessible={false} imageStyle={styles.frameImage} resizeMode="contain" source={CASEBOOK_FRAME} style={[styles.frame, frameSize]}>
+        <ImageBackground accessible={false} imageStyle={styles.frameImage} resizeMode={activeTheme ? 'stretch' : 'contain'} source={activeTheme?.assets.popup ?? CASEBOOK_FRAME} style={[styles.frame, frameSize]}>
           <View style={[styles.frameContent, compact && styles.frameContentCompact]}>
             {tab === 'active' ? activeContent : null}
             {tab === 'episodes' ? episodeContent : null}

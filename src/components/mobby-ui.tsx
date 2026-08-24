@@ -3,6 +3,7 @@ import { Image, ImageBackground, Pressable, StyleSheet, View, type Accessibility
 
 import { Text } from '@/ui/layout/visualPrimitives';
 import { OutlinedText } from '@/ui/text/OutlinedText';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 export type MobbyAssetSurfaceVariant = 'paper' | 'paperTall' | 'modalPortrait' | 'statusWide' | 'notice' | 'tile' | 'tileSelected' | 'dialogue' | 'darkCase' | 'darkCaseTall' | 'darkTopbar' | 'labelPill';
 
@@ -110,6 +111,12 @@ export function MobbyAssetButton({
   contentStyle?: StyleProp<ViewStyle>;
   disabled?: boolean;
 }) {
+  const { activeTheme } = useGachaTheme();
+  const themedBackground = activeTheme?.assets[tone === 'cream' ? 'buttonSecondary' : 'buttonPrimary'];
+  // An equipped full-app theme owns the button skin even when a legacy caller
+  // supplied a one-off background. Without this precedence, old screens kept
+  // their fixed assets and broke the promised app-wide dress-up.
+  const resolvedBackground = themedBackground ?? backgroundSource ?? ASSET_BUTTON_SOURCES[tone];
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
@@ -126,8 +133,8 @@ export function MobbyAssetButton({
     >
       <Image
         accessible={false}
-        source={backgroundSource ?? ASSET_BUTTON_SOURCES[tone]}
-        resizeMode={backgroundResizeMode ?? (backgroundSource ? 'stretch' : 'cover')}
+        source={resolvedBackground}
+        resizeMode={themedBackground ? 'stretch' : backgroundResizeMode ?? (backgroundSource ? 'stretch' : 'cover')}
         style={styles.assetButtonImage}
       />
       <View style={[styles.assetButtonContent, contentStyle]}>{children}</View>
@@ -154,6 +161,8 @@ export function MobbyAssetIconButton({
   badge?: ReactNode;
   disabled?: boolean;
 }) {
+  const { activeTheme } = useGachaTheme();
+  const themedSource = activeTheme?.assets.buttonSecondary;
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
@@ -167,8 +176,8 @@ export function MobbyAssetIconButton({
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        resizeMode="cover"
-        source={HEADER_CIRCLE_PAPER}
+        resizeMode={themedSource ? 'stretch' : 'cover'}
+        source={themedSource ?? HEADER_CIRCLE_PAPER}
         style={styles.iconButtonSurface}
       >
         <Image accessible={false} source={icon} resizeMode="contain" style={[styles.iconButtonImage, iconStyle]} />
@@ -207,12 +216,14 @@ export function MobbyAssetSurface({
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
   testID?: string;
 }) {
+  const { activeTheme } = useGachaTheme();
+  const themedSource = activeTheme?.assets[variant === 'modalPortrait' ? 'popup' : 'card'];
   return (
     <View accessible={accessible} accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole} accessibilityState={accessibilityState} accessibilityValue={accessibilityValue} accessibilityLiveRegion={accessibilityLiveRegion} accessibilityViewIsModal={accessibilityViewIsModal} pointerEvents={pointerEvents} testID={testID} style={style}>
       <ImageBackground
         accessible={false}
-        resizeMode={surfaceResizeMode(variant)}
-        source={SURFACE_SOURCES[variant]}
+        resizeMode={themedSource ? 'stretch' : surfaceResizeMode(variant)}
+        source={themedSource ?? SURFACE_SOURCES[variant]}
         style={[styles.assetSurface, contentStyle]}
       >
         {children}
@@ -248,6 +259,9 @@ export function MobbyAssetSelectable({
   onPressIn?: PressableProps['onPressIn'];
   onPressOut?: PressableProps['onPressOut'];
 }) {
+  const { activeTheme } = useGachaTheme();
+  const resolvedVariant = variant === 'tile' && selected ? 'tileSelected' : variant;
+  const themedSource = activeTheme?.assets[resolvedVariant === 'modalPortrait' ? 'popup' : 'card'];
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
@@ -263,8 +277,8 @@ export function MobbyAssetSelectable({
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        resizeMode={surfaceResizeMode(variant === 'tile' && selected ? 'tileSelected' : variant)}
-        source={SURFACE_SOURCES[variant === 'tile' && selected ? 'tileSelected' : variant]}
+        resizeMode={themedSource ? 'stretch' : surfaceResizeMode(resolvedVariant)}
+        source={themedSource ?? SURFACE_SOURCES[resolvedVariant]}
         style={[styles.assetSurface, contentStyle]}
       >
         {children}

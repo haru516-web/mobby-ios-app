@@ -13,6 +13,8 @@ import {
 import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
 import { COMIC_CHARACTER_ORDER, COMIC_VOLUMES, getComicsForCharacter, type ComicVolumeId } from '@/data/comics';
 import { getMobby, type MobbyId } from '@/data/mobies';
+import { IncidentComicsScreen, type IncidentComicsScreenProps } from '@/screens/IncidentComicsScreen';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 const STORY_BOARD = require('../../assets/backgrounds/trade-exchange-board.png');
@@ -70,10 +72,14 @@ function persistComicProgress(progress: ComicViewedProgress) {
 
 type StoriesScreenProps = {
   entryNonce?: number;
+  onBlackStarUnlocked?: IncidentComicsScreenProps['onBlackStarUnlocked'];
 };
 
-export function StoriesScreen({ entryNonce = 0 }: StoriesScreenProps) {
+export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesScreenProps) {
+  const { activeTheme } = useGachaTheme();
   const [rootSize, setRootSize] = useState({ width: 455, height: 782 });
+  const [section, setSection] = useState<'comic' | 'incident'>('comic');
+  const [incidentPlayerVisible, setIncidentPlayerVisible] = useState(false);
   const [characterId, setCharacterId] = useState<MobbyId>('mobichi');
   const [readerIndex, setReaderIndex] = useState<number | null>(null);
   const [viewedByCharacter, setViewedByCharacter] = useState<ComicViewedProgress>(initialComicProgress);
@@ -82,9 +88,12 @@ export function StoriesScreen({ entryNonce = 0 }: StoriesScreenProps) {
   const comics = useMemo(() => getComicsForCharacter(characterId), [characterId]);
   const selectedComic = readerIndex === null ? null : comics[readerIndex] ?? null;
   const selectedVolume = readerIndex === null ? null : COMIC_VOLUMES[readerIndex] ?? null;
-  const viewedVolumes = viewedByCharacter[characterId] ?? [];
 
-  useEffect(() => setReaderIndex(null), [entryNonce]);
+  useEffect(() => {
+    setReaderIndex(null);
+    setSection('comic');
+    setIncidentPlayerVisible(false);
+  }, [entryNonce]);
   useEffect(() => {
     let cancelled = false;
     void comicProgressWriteQueue
@@ -124,9 +133,9 @@ export function StoriesScreen({ entryNonce = 0 }: StoriesScreenProps) {
   };
 
   const isComicUnlocked = (index: number) => {
-    if (index === 0) return true;
-    const previous = comics[index - 1];
-    return index > 0 && Boolean(previous && viewedVolumes.includes(previous.volumeId));
+    // Mission linkage is intentionally unset for now. Keep every authored
+    // volume available while still recording views for a future mission gate.
+    return index >= 0 && index < comics.length;
   };
 
   const openComic = (index: number) => {
@@ -138,6 +147,43 @@ export function StoriesScreen({ entryNonce = 0 }: StoriesScreenProps) {
     setViewedByCharacter(nextProgress);
     persistComicProgress(nextProgress);
   };
+
+  if (section === 'incident') {
+    return <View style={styles.incidentSectionRoot}>
+      {!incidentPlayerVisible ? <MobbyAssetSurface
+        pointerEvents="box-none"
+        variant="labelPill"
+        style={styles.incidentSectionTabsSurface}
+        contentStyle={styles.incidentSectionTabsContent}
+      >
+        <View accessibilityLabel="ストーリーの種類" accessibilityRole="tablist" style={styles.incidentSectionTabs}>
+          <Pressable
+            accessibilityLabel="4コマ漫画"
+            accessibilityRole="tab"
+            accessibilityState={{ selected: false }}
+            onPress={() => setSection('comic')}
+            style={({ pressed }) => [styles.incidentSectionTab, pressed && styles.pressed]}
+          >
+            <Text style={styles.incidentSectionTabText}>4コマ漫画</Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="事件"
+            accessibilityRole="tab"
+            accessibilityState={{ selected: true }}
+            style={({ pressed }) => [styles.incidentSectionTab, styles.incidentSectionTabActive, pressed && styles.pressed]}
+          >
+            <Text style={[styles.incidentSectionTabText, styles.incidentSectionTabTextActive]}>事件</Text>
+          </Pressable>
+        </View>
+      </MobbyAssetSurface> : null}
+      <IncidentComicsScreen
+        entryNonce={entryNonce}
+        onBlackStarUnlocked={onBlackStarUnlocked}
+        onPlayerVisibilityChange={setIncidentPlayerVisible}
+        style={styles.incidentSectionScreen}
+      />
+    </View>;
+  }
 
   if (selectedComic && selectedVolume && readerIndex !== null) {
     const first = readerIndex === 0;
@@ -213,8 +259,8 @@ export function StoriesScreen({ entryNonce = 0 }: StoriesScreenProps) {
     <ImageBackground
       accessible={false}
       imageStyle={styles.boardImage}
-      resizeMode="contain"
-      source={STORY_BOARD}
+      resizeMode={activeTheme ? 'stretch' : 'contain'}
+      source={activeTheme?.assets.card ?? STORY_BOARD}
       style={[styles.board, { width: boardWidth, height: boardHeight }]}
     >
       <View style={styles.topPanel}>
@@ -229,22 +275,20 @@ export function StoriesScreen({ entryNonce = 0 }: StoriesScreenProps) {
             accessibilityLabel="4コマ漫画"
             accessibilityRole="tab"
             accessibilityState={{ selected: true }}
+            onPress={() => setSection('comic')}
             style={({ pressed }) => [styles.sectionTab, pressed && styles.pressed]}
           >
             <Text style={[styles.sectionTabText, styles.sectionTabTextActive, compact && styles.sectionTabTextCompact]}>4コマ漫画</Text>
             <View style={styles.sectionTabUnderline} />
           </Pressable>
           <Pressable
-            accessibilityLabel="事件、準備中"
+            accessibilityLabel="事件"
             accessibilityRole="tab"
-            accessibilityState={{ disabled: true, selected: false }}
-            disabled
-            style={styles.sectionTab}
+            accessibilityState={{ selected: false }}
+            onPress={() => setSection('incident')}
+            style={({ pressed }) => [styles.sectionTab, pressed && styles.pressed]}
           >
-            <View style={styles.disabledTabLabel}>
-              <Text style={[styles.sectionTabText, compact && styles.sectionTabTextCompact]}>事件</Text>
-              <Text style={[styles.soon, compact && styles.soonCompact]}>準備中</Text>
-            </View>
+            <Text style={[styles.sectionTabText, compact && styles.sectionTabTextCompact]}>事件</Text>
           </Pressable>
         </View>
         <ScrollView
@@ -321,6 +365,15 @@ export function StoriesScreen({ entryNonce = 0 }: StoriesScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  incidentSectionRoot: { flex: 1, minHeight: 0 },
+  incidentSectionScreen: { flex: 1, minHeight: 0 },
+  incidentSectionTabsSurface: { width: 226, height: 42, alignSelf: 'center', marginTop: 5, marginBottom: -3, zIndex: 5, overflow: 'hidden' },
+  incidentSectionTabsContent: { minHeight: 42, paddingHorizontal: 5, paddingVertical: 4 },
+  incidentSectionTabs: { flex: 1, flexDirection: 'row', gap: 4 },
+  incidentSectionTab: { flex: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  incidentSectionTabActive: { backgroundColor: '#8C667F' },
+  incidentSectionTabText: { color: '#876C79', fontSize: 10, lineHeight: 13, fontWeight: '900' },
+  incidentSectionTabTextActive: { color: '#FFF8EA' },
   root: { flex: 1, minHeight: 0, paddingHorizontal: 7, paddingBottom: TAB_BAR_CLEARANCE, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   board: { position: 'relative', borderRadius: 30, overflow: 'hidden' },
   boardImage: { borderRadius: 30 },

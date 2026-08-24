@@ -4,13 +4,16 @@ import { AccessibilityInfo, Animated, Easing, Image, ImageBackground, PanRespond
 
 import { CharacterPickerPopover, type CharacterPickerCharacter } from '@/components/home/CharacterPickerPopover';
 import { HomeInventoryTray } from '@/components/home/HomeInventoryTray';
+import { HomeTeaseTools, type HomeTeaseToolSelection } from '@/components/home/HomeTeaseTools';
 import { MobbyIdleMotion } from '@/components/mobby';
 import { MobbyAssetButton } from '@/components/mobby-ui';
 import { PullableMobby } from '@/components/mobby/PullableMobby';
 import { ReactionCollectionPopover } from '@/components/home/ReactionCollectionPopover';
-import { EMPTY_OWNED, ITEM_MOBBY_IDS, collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectibleVariant, type Item } from '@/data/collectibles';
-import { getMobby, type MobbyId } from '@/data/mobies';
-import { ALL_REACTION_IDS, normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY } from '@/data/reactionCollection';
+import { EMPTY_OWNED, ITEM_ENEMY_IDS, ITEM_MOBBY_IDS, collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectibleVariant, type Item } from '@/data/collectibles';
+import { ALL_REACTION_IDS, REACTION_STICKERS, normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY, type ReactionSticker } from '@/data/reactionCollection';
+import { getCharacterProfile, toBlackStarCharacterId } from '@/domain/characters/roster';
+import type { CharacterId } from '@/domain/characters/types';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import {
   HOME_SHELF_SLOT_COUNT,
   HOME_WALL_SLOT_COUNT,
@@ -213,6 +216,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   onDailyReaction?: (reactionId: string) => void;
   entryNonce?: number;
 }) {
+  const { activeTheme } = useGachaTheme();
   const { height } = useAppLayout();
   const compact = height < 780;
   const [roomSize, setRoomSize] = useState({ width: 440, height: 646 });
@@ -224,12 +228,19 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   const [placementSelection, setPlacementSelection] = useState<HomePlacementId | null>(null);
   const [dragSession, setDragSession] = useState<HomeDragSession | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
-  const selectedMobby = getMobby(ITEM_MOBBY_IDS[selected.id] ?? 'mobichi');
+  const selectedCharacterId: CharacterId = ITEM_ENEMY_IDS[selected.id]
+    ? toBlackStarCharacterId(ITEM_ENEMY_IDS[selected.id])
+    : ITEM_MOBBY_IDS[selected.id] ?? 'mobichi';
+  const selectedCharacter = getCharacterProfile(selectedCharacterId);
   const [characterPickerOpen, setCharacterPickerOpen] = useState(false);
   const [reactionBookOpen, setReactionBookOpen] = useState(false);
-  const [reactionTabId, setReactionTabId] = useState<MobbyId>(selectedMobby.id);
+  const [reactionTabId, setReactionTabId] = useState<CharacterId>(selectedCharacterId);
   const [collectedReactionIds, setCollectedReactionIds] = useState<string[]>(() => __DEV__ ? [...ALL_REACTION_IDS] : []);
+  const [activeTeaseTool, setActiveTeaseTool] = useState<HomeTeaseToolSelection | null>(null);
+  const [activeTeaseReaction, setActiveTeaseReaction] = useState<ReactionSticker | null>(null);
   const entryMotion = useRef(new Animated.Value(0)).current;
+  const teaseToolMotion = useRef(new Animated.Value(0)).current;
+  const teaseToolAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
   const entryPlayedRef = useRef<string | null>(null);
   const entryAnimationFinishedRef = useRef(false);
   const keySwingsRef = useRef<Record<string, HomeKeySwing>>({});
@@ -257,8 +268,8 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   homeWallPlacementsRef.current = renderedWallPlacements;
   homeOwnedRef.current = owned;
   useEffect(() => {
-    setReactionTabId(selectedMobby.id);
-  }, [selectedMobby.id]);
+    setReactionTabId(selectedCharacterId);
+  }, [selectedCharacterId]);
   useEffect(() => {
     if (__DEV__) {
       setCollectedReactionIds([...ALL_REACTION_IDS]);
@@ -286,6 +297,32 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
       return next;
     });
   }, [onDailyReaction]);
+  const useTeaseTool = useCallback((tool: HomeTeaseToolSelection) => {
+    if (busy || editing || !dailyHydrated) return;
+    teaseToolAnimationRef.current?.stop();
+    teaseToolMotion.setValue(0);
+    setActiveTeaseTool(tool);
+    setBusy(true);
+    onInteract('ほっぺ');
+    const reactionEntry = REACTION_STICKERS[selectedCharacterId]?.[tool.kind === 'poke' ? 1 : 9];
+    setActiveTeaseReaction(reactionEntry ?? null);
+    if (reactionEntry) collectReaction(reactionEntry.id);
+    const animation = Animated.timing(teaseToolMotion, {
+      toValue: 1,
+      duration: reduceMotion ? 620 : tool.kind === 'poke' ? 980 : 1320,
+      easing: Easing.linear,
+      useNativeDriver: typeof document === 'undefined',
+    });
+    teaseToolAnimationRef.current = animation;
+    animation.start(() => {
+      teaseToolAnimationRef.current = null;
+      teaseToolMotion.setValue(0);
+      setActiveTeaseTool(null);
+      setActiveTeaseReaction(null);
+      setBusy(false);
+    });
+  }, [busy, collectReaction, dailyHydrated, editing, onInteract, reduceMotion, selectedCharacterId, teaseToolMotion]);
+  useEffect(() => () => teaseToolAnimationRef.current?.stop(), []);
   const registerKeySwing = useCallback((id: string, swing: HomeKeySwing) => {
     keySwingsRef.current[id] = swing;
     return () => {
@@ -366,6 +403,38 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
       swingTimers.forEach((timer) => clearTimeout(timer));
     };
   }, [dailyHydrated, entryMotion, entryNonce, homeEntrySignature, homeLayoutReady, reduceMotion]);
+
+  // Reuse the clearly visible screen-entry jump at irregular intervals. The
+  // older idle gestures remain as ambient detail, but this motion is large
+  // enough to read on-device and intentionally affects only the main character.
+  useEffect(() => {
+    if (!dailyHydrated || !homeLayoutReady || busy || editing) return undefined;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let animation: Animated.CompositeAnimation | undefined;
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        entryMotion.stopAnimation();
+        entryMotion.setValue(0);
+        animation = Animated.timing(entryMotion, {
+          toValue: 1,
+          duration: reduceMotion ? 900 : 2200,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: typeof document === 'undefined',
+        });
+        animation.start(({ finished }) => {
+          if (finished && !cancelled) schedule();
+        });
+      }, (reduceMotion ? 12000 : 7000) + Math.random() * 7000);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      animation?.stop();
+    };
+  }, [busy, dailyHydrated, editing, entryMotion, entryNonce, homeLayoutReady, reduceMotion]);
 
   const setCurrentDragSession = useCallback((next: HomeDragSession | null) => {
     dragSessionRef.current = next;
@@ -503,7 +572,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   return <View style={styles.homeScreenBackground}>
     <View ref={roomRef} style={styles.homeRoom} onLayout={handleLayout}>
       <Pressable accessibilityLabel={editing ? '並べ替えを完了' : '長押しして並べ替え'} delayLongPress={440} onLongPress={() => beginEditing()} onPress={editing ? finishEditing : undefined} style={styles.homeArrangeBackgroundTarget} />
-      <MobbyAssetButton backgroundSource={HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" accessibilityLabel={editing ? '並べ替えを終了' : '壁と棚を並べ替え'} accessibilityState={{ expanded: editing }} onPress={editing ? finishEditing : () => beginEditing()} style={styles.homeReorderButton} contentStyle={styles.homeReorderButtonContent}>
+      <MobbyAssetButton backgroundSource={activeTheme ? undefined : HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" accessibilityLabel={editing ? '並べ替えを終了' : '壁と棚を並べ替え'} accessibilityState={{ expanded: editing }} onPress={editing ? finishEditing : () => beginEditing()} style={styles.homeReorderButton} contentStyle={styles.homeReorderButtonContent}>
         <Text style={[styles.homeReorderButtonText, editing && styles.homeReorderButtonTextActive]}>{editing ? '完了' : '並べ替え'}</Text>
       </MobbyAssetButton>
       <Image source={PLUSH_SHELF_BASE} resizeMode="contain" style={styles.homeShelfBase} />
@@ -566,15 +635,60 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
           {editing && !dragSession && placement ? <Pressable accessibilityLabel={`${itemCharacterName(placement.item)} ぬいぐるみ${shelfCopyLabel}をホームから外す`} accessibilityRole="button" hitSlop={8} onPress={() => removePlacement(placement.id)} style={styles.homeArrangeRemoveButton}><Text style={styles.homeArrangeRemoveText}>−</Text></Pressable> : null}
         </View>;
       })}</View>
-      <View accessible={!editing} accessibilityLabel={`${selectedMobby.name}。ほっぺを引っぱれます`} pointerEvents={editing ? 'none' : 'auto'} style={[styles.homeMainCharacter, styles.homeMainCharacterPullable, compact && styles.homeMainCharacterCompact, editing && styles.homeArrangeMainDimmed]}>
+      <View accessible={!editing} accessibilityLabel={`${selectedCharacter.name}。ほっぺを引っぱれます`} pointerEvents={editing ? 'none' : 'auto'} style={[styles.homeMainCharacter, styles.homeMainCharacterPullable, compact && styles.homeMainCharacterCompact, editing && styles.homeArrangeMainDimmed]}>
         <Animated.View style={{ transform: [
           { translateY: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? [0, 4, -32, -8, -20, -7, 0] : [0, 16, -88, -18, -48, -12, 0] }) },
           { scale: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? [1, 0.94, 1.28, 1.04, 1.16, 1.05, 1] : [1, 0.82, 1.78, 1.08, 1.42, 1.1, 1] }) },
           { rotate: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? ['0deg', '-3deg', '4deg', '-3deg', '2deg', '-1deg', '0deg'] : ['0deg', '-9deg', '13deg', '-8deg', '7deg', '-3deg', '0deg'] }) },
+          { translateX: teaseToolMotion.interpolate({ inputRange: [0, 0.18, 0.34, 0.52, 0.76, 1], outputRange: activeTeaseTool?.kind === 'poke' ? [0, 0, -9, 10, -3, 0] : [0, 0, 0, 0, 0, 0] }) },
+          { translateY: teaseToolMotion.interpolate({ inputRange: [0, 0.24, 0.38, 0.76, 1], outputRange: activeTeaseTool?.kind === 'weight' ? [0, 0, 37, 37, 0] : [0, 0, 0, 0, 0] }) },
+          { scaleX: teaseToolMotion.interpolate({ inputRange: [0, 0.18, 0.34, 0.52, 0.76, 1], outputRange: activeTeaseTool?.kind === 'poke' ? [1, 1, 0.67, 0.83, 1.05, 1] : activeTeaseTool?.kind === 'weight' ? [1, 1, 1.34, 1.34, 1.34, 1] : [1, 1, 1, 1, 1, 1] }) },
+          { scaleY: teaseToolMotion.interpolate({ inputRange: [0, 0.18, 0.34, 0.52, 0.76, 1], outputRange: activeTeaseTool?.kind === 'poke' ? [1, 1, 1.19, 1.1, 0.98, 1] : activeTeaseTool?.kind === 'weight' ? [1, 1, 0.43, 0.43, 0.43, 1] : [1, 1, 1, 1, 1, 1] }) },
         ] }}>
-          <MobbyIdleMotion enabled={!busy && !editing}><PullableMobby selected={selected} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={dailyHydrated && !editing} onValidRelease={onDailyPullRelease} onReaction={collectReaction} /></MobbyIdleMotion>
+          <Animated.View style={{ opacity: activeTeaseReaction
+            ? teaseToolMotion.interpolate({ inputRange: [0, 0.22, 0.34, 0.78, 0.9, 1], outputRange: [1, 1, 0, 0, 1, 1] })
+            : 1 }}>
+            <MobbyIdleMotion enabled={!busy && !editing}><PullableMobby selected={selected} selectedMobbyName={selectedCharacter.name} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={dailyHydrated && !editing} onValidRelease={onDailyPullRelease} onReaction={collectReaction} /></MobbyIdleMotion>
+          </Animated.View>
+          {activeTeaseReaction ? <Animated.Image
+            accessible={false}
+            resizeMode="contain"
+            source={activeTeaseReaction.source}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              zIndex: 3,
+              width: compact ? 178 : 220,
+              height: compact ? 178 : 220,
+              opacity: teaseToolMotion.interpolate({ inputRange: [0, 0.22, 0.34, 0.78, 0.9, 1], outputRange: [0, 0, 1, 1, 0, 0] }),
+            }}
+          /> : null}
         </Animated.View>
-        <MobbyAssetButton accessibilityLabel={`メインモビーを選ぶ（現在：${selectedMobby.name}）`} backgroundSource={HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" onPress={() => { onUiTap(); setReactionBookOpen(false); setCharacterPickerOpen(true); }} style={[styles.characterPickerButton, styles.characterPickerButtonCompact]} contentStyle={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></MobbyAssetButton>
+        {activeTeaseTool ? <Animated.Image
+          accessible={false}
+          resizeMode="contain"
+          source={activeTeaseTool.source}
+          style={{
+            position: 'absolute',
+            zIndex: 18,
+            width: activeTeaseTool.kind === 'poke' ? 124 : 146,
+            height: activeTeaseTool.kind === 'poke' ? 124 : 146,
+            left: activeTeaseTool.kind === 'poke' ? 118 : 38,
+            top: activeTeaseTool.kind === 'poke' ? 36 : -95,
+            opacity: teaseToolMotion.interpolate({ inputRange: [0, 0.08, 0.82, 1], outputRange: [0, 1, 1, 0] }),
+            transform: activeTeaseTool.kind === 'poke' ? [
+              { translateX: teaseToolMotion.interpolate({ inputRange: [0, 0.2, 0.34, 0.52, 0.75, 1], outputRange: [92, 45, -36, 14, 48, 92] }) },
+              { translateY: teaseToolMotion.interpolate({ inputRange: [0, 0.34, 0.52, 1], outputRange: [18, 0, 8, 18] }) },
+              { rotate: '-48deg' },
+            ] : [
+              { translateY: teaseToolMotion.interpolate({ inputRange: [0, 0.24, 0.38, 0.76, 1], outputRange: [-130, -80, 42, 42, -130] }) },
+              { rotate: teaseToolMotion.interpolate({ inputRange: [0, 0.38, 0.76, 1], outputRange: ['-4deg', '3deg', '-2deg', '-4deg'] }) },
+            ],
+          }}
+        /> : null}
+        <HomeTeaseTools disabled={busy || editing || !dailyHydrated} onUse={useTeaseTool} />
+        <MobbyAssetButton accessibilityLabel={`メインキャラを選ぶ（現在：${selectedCharacter.name}）`} backgroundSource={activeTheme ? undefined : HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" onPress={() => { onUiTap(); setReactionBookOpen(false); setCharacterPickerOpen(true); }} style={[styles.characterPickerButton, styles.characterPickerButtonCompact]} contentStyle={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></MobbyAssetButton>
         <Animated.View pointerEvents="none" style={{
           position: 'absolute', top: -12, right: -10, zIndex: 5,
           opacity: entryMotion.interpolate({ inputRange: [0, 0.14, 0.24, 0.76, 0.94, 1], outputRange: [0, 0, 1, 1, 0.7, 0] }),
@@ -588,8 +702,8 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
         </Animated.View>
         <MobbyAssetButton
           accessibilityLabel="リアクション図鑑を開く"
-          onPress={() => { onUiTap(); setCharacterPickerOpen(false); setReactionTabId(selectedMobby.id); setReactionBookOpen(true); }}
-          backgroundSource={HOME_CONTROL_BUTTON_BACKGROUND}
+          onPress={() => { onUiTap(); setCharacterPickerOpen(false); setReactionTabId(selectedCharacterId); setReactionBookOpen(true); }}
+          backgroundSource={activeTheme ? undefined : HOME_CONTROL_BUTTON_BACKGROUND}
           backgroundResizeMode="stretch"
           tone="cream"
           style={[styles.reactionBookButton, compact && styles.reactionBookButtonCompact]}
@@ -602,7 +716,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
       {reaction && !editing ? <ImageBackground
         accessible={false}
         accessibilityLiveRegion="polite"
-        source={SPEECH_BUBBLE_PAPER}
+        source={activeTheme?.assets.popup ?? SPEECH_BUBBLE_PAPER}
         resizeMode="stretch"
         imageStyle={styles.homeReactionBubbleImage}
       style={[styles.homeReactionBubble, { pointerEvents: 'none', top: shelfSurfaceY + 4 }]}
@@ -654,9 +768,9 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
     {reactionBookOpen ? <ReactionCollectionPopover
       collectedIds={collectedReactionIds}
       onClose={() => setReactionBookOpen(false)}
-      onSelectMobby={setReactionTabId}
+      onSelectCharacter={setReactionTabId}
       reduceMotion={reduceMotion}
-      selectedMobbyId={reactionTabId}
+      selectedCharacterId={reactionTabId}
     /> : null}
   </View>;
 }

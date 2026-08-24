@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Image, ImageBackground, PanResponder, Platform, Pressable, View, type LayoutChangeEvent } from 'react-native';
 
 import type { ReactionMilestone } from '@/data/dailyRewards';
+import { BlackStarToggle } from '@/components/characters';
 import { collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectibleVariant, type Item, type ItemKind } from '@/data/collectibles';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { styles } from '@/ui/layout/appStyles';
 import { Text, useAppLayout } from '@/ui/layout/visualPrimitives';
 
@@ -154,7 +156,7 @@ function KeychainTile({ item, owned, selectedId, onSelect, imageSize = 'normal',
       <Pressable disabled={ownedCount === 0} onPress={selectKey} style={styles.collectionKeyPressable} accessibilityRole="button" accessibilityLabel={`${name}${imageSize === 'small' ? ' Sサイズ' : ' 通常サイズ'}を揺らす`} accessibilityState={{ disabled: ownedCount === 0 }}>
         <Text style={styles.collectionKeyName} numberOfLines={1}>{name}</Text>
         <Animated.View style={[styles.collectionKeySwing, { transform: [{ rotate: sway }, { scale }] }]}>
-          <View style={[styles.collectionKeyBody, item && ownedCount > 0 && styles.collectionKeyBodyOwned, item && ownedCount > 0 && selectedId === item.id && styles.collectionKeySelected]}>{item && ownedCount > 0 ? <Image source={keyImage} resizeMode="contain" style={[styles.collectionKeyImage, imageSize === 'small' && styles.collectionSmallKeyImage]} /> : <Text style={styles.collectionKeyPlaceholderText}>?</Text>}</View>
+          <View style={[styles.collectionKeyBody, item && ownedCount > 0 && styles.collectionKeyBodyOwned, item && ownedCount > 0 && selectedId === item.id && styles.collectionKeySelected]}>{item && ownedCount > 0 ? <Image source={keyImage} resizeMode="contain" style={[styles.collectionKeyImage, imageSize === 'small' && styles.collectionSmallKeyImage]} /> : item?.faction === 'kuroboshi' ? <Image source={keyImage} resizeMode="contain" tintColor="#17131D" style={[styles.collectionKeyImage, imageSize === 'small' && styles.collectionSmallKeyImage, { opacity: 0.44 }]} /> : <Text style={styles.collectionKeyPlaceholderText}>?</Text>}</View>
         </Animated.View>
       </Pressable>
     </Animated.View>
@@ -420,11 +422,14 @@ export function CollectionVisual({
   onClaimReactionMilestone?: (milestone: ReactionMilestone) => Promise<unknown>;
   entryNonce?: number;
 }) {
+  const { activeTheme } = useGachaTheme();
   const { height: appHeight } = useAppLayout();
   const [mode, setMode] = useState<ItemKind>('ぬいキー');
   const [keyImageSize, setKeyImageSize] = useState<KeychainImageSize>('normal');
-  const visibleItems = items;
-  const slotCount = 9;
+  const [showBlackStars, setShowBlackStars] = useState(false);
+  useEffect(() => setShowBlackStars(false), [entryNonce]);
+  const visibleItems = items.filter((item) => item.faction === (showBlackStars ? 'kuroboshi' : 'mobby'));
+  const slotCount = showBlackStars ? 7 : 9;
   const displayItems: (Item | null)[] = [...visibleItems, ...Array.from({ length: Math.max(0, slotCount - visibleItems.length) }, () => null)];
   const boardHeight = Math.min(640, Math.max(420, appHeight - 302));
   void reactionCount;
@@ -436,15 +441,21 @@ export function CollectionVisual({
       <View style={styles.collectionScrollContent}>
       <View style={[styles.collectionStage, { height: COLLECTION_BOARD_TOP + boardHeight }]}>
       <View pointerEvents="none" style={[styles.collectionBoardShadow, { height: boardHeight - 10 }]} />
-      <Image source={COLLECTION_DISPLAY_BOARD} resizeMode="stretch" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
+      <Image source={activeTheme?.assets.card ?? COLLECTION_DISPLAY_BOARD} resizeMode="stretch" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
       <View style={styles.collectionHeaderBar}>
-        <ImageBackground source={UI_WIDE_PAPER} resizeMode="stretch" accessibilityRole="tablist" accessibilityLabel="コレクションの種類" style={styles.collectionModeTabs}>
+        <ImageBackground source={activeTheme?.assets.navigation ?? UI_WIDE_PAPER} resizeMode="stretch" accessibilityRole="tablist" accessibilityLabel="コレクションの種類" style={styles.collectionModeTabs}>
           <Pressable accessibilityRole="tab" accessibilityLabel="ぬいキー" accessibilityState={{ selected: mode === 'ぬいキー' }} onPress={() => setMode('ぬいキー')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>{mode === 'ぬいキー' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}<Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text></Pressable>
           <Pressable accessibilityRole="tab" accessibilityLabel="ぬいぐるみ" accessibilityState={{ selected: mode === 'ぬいぐるみ' }} onPress={() => setMode('ぬいぐるみ')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>{mode === 'ぬいぐるみ' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}<Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable>
         </ImageBackground>
       </View>
+      <BlackStarToggle
+        active={showBlackStars}
+        onChange={setShowBlackStars}
+        style={{ position: 'absolute', top: 69, right: 12, zIndex: 14, transform: [{ scale: 0.78 }] }}
+        testID="collection-black-star-toggle"
+      />
       {mode === 'ぬいキー' ? (
-        <ImageBackground source={UI_SIZE_SELECTOR_PAPER} resizeMode="cover" accessibilityRole="tablist" accessibilityLabel="ぬいキーのサイズ" style={styles.collectionKeySizeTabs}>
+        <ImageBackground source={activeTheme?.assets.buttonSecondary ?? UI_SIZE_SELECTOR_PAPER} resizeMode={activeTheme ? 'stretch' : 'cover'} accessibilityRole="tablist" accessibilityLabel="ぬいキーのサイズ" style={styles.collectionKeySizeTabs}>
           <Text style={styles.collectionKeySizeLabel}>サイズ</Text>
           <Pressable
             accessibilityRole="tab"
@@ -489,6 +500,8 @@ export function CollectionVisual({
                   <View style={[styles.plushCollectionBody, item && ownedCollectibleCount(owned, item.id, 'plush') > 0 && styles.plushCollectionBodyOwned, item && ownedCollectibleCount(owned, item.id, 'plush') > 0 && selectedId === item.id && styles.plushCollectionSelected]}>
                     {item && ownedCollectibleCount(owned, item.id, 'plush') > 0 ? (
                       <Image source={item.image} resizeMode="contain" style={[styles.plushCollectionImage, { bottom: getPlushCollectionImageBottom(item) }]} />
+                    ) : item?.faction === 'kuroboshi' ? (
+                      <Image source={item.image} resizeMode="contain" tintColor="#17131D" style={[styles.plushCollectionImage, { bottom: getPlushCollectionImageBottom(item), opacity: 0.42 }]} />
                     ) : (
                     <Text style={styles.plushCollectionPlaceholderText}>?</Text>
                   )}

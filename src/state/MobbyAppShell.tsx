@@ -24,7 +24,7 @@ import {
 import { MobbyCarousel } from '@/components/MobbyCarousel';
 import { INCIDENTS_ENABLED } from '@/config/features';
 import { getMobby } from '@/data/mobies';
-import { getEnemy } from '@/data/enemies';
+import { getEnemy, type EnemyId } from '@/data/enemies';
 import { useMobbyAudio } from '@/hooks/useMobbyAudio';
 import { IncidentCutIn } from '@/components/IncidentCutIn';
 import { IncidentResolutionOverlay } from '@/components/IncidentResolutionOverlay';
@@ -54,7 +54,8 @@ import { useMobbyHaptics } from '@/hooks/useMobbyHaptics';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { CollectionScreen } from '@/screens/CollectionScreen';
 import { MobbyTimeScreen } from '@/screens/MobbyTimeScreen';
-import { TradeScreen } from '@/screens/TradeScreen';
+import { MobbyTimeHubScreen } from '@/screens/MobbyTimeHubScreen';
+import { GachaScreen } from '@/screens/GachaScreen';
 import { StoriesScreen } from '@/screens/StoriesScreen';
 import { TouchScreen } from '@/screens/TouchScreen';
 import { styles } from '@/ui/layout/appStyles';
@@ -71,13 +72,25 @@ import { useDailyLoop } from '@/game/DailyLoopContext';
 import { receiptBackedInventoryGrant, shouldGrantMobbyTimeReceipt, type PendingReward } from '@/game/dailyLoopStorage';
 import { useResponsiveLayout } from '@/ui/layout/responsive';
 import { zenMaruFamily } from '@/ui/text/fontFamily';
+import { GachaThemeProvider } from '@/theme/GachaThemeContext';
 import { MobbyAssetButton, MobbyAssetIconButton } from '@/components/mobby-ui';
 import {
-  COLLECTIBLE_VARIANTS, EMPTY_OWNED, ITEMS, ITEM_MOBBY_IDS, collectibleInventoryKey,
+  CHARACTER_ITEM_IDS, COLLECTIBLE_VARIANTS, EMPTY_OWNED, ITEMS, ITEM_ENEMY_IDS, ITEM_MOBBY_IDS, collectibleInventoryKey,
   collectibleName, isCollectibleVariant, isItemId, itemCharacterName, legacyVariantForItem,
   normalizeCollectibleInventory, ownedCollectibleCount,
   type CollectibleVariant, type Item,
 } from '@/data/collectibles';
+import { GACHA_GOODS_REWARDS, getGachaReward } from '@/data/gachaCatalog';
+import {
+  createInitialGachaState,
+  getGachaGoodsCount,
+  loadGachaState,
+  subscribeGachaState,
+  type GachaInventoryState,
+} from '@/game/gachaStorage';
+import { getBlackStarProfile } from '@/domain/characters/blackStars';
+import { isTemporaryCharacterUnlockEnabled } from '@/domain/characters/ownership';
+import { loadIncidentComicProgress } from '@/features/incidentComics/incidentComicStorage';
 import {
   createDefaultHomeLayout,
   decodeHomeLayout,
@@ -90,7 +103,7 @@ import {
   type HomePlacementId,
 } from '@/domain/home/homeLayout';
 
-type Screen = 'home' | 'collection' | 'time' | 'trade' | 'touch' | 'casebook' | 'episode';
+type Screen = 'home' | 'collection' | 'time' | 'gacha' | 'touch' | 'casebook' | 'episode';
 type CollectibleReward = { item: Item; variant: CollectibleVariant; placementId: HomePlacementId };
 type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placing' | 'placed';
 type OnboardingRewardState = {
@@ -206,23 +219,16 @@ function decodeOnboardingReward(raw: string | null): OnboardingRewardState | nul
   }
 }
 
-function ensureAllCollectiblesOwned(inventory: Record<string, number>) {
-  const unlocked = { ...inventory };
-  for (const item of ITEMS) {
-    for (const variant of COLLECTIBLE_VARIANTS) {
-      const key = collectibleInventoryKey(item.id, variant);
-      unlocked[key] = Math.max(1, inventory[key] ?? 0);
-    }
-  }
-  return unlocked;
-}
-
-const DEFAULT_OWNED: Record<string, number> = ITEMS.reduce<Record<string, number>>((inventory, item) => {
+// Character availability and collectible ownership are deliberately separate.
+// Black Stars are unlocked by finishing their incident story, while each of
+// their three physical goods remains a gacha reward. The local development
+// preview unlocks character selection only; it must not silently grant goods.
+const DEFAULT_OWNED: Record<string, number> = ITEMS.filter((item) => !ITEM_ENEMY_IDS[item.id]).reduce<Record<string, number>>((inventory, item) => {
   inventory[collectibleInventoryKey(item.id, legacyVariantForItem(item))] = 1;
   return inventory;
 }, { ...EMPTY_OWNED });
 
-const INITIAL_OWNED: Record<string, number> = __DEV__ ? ensureAllCollectiblesOwned(DEFAULT_OWNED) : DEFAULT_OWNED;
+const INITIAL_OWNED: Record<string, number> = DEFAULT_OWNED;
 
 function normalizeOwnedInventory(raw: Record<string, unknown>) {
   return normalizeCollectibleInventory(raw, (key) => key.startsWith(DAILY_REWARD_RECEIPT_PREFIX) || key === ONBOARDING_REWARD_RECEIPT);
@@ -582,6 +588,7 @@ export type MobbyShellCharacter = {
   name: string;
   image: number;
   owned: boolean;
+  faction: 'mobby' | 'kuroboshi';
 };
 
 type MobbyShellValue = {
@@ -592,6 +599,7 @@ type MobbyShellValue = {
   collectibleInventory: Readonly<Record<string, number>>;
   favoriteId: string;
   setFavorite: (id: string) => boolean;
+  resetMobbyTimeHub: () => void;
   soundEnabled: boolean;
   setSoundEnabled: (enabled: boolean) => void;
   reduceMotion: boolean;
@@ -642,6 +650,10 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const [experienceScreen, setExperienceScreen] = useState<Extract<Screen, 'touch' | 'episode'> | null>(null);
   const [selectedId, setSelectedId] = useState('yami-key');
   const [owned, setOwned] = useState(INITIAL_OWNED);
+  const [gachaInventory, setGachaInventory] = useState<GachaInventoryState>(() => createInitialGachaState());
+  const [gachaReady, setGachaReady] = useState(false);
+  const [storyUnlockedBlackStars, setStoryUnlockedBlackStars] = useState<EnemyId[]>([]);
+  const [incidentComicReady, setIncidentComicReady] = useState(false);
   const [mobbyTimeStage, setMobbyTimeStage] = useState<MobbyTimeStage>('arrived');
   const [todayId, setTodayId] = useState(ITEMS[0].id);
   const [todayVariant, setTodayVariant] = useState<CollectibleVariant>('key-normal');
@@ -676,13 +688,36 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const episodeProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingEpisodeProgressRef = useRef<{ runId: string; playback: PlaybackState } | null>(null);
   const completedEpisodeRunIdsRef = useRef(new Set<string>());
+  const effectiveOwned = useMemo(() => {
+    const merged = { ...owned };
+    for (const reward of GACHA_GOODS_REWARDS) {
+      const itemId = CHARACTER_ITEM_IDS[reward.characterId];
+      const key = collectibleInventoryKey(itemId, reward.variant);
+      merged[key] = (merged[key] ?? 0) + getGachaGoodsCount(gachaInventory, reward.characterId, reward.variant);
+    }
+    return merged;
+  }, [gachaInventory, owned]);
+  const storyUnlockedBlackStarSet = useMemo(() => new Set(storyUnlockedBlackStars), [storyUnlockedBlackStars]);
+  const equippedThemeBackground = useMemo(() => {
+    if (!gachaInventory.equippedThemeId) return null;
+    const reward = getGachaReward(gachaInventory.equippedThemeId);
+    return reward.category === 'theme'
+      ? reward.assets.appBackground.source ?? reward.assets.appBackground.fallbackSource
+      : null;
+  }, [gachaInventory.equippedThemeId]);
   const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
-  const shellCharacters = useMemo<MobbyShellCharacter[]>(() => ITEMS.map((item) => ({
-    id: item.id,
-    name: getMobby(ITEM_MOBBY_IDS[item.id] ?? 'mobichi').name,
-    image: item.image,
-    owned: COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(owned, item.id, variant) > 0),
-  })), [owned]);
+  const shellCharacters = useMemo<MobbyShellCharacter[]>(() => ITEMS.map((item) => {
+    const enemyId = ITEM_ENEMY_IDS[item.id];
+    return {
+      id: item.id,
+      name: enemyId ? getBlackStarProfile(enemyId).name : getMobby(ITEM_MOBBY_IDS[item.id] ?? 'mobichi').name,
+      image: item.image,
+      faction: enemyId ? 'kuroboshi' : 'mobby',
+      owned: enemyId
+        ? isTemporaryCharacterUnlockEnabled() || storyUnlockedBlackStarSet.has(enemyId)
+        : COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(effectiveOwned, item.id, variant) > 0),
+    };
+  }), [effectiveOwned, storyUnlockedBlackStarSet]);
   const persistedMobbyTimeReward = daily.state.mobbyTimeReward;
   const onboardingRewardActive = Boolean(
     !tutorialComplete && onboardingReward && ['mobbyTime', 'opening', 'place', 'wallFlight'].includes(onboardingStep),
@@ -693,6 +728,46 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const routeScreen = selectTabScene(pathname);
   const previousRouteScreenRef = useRef<typeof routeScreen>(routeScreen);
   const [tabEntryNonce, setTabEntryNonce] = useState(0);
+  const resetMobbyTimeHub = useCallback(() => {
+    setTabEntryNonce((value) => value + 1);
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void loadGachaState().then((state) => {
+      if (!cancelled) setGachaInventory(state);
+    }).catch(() => undefined).finally(() => {
+      if (!cancelled) setGachaReady(true);
+    });
+    const unsubscribe = subscribeGachaState((state) => {
+      if (!cancelled) setGachaInventory(state);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void loadIncidentComicProgress().then((progress) => {
+      if (!cancelled) setStoryUnlockedBlackStars(progress.unlockedEnemyIds);
+    }).catch(() => undefined).finally(() => {
+      if (!cancelled) setIncidentComicReady(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    if (!storageReady || !gachaReady || !incidentComicReady) return;
+    const restoredCharacter = shellCharacters.find((character) => character.id === selectedId);
+    if (restoredCharacter?.owned) return;
+    const fallback = shellCharacters.find((character) => character.faction === 'mobby' && character.owned)
+      ?? shellCharacters.find((character) => character.owned);
+    if (!fallback || fallback.id === selectedId) return;
+    // A development-preview Black Star may have been persisted as favourite.
+    // Reconcile only after every ownership source is hydrated so a formally
+    // unlocked character is never rejected during startup.
+    setSelectedId(fallback.id);
+    setFavoriteDraftId(fallback.id);
+  }, [gachaReady, incidentComicReady, selectedId, shellCharacters, storageReady]);
   useEffect(() => {
     if (routeScreen !== previousRouteScreenRef.current && routeScreen !== null) {
       setTabEntryNonce((value) => value + 1);
@@ -724,10 +799,12 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const navigateTo = useCallback((nextScreen: Screen, cue: 'transition' | 'tab' | 'silent' = 'transition') => {
     if (nextScreen === screen) return;
     if (cue !== 'silent') playSfx(cue);
-    const topLevelRoute = nextScreen === 'home' ? '/' : nextScreen === 'collection' ? '/collection' : nextScreen === 'time' ? '/mobby-time' : nextScreen === 'trade' ? '/trade' : nextScreen === 'casebook' ? '/stories' : null;
+    const topLevelRoute = nextScreen === 'home' ? '/' : nextScreen === 'collection' ? '/collection' : nextScreen === 'time' ? '/mobby-time' : nextScreen === 'gacha' ? '/gacha' : nextScreen === 'casebook' ? '/stories' : null;
     if (topLevelRoute) {
       setExperienceScreen(null);
-      if (pathname !== topLevelRoute) router.navigate(topLevelRoute);
+      // Expo's generated typed-route declaration is refreshed by the bundler;
+      // keep this dynamic route table type-safe during a clean prebuild too.
+      if (pathname !== topLevelRoute) router.navigate(topLevelRoute as never);
       return;
     }
     if (nextScreen === 'touch' || nextScreen === 'episode') setExperienceScreen(nextScreen);
@@ -787,15 +864,15 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
         const completed = values[STORAGE_TUTORIAL_COMPLETE] === 'true';
         const favoriteValue = values[STORAGE_FAVORITE] ?? ITEMS[0].id;
         const storedFavorite = ITEMS.some((item) => item.id === favoriteValue) ? favoriteValue : ITEMS[0].id;
-        let storedOwned = __DEV__ ? INITIAL_OWNED : completed ? INITIAL_OWNED : EMPTY_OWNED;
+        let storedOwned = completed ? INITIAL_OWNED : EMPTY_OWNED;
         const storedInventory = values[STORAGE_OWNED] ?? values[STORAGE_OWNED_LEGACY];
         if (storedInventory) {
           try {
             const parsed = JSON.parse(storedInventory) as Record<string, unknown>;
             const normalizedInventory = normalizeOwnedInventory(parsed);
-            storedOwned = __DEV__ ? ensureAllCollectiblesOwned(normalizedInventory) : normalizedInventory;
+            storedOwned = normalizedInventory;
           } catch {
-            storedOwned = __DEV__ ? INITIAL_OWNED : completed ? INITIAL_OWNED : EMPTY_OWNED;
+            storedOwned = completed ? INITIAL_OWNED : EMPTY_OWNED;
           }
         }
         const decodedOnboardingReward = decodeOnboardingReward(values[STORAGE_ONBOARDING_REWARD] ?? null);
@@ -827,7 +904,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!mounted) return;
-        const fallbackOwned = __DEV__ ? INITIAL_OWNED : EMPTY_OWNED;
+        const fallbackOwned = EMPTY_OWNED;
         setOwned(fallbackOwned);
         setHomeLayout(createDefaultHomeLayout(fallbackOwned));
       })
@@ -856,8 +933,8 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!storageReady) return;
-    setHomeLayout((current) => reconcileHomeLayout(current, owned));
-  }, [owned, storageReady]);
+    setHomeLayout((current) => reconcileHomeLayout(current, effectiveOwned));
+  }, [effectiveOwned, storageReady]);
 
   const enqueueStorageWrite = useCallback(async (operation: () => Promise<void>) => {
     const write = storageWriteChainRef.current
@@ -1333,8 +1410,10 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       setReaction('？');
       return 0;
     }
-    const mobby = getMobby(ITEM_MOBBY_IDS[selected.id] ?? 'mobichi');
-    const lines = mobby.lines.tease;
+    const enemyId = ITEM_ENEMY_IDS[selected.id];
+    const lines = enemyId
+      ? getBlackStarProfile(enemyId).voice.lines.tease
+      : getMobby(ITEM_MOBBY_IDS[selected.id] ?? 'mobichi').lines.tease;
     const currentIndex = pullReactionIndexRef.current[selected.id] ?? 0;
     setReaction(lines[currentIndex % lines.length]);
     const nextCount = currentIndex + 1;
@@ -1403,12 +1482,19 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const setFavorite = useCallback((id: string) => {
     if (!ITEMS.some((item) => item.id === id)) return false;
     const item = ITEMS.find((candidate) => candidate.id === id)!;
-    const isOwned = COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(owned, item.id, variant) > 0);
+    const enemyId = ITEM_ENEMY_IDS[item.id];
+    const isOwned = enemyId
+      ? isTemporaryCharacterUnlockEnabled() || storyUnlockedBlackStarSet.has(enemyId)
+      : COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(effectiveOwned, item.id, variant) > 0);
     if (!isOwned) return false;
     setReaction('');
     setSelectedId(id);
     return true;
-  }, [owned]);
+  }, [effectiveOwned, storyUnlockedBlackStarSet]);
+  const handleBlackStarUnlocked = useCallback((enemyId: EnemyId) => {
+    setStoryUnlockedBlackStars((current) => current.includes(enemyId) ? current : [...current, enemyId]);
+    setNotice(`${getBlackStarProfile(enemyId).name}がメインキャラに加わりました`);
+  }, []);
 
   const startApp = useCallback(() => {
     setAppStarted(true);
@@ -1516,7 +1602,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
                 importantForAccessibility={appBaseIsolated ? 'no-hide-descendants' : 'auto'}
               >
               {appStarted ? <>
-              {screen === 'collection' ? <>
+              {equippedThemeBackground ? <Image source={equippedThemeBackground} resizeMode="cover" style={styles.appShellBackground} /> : screen === 'collection' ? <>
                 <Image source={ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />
                 <Image source={COLLECTION_WALL_BACKGROUND} resizeMode="cover" style={styles.collectionReferenceBackground} />
               </> : <Image source={screen === 'home' ? HOME_WALL_BACKGROUND : ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />}
@@ -1533,12 +1619,16 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               {notice && !tutorialRewardActive ? <Pressable accessibilityRole="button" accessibilityLabel={`${notice}。閉じる`} accessibilityLiveRegion="polite" onPress={() => { playSfx('tap'); setNotice(''); }} style={styles.noticeToast}><ImageBackground accessible={false} source={NOTICE_SURFACE} resizeMode="stretch" style={styles.noticeToastImage} /><View style={styles.noticeToastContent}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></View></Pressable> : null}
               <View style={styles.screenBody}>
                 <ScreenTransition screenKey={screen ?? `route:${pathname}`} reduceMotion={reduceMotion}>
-                {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={owned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallPlacementId={wallPlacement && wallPlacement.variant !== 'plush' ? wallPlacement.placementId : undefined} onIncidentPress={openIncident} homeLayout={homeLayout} onCommitHomeLayout={commitHomeLayout} onMoveHomePlacement={moveHomeItem} onRemoveHomePlacement={hideHomeItem} onArrangeStart={haptics.medium} onArrangeMove={haptics.threshold} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
-                {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={owned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
-                {screen === 'time' && headerPopover !== 'mobby-time' ? <MobbyTimeScreen flow={onboardingRewardActive ? 'onboarding' : 'daily'} today={today} todayVariant={effectiveTodayVariant} stage={effectiveMobbyTimeStage} reduceMotion={reduceMotion} onOpen={handleRewardOpen} onReveal={handleRewardReveal} onPlace={handleRewardPlace} onPlaced={handleRewardPlaced} secondsLeft={secondsLeft} entryNonce={tabEntryNonce} /> : null}
-                {screen === 'trade' ? <TradeScreen collectibleInventory={owned} isHydrated={storageReady && daily.isHydrated} reduceMotion={reduceMotion} /> : null}
+                {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={effectiveOwned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallPlacementId={wallPlacement && wallPlacement.variant !== 'plush' ? wallPlacement.placementId : undefined} onIncidentPress={openIncident} homeLayout={homeLayout} onCommitHomeLayout={commitHomeLayout} onMoveHomePlacement={moveHomeItem} onRemoveHomePlacement={hideHomeItem} onArrangeStart={haptics.medium} onArrangeMove={haptics.threshold} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={effectiveOwned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'time' && headerPopover !== 'mobby-time' ? <MobbyTimeHubScreen
+                  entryNonce={tabEntryNonce}
+                  mobbyTimeProps={{ flow: onboardingRewardActive ? 'onboarding' : 'daily', today, todayVariant: effectiveTodayVariant, stage: effectiveMobbyTimeStage, reduceMotion, onOpen: handleRewardOpen, onReveal: handleRewardReveal, onPlace: handleRewardPlace, onPlaced: handleRewardPlaced, secondsLeft }}
+                  tradeProps={{ collectibleInventory: effectiveOwned, isHydrated: storageReady && daily.isHydrated, reduceMotion }}
+                /> : null}
+                {screen === 'gacha' ? <GachaScreen entryNonce={tabEntryNonce} /> : null}
                 {screen === 'touch' ? <TouchScreen selected={selected} onInteract={interact} reaction={reaction} /> : null}
-                {screen === 'casebook' ? <StoriesScreen entryNonce={tabEntryNonce} /> : null}
+                {screen === 'casebook' ? <StoriesScreen entryNonce={tabEntryNonce} onBlackStarUnlocked={handleBlackStarUnlocked} /> : null}
                 </ScreenTransition>
               </View>
               {wallPlacement && wallPlacement.variant !== 'plush' ? <WallPlacementFlight item={wallPlacement.item} variant={wallPlacement.variant} targetSlotIndex={homeLayout.wallSlots.indexOf(wallPlacement.placementId)} onComplete={completeWallPlacement} /> : null}
@@ -1646,9 +1736,10 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     opening: !appStarted || incidentExperienceActive || effectiveMobbyTimeStage === 'opening',
     isHydrated: storageReady && daily.isHydrated,
     characters: shellCharacters,
-    collectibleInventory: owned,
+    collectibleInventory: effectiveOwned,
     favoriteId: selectedId,
     setFavorite,
+    resetMobbyTimeHub,
     soundEnabled,
     setSoundEnabled: setSoundPreference,
     reduceMotion,
@@ -1662,13 +1753,15 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     interruptEpisode,
     completeActiveEpisode,
     emitEpisodeCue: handleEpisodeCue,
-  }), [activeEpisodeData, activeIncident, appStarted, completeActiveEpisode, daily.isHydrated, effectiveMobbyTimeStage, handleEpisodeCue, handleEpisodeProgress, hasUnresolvedIncident, incidentExperienceActive, interruptEpisode, mobbyTimeOpenScene, mobbyTimeResultReady, owned, reduceMotion, selectedId, setFavorite, setSoundPreference, shellCharacters, soundEnabled, storageReady]);
+  }), [activeEpisodeData, activeIncident, appStarted, completeActiveEpisode, daily.isHydrated, effectiveMobbyTimeStage, effectiveOwned, handleEpisodeCue, handleEpisodeProgress, hasUnresolvedIncident, incidentExperienceActive, interruptEpisode, mobbyTimeOpenScene, mobbyTimeResultReady, reduceMotion, resetMobbyTimeHub, selectedId, setFavorite, setSoundPreference, shellCharacters, soundEnabled, storageReady]);
 
   return (
-    <MobbyShellContext.Provider value={shellValue}>
-      <MobbySceneContext.Provider value={{ scene }}>
-        {children}
-      </MobbySceneContext.Provider>
-    </MobbyShellContext.Provider>
+    <GachaThemeProvider themeId={gachaInventory.equippedThemeId}>
+      <MobbyShellContext.Provider value={shellValue}>
+        <MobbySceneContext.Provider value={{ scene }}>
+          {children}
+        </MobbySceneContext.Provider>
+      </MobbyShellContext.Provider>
+    </GachaThemeProvider>
   );
 }

@@ -1,10 +1,10 @@
-export type TabScene = 'home' | 'collection' | 'time' | 'trade' | 'casebook';
+export type TabScene = 'home' | 'collection' | 'time' | 'gacha' | 'casebook';
 
 const EXACT_TAB_SCENES: Readonly<Record<string, TabScene>> = {
   '/': 'home',
   '/collection': 'collection',
   '/mobby-time': 'time',
-  '/trade': 'trade',
+  '/gacha': 'gacha',
   '/stories': 'casebook',
 };
 
@@ -17,7 +17,8 @@ export const TAB_SCENE_CASES = [
   ['/', 'home'],
   ['/collection', 'collection'],
   ['/mobby-time', 'time'],
-  ['/trade', 'trade'],
+  ['/gacha', 'gacha'],
+  ['/trade', null],
   ['/stories', 'casebook'],
   ['/mobby-time/open', null],
   ['/story/episode-01', null],

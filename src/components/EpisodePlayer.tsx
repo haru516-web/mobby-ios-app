@@ -23,6 +23,7 @@ import {
 } from '@/data/episodes/playback';
 import { resolveEpisodeAsset } from '@/data/episodes/registry';
 import { MobbyAssetButton, MobbyAssetSelectable, MobbyAssetSurface } from '@/components/mobby-ui';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import type {
   CompletionResult,
   Cue,
@@ -131,6 +132,7 @@ export function EpisodePlayer({
   onInterrupt,
   onComplete,
 }: EpisodePlayerProps) {
+  const { activeTheme } = useGachaTheme();
   const { height: viewportHeight } = useWindowDimensions();
   const stageHeight = Math.max(112, Math.min(420, viewportHeight * (viewportHeight < 500 ? 0.42 : 0.55)));
   const sceneMap = useMemo(() => new Map(episode.scenes.map((scene) => [scene.id, scene])), [episode]);
@@ -353,7 +355,7 @@ export function EpisodePlayer({
     <View style={styles.stage}>
       <View style={[styles.stageArea, { maxHeight: stageHeight }]}>
         <View style={styles.topbar}>
-        <ImageBackground source={EPISODE_TOPBAR_SOURCE} resizeMode="stretch" imageStyle={styles.headingImage} style={styles.heading}>
+        <ImageBackground source={activeTheme?.assets.navigation ?? EPISODE_TOPBAR_SOURCE} resizeMode="stretch" imageStyle={styles.headingImage} style={styles.heading}>
           <Text style={styles.chapter}>{episode.chapter} · {scene.title ?? episode.title}</Text>
           <Text accessibilityLabel={`場面 ${routeProgress.current}、全${routeProgress.total}場面`} style={styles.progress}>{routeProgress.current}/{routeProgress.total}</Text>
         </ImageBackground>
@@ -372,7 +374,7 @@ export function EpisodePlayer({
         {scene.actors?.map((actor) => <ActorView key={actor.id} actor={actor} />)}
         {reactionAsset ? <ReactionImage asset={reactionAsset} assetId={reactionAssetId} reduceMotion={reduceMotion} /> : null}
         {scene.visualOverlay
-          ? <ImageBackground accessibilityLabel={scene.visualOverlay.accessibilityLabel} accessible imageStyle={styles.visualOverlayImage} resizeMode="stretch" source={SPEECH_BUBBLE_SOURCE} style={styles.visualOverlay}><Text style={styles.visualOverlayText}>{scene.visualOverlay.text}</Text></ImageBackground>
+          ? <ImageBackground accessibilityLabel={scene.visualOverlay.accessibilityLabel} accessible imageStyle={styles.visualOverlayImage} resizeMode="stretch" source={activeTheme?.assets.popup ?? SPEECH_BUBBLE_SOURCE} style={styles.visualOverlay}><Text style={styles.visualOverlayText}>{scene.visualOverlay.text}</Text></ImageBackground>
           : null}
           {scene.mechanic ? <MobbyAssetSurface variant="darkCase" accessible accessibilityLabel={`${scene.mechanic.instruction}。${scene.mechanic.tokens.join('、')}`} style={styles.mechanic} contentStyle={styles.mechanicContent}><Text style={styles.mechanicTitle}>{scene.mechanic.instruction}</Text><Text style={styles.mechanicTokens}>{scene.mechanic.tokens.join('  →  ')}</Text></MobbyAssetSurface> : null}
         </View>

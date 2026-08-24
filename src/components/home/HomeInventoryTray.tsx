@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { Image, ImageBackground, PanResponder, Pressable, ScrollView, StyleSheet, View, type PanResponderGestureState } from 'react-native';
 
 import {
@@ -14,6 +14,8 @@ import {
   type HomePlacementId,
   type HomePlacementKind,
 } from '@/domain/home/homeLayout';
+import { BlackStarToggle } from '@/components/characters';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 const TRAY_SURFACE = require('../../../assets/generated-ui/inventory-tray-background-v1.png');
@@ -50,6 +52,7 @@ function TrayItem({
   placed,
   selected,
 }: TrayItemProps) {
+  const { activeTheme } = useGachaTheme();
   const placement = resolveHomePlacement(id);
   const suppressPressRef = useRef(false);
   const axisRef = useRef<'pending' | 'horizontal' | 'vertical' | 'rejected'>('pending');
@@ -124,7 +127,7 @@ function TrayItem({
       onPress={() => { if (!dragging && !suppressPressRef.current) onSelect(id); }}
       style={({ pressed }) => [trayStyles.itemButton, placed && trayStyles.placedItem, dragging && trayStyles.draggingItem, pressed && !dragging && trayStyles.pressed]}
     >
-      <ImageBackground source={selected ? TILE_SELECTED_SURFACE : TILE_SURFACE} resizeMode="stretch" style={trayStyles.tile} imageStyle={trayStyles.tileImage}>
+      <ImageBackground source={activeTheme?.assets.card ?? (selected ? TILE_SELECTED_SURFACE : TILE_SURFACE)} resizeMode="stretch" style={trayStyles.tile} imageStyle={trayStyles.tileImage}>
         <View style={trayStyles.dragHandle}>
           <Image source={collectibleImage(placement.item, placement.variant)} resizeMode="contain" style={[trayStyles.itemImage, placement.variant === 'key-small' && trayStyles.itemImageSmall]} />
         </View>
@@ -168,10 +171,14 @@ export function HomeInventoryTray({
   owned: Readonly<Record<string, number>>;
   selectedId: HomePlacementId | null;
 }) {
+  const { activeTheme } = useGachaTheme();
+  const [showBlackStars, setShowBlackStars] = useState(false);
   const filteredIds = useMemo(() => ownedHomePlacementIds(owned, activeKind).filter((id) => {
+    const placement = resolveHomePlacement(id);
+    if (!placement || placement.item.faction !== (showBlackStars ? 'kuroboshi' : 'mobby')) return false;
     if (activeKind === 'plush') return true;
-    return resolveHomePlacement(id)?.variant === activeKeyVariant;
-  }), [activeKeyVariant, activeKind, owned]);
+    return placement.variant === activeKeyVariant;
+  }), [activeKeyVariant, activeKind, owned, showBlackStars]);
   const placedIds = useMemo(() => new Set([...homeLayout.wallSlots, ...homeLayout.shelfSlots].flatMap((slot) => {
     const placement = resolveHomePlacement(slot);
     return placement ? [placement.id] : [];
@@ -187,7 +194,7 @@ export function HomeInventoryTray({
   const hiddenCount = ids.filter((id) => !placedIds.has(id)).length;
   const firstPlacedIndex = ids.findIndex((id) => orderPlacedIds.has(id));
 
-  return <ImageBackground source={TRAY_SURFACE} resizeMode="cover" style={trayStyles.surface} imageStyle={trayStyles.surfaceImage}>
+  return <ImageBackground source={activeTheme?.assets.navigation ?? TRAY_SURFACE} resizeMode={activeTheme ? 'stretch' : 'cover'} style={trayStyles.surface} imageStyle={trayStyles.surfaceImage}>
     <View style={trayStyles.header}>
       <View style={trayStyles.headingCopy}>
         <Text style={trayStyles.eyebrow}>MY ITEMS</Text>
@@ -207,6 +214,7 @@ export function HomeInventoryTray({
           style={[trayStyles.tab, activeKind === 'plush' && trayStyles.tabActive]}
         ><Text style={[trayStyles.tabText, activeKind === 'plush' && trayStyles.tabTextActive]}>ぬい</Text></Pressable>
       </View>
+      <BlackStarToggle active={showBlackStars} onChange={setShowBlackStars} style={trayStyles.blackStarToggle} testID="inventory-black-star-toggle" />
       <Text style={trayStyles.count}>未表示 {hiddenCount} / 所持 {ids.length}</Text>
     </View>
     {activeKind === 'wall' ? <View accessibilityRole="tablist" style={trayStyles.sizeTabs}>
@@ -273,6 +281,7 @@ const trayStyles = StyleSheet.create({
   eyebrow: { color: '#B65D67', fontSize: 8, lineHeight: 9, fontWeight: '900', letterSpacing: 1.1 },
   title: { color: '#593E57', fontSize: 14, lineHeight: 18, fontWeight: '900' },
   tabs: { flex: 1, height: 30, padding: 2, borderRadius: 15, flexDirection: 'row', backgroundColor: 'rgba(147,91,110,0.13)' },
+  blackStarToggle: { minWidth: 68, width: 68, minHeight: 30, height: 30, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 4, transform: [{ scale: 0.86 }] },
   tab: { flex: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: '#FFF6E9', borderWidth: 1, borderColor: '#D88994' },
   tabText: { color: '#8B6C7D', fontSize: 10, fontWeight: '900' },

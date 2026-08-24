@@ -5,15 +5,23 @@ import { Animated, Easing, Image, PanResponder, Platform, StyleSheet, View } fro
 import { MobbyPullMesh, type MobbyPullMeshHandle } from '@/components/MobbyPullMesh';
 import { ParticleBurst } from '@/components/effects';
 import { MobbyAssetButton } from '@/components/mobby-ui';
-import { type Item } from '@/data/collectibles';
+import { ITEM_ENEMY_IDS, type Item } from '@/data/collectibles';
 import { type MobbyId } from '@/data/mobies';
 import { PULL_ASSETS, type MobbyPullAsset, type PullFrame } from '@/data/mobbyPullAssets';
+import { getBlackStarReactionCatalog } from '@/domain/characters/blackStarReactions';
 import { useMobbyHaptics } from '@/hooks/useMobbyHaptics';
 import { styles } from '@/ui/layout/appStyles';
 import { Text, useAppLayout } from '@/ui/layout/visualPrimitives';
 import { PULL_REACTION_FRAMES } from './pullReactionFrames';
 
-export function PullableMobby({ selected, onPull, size = 320, onCharacterPickerPress, selectedMobbyName, specialCentering = false, onInteractionStateChange, enabled = true, onValidRelease, onReaction }: { selected: Item; onPull: () => number; size?: number; onCharacterPickerPress?: () => void; selectedMobbyName?: string; specialCentering?: boolean; onInteractionStateChange?: (busy: boolean) => void; enabled?: boolean; onValidRelease?: () => Promise<void>; onReaction?: (reactionId: string) => void }) {
+export type PullableMobbyProps = { selected: Item; onPull: () => number; size?: number; onCharacterPickerPress?: () => void; selectedMobbyName?: string; specialCentering?: boolean; onInteractionStateChange?: (busy: boolean) => void; enabled?: boolean; onValidRelease?: () => Promise<void>; onReaction?: (reactionId: string) => void };
+
+export function PullableMobby(props: PullableMobbyProps) {
+  const enemyId = ITEM_ENEMY_IDS[props.selected.id];
+  return enemyId ? <PullableBlackStar {...props} enemyId={enemyId} /> : <StandardPullableMobby {...props} />;
+}
+
+function StandardPullableMobby({ selected, onPull, size = 320, onCharacterPickerPress, selectedMobbyName, specialCentering = false, onInteractionStateChange, enabled = true, onValidRelease, onReaction }: PullableMobbyProps) {
   const { scale: appScale } = useAppLayout();
   const mobbyId = itemMobbyId(selected.id);
   const pullAsset = PULL_ASSETS[mobbyId];
@@ -326,6 +334,153 @@ export function PullableMobby({ selected, onPull, size = 320, onCharacterPickerP
       {status !== 'idle' ? <View pointerEvents="none" style={styles.pullStatus}><Text style={styles.pullStatusText}>{status === 'pulling' ? 'のびてる……' : isSpecialReaction ? '10回目のスペシャル反応！' : 'びよーん！'}</Text></View> : null}
     </View>
   );
+}
+
+function PullableBlackStar({
+  selected,
+  onPull,
+  size = 320,
+  onCharacterPickerPress,
+  selectedMobbyName,
+  onInteractionStateChange,
+  enabled = true,
+  onValidRelease,
+  onReaction,
+  enemyId,
+}: PullableMobbyProps & { enemyId: NonNullable<(typeof ITEM_ENEMY_IDS)[string]> }) {
+  const { scale: appScale } = useAppLayout();
+  const reactions = getBlackStarReactionCatalog(enemyId);
+  const [reactionIndex, setReactionIndex] = useState<number | null>(null);
+  const [status, setStatus] = useState<'idle' | 'pulling' | 'reacting'>('idle');
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const scaleX = useRef(new Animated.Value(1)).current;
+  const scaleY = useRef(new Animated.Value(1)).current;
+  const rotate = useRef(new Animated.Value(0)).current;
+  const reactionMotion = useRef(new Animated.Value(0)).current;
+  const haptics = useMobbyHaptics();
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const resetPose = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(translateX, { toValue: 0, speed: 20, bounciness: 7, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.spring(translateY, { toValue: 0, speed: 20, bounciness: 7, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.spring(scaleX, { toValue: 1, speed: 20, bounciness: 7, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.spring(scaleY, { toValue: 1, speed: 20, bounciness: 7, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.spring(rotate, { toValue: 0, speed: 20, bounciness: 7, useNativeDriver: Platform.OS !== 'web' }),
+    ]).start();
+  }, [rotate, scaleX, scaleY, translateX, translateY]);
+
+  const triggerReaction = useCallback((dx = Math.max(14, size * 0.08), dy = 0) => {
+    if (!enabled || status === 'reacting') return;
+    if (Math.hypot(dx, dy) < 4) {
+      resetPose();
+      setStatus('idle');
+      onInteractionStateChange?.(false);
+      return;
+    }
+    haptics.light();
+    const count = Math.max(1, onPull());
+    const index = (count - 1) % reactions.length;
+    const entry = reactions[index];
+    setReactionIndex(index);
+    setStatus('reacting');
+    onInteractionStateChange?.(true);
+    onReaction?.(entry.id);
+    void onValidRelease?.().catch(() => undefined);
+    reactionMotion.setValue(0);
+    animationRef.current?.stop();
+    const special = index === reactions.length - 1;
+    const animation = Animated.timing(reactionMotion, {
+      toValue: 1,
+      duration: special ? 2100 : 1050,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    animationRef.current = animation;
+    animation.start(({ finished }) => {
+      if (!finished) return;
+      setReactionIndex(null);
+      setStatus('idle');
+      onInteractionStateChange?.(false);
+      reactionMotion.setValue(0);
+      animationRef.current = null;
+      resetPose();
+    });
+  }, [enabled, haptics, onInteractionStateChange, onPull, onReaction, onValidRelease, reactionMotion, reactions, resetPose, size, status]);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => enabled && status !== 'reacting',
+    onMoveShouldSetPanResponder: () => enabled && status !== 'reacting',
+    onPanResponderGrant: () => {
+      setStatus('pulling');
+      onInteractionStateChange?.(true);
+      haptics.light();
+    },
+    onPanResponderMove: (_event, gesture) => {
+      const dx = gesture.dx / appScale;
+      const dy = gesture.dy / appScale;
+      const limitedX = Math.max(-48, Math.min(48, dx));
+      const limitedY = Math.max(-36, Math.min(36, dy));
+      translateX.setValue(limitedX * 0.25);
+      translateY.setValue(limitedY * 0.18);
+      scaleX.setValue(1 + Math.min(0.18, Math.abs(limitedX) / Math.max(1, size) * 0.5));
+      scaleY.setValue(1 - Math.min(0.1, Math.abs(limitedX) / Math.max(1, size) * 0.24));
+      rotate.setValue(Math.max(-1, Math.min(1, limitedX / 48)));
+    },
+    onPanResponderRelease: (_event, gesture) => triggerReaction(gesture.dx / appScale, gesture.dy / appScale),
+    onPanResponderTerminate: () => {
+      resetPose();
+      setStatus('idle');
+      onInteractionStateChange?.(false);
+    },
+  }), [appScale, enabled, haptics, onInteractionStateChange, resetPose, rotate, scaleX, scaleY, size, status, translateX, translateY, triggerReaction]);
+
+  useEffect(() => {
+    setReactionIndex(null);
+    setStatus('idle');
+    reactionMotion.setValue(0);
+    resetPose();
+  }, [enemyId, reactionMotion, resetPose]);
+  useEffect(() => () => animationRef.current?.stop(), []);
+
+  const reaction = reactionIndex === null ? null : reactions[reactionIndex];
+  const special = reactionIndex === reactions.length - 1;
+  const reactionScale = reactionMotion.interpolate({
+    inputRange: [0, 0.15, 0.42, 0.78, 1],
+    outputRange: special ? [0.82, 1.5, 1.28, 1.2, 0.95] : [0.92, 1.12, 1.04, 1, 0.96],
+  });
+  const reactionTranslateY = reactionMotion.interpolate({
+    inputRange: [0, 0.2, 0.55, 1],
+    outputRange: special ? [8, -58, -42, 0] : [5, -7, 1, 0],
+  });
+  const rotateDegrees = rotate.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-6deg', '0deg', '6deg'] });
+
+  return <View style={[styles.pullableWrap, { width: size, height: size + 12 }]}>
+    <View pointerEvents="box-none" style={[styles.pullableStage, { width: size, height: size }]}>
+      {onCharacterPickerPress ? <MobbyAssetButton accessibilityLabel={`メインキャラを選ぶ（現在：${selectedMobbyName ?? selected.name}）`} tone="cream" onPress={onCharacterPickerPress} style={[styles.characterPickerButton, size >= 300 ? styles.characterPickerButtonLarge : styles.characterPickerButtonCompact]} contentStyle={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></MobbyAssetButton> : null}
+      <Animated.View
+        {...panResponder.panHandlers}
+        accessibilityHint="タップまたは引っぱると黒星のリアクションを表示します"
+        accessibilityLabel={`${selectedMobbyName ?? selected.name}をつつく`}
+        accessibilityRole="button"
+        onAccessibilityTap={() => triggerReaction()}
+        style={[styles.pullableSlot, {
+          width: size,
+          height: size,
+          opacity: reaction ? 0 : 1,
+          transform: [{ translateX }, { translateY }, { rotate: rotateDegrees }, { scaleX }, { scaleY }],
+        }]}
+      >
+        <Image source={selected.image} resizeMode="contain" style={{ width: size, height: size }} />
+      </Animated.View>
+      {reaction ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: reactionMotion.interpolate({ inputRange: [0, 0.06, 0.88, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateY: reactionTranslateY }, { scale: reactionScale }] }]}>
+        <Image source={reaction.source} resizeMode="contain" style={{ width: size, height: size }} />
+        <ParticleBurst type={special ? 'star' : 'heart'} count={special ? 12 : 7} large={special} active burstKey={reaction.id} seed={reaction.id} style={styles.pullParticleBurst} />
+      </Animated.View> : null}
+    </View>
+    {status !== 'idle' ? <View pointerEvents="none" style={styles.pullStatus}><Text style={styles.pullStatusText}>{status === 'pulling' ? '黒星をつついてる…' : reaction?.label ?? 'リアクション！'}</Text></View> : null}
+  </View>;
 }
 
 function itemMobbyId(itemId: string): MobbyId {

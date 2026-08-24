@@ -18,10 +18,13 @@ import {
 } from 'react-native';
 
 import { ParticleBurst } from '@/components/effects';
-import { getMobby, type MobbyId } from '@/data/mobies';
-import { REACTION_MOBBY_IDS, REACTION_STICKERS } from '@/data/reactionCollection';
+import { BlackStarToggle } from '@/components/characters';
+import { REACTION_BLACK_STAR_IDS, REACTION_MOBBY_IDS, REACTION_STICKERS } from '@/data/reactionCollection';
+import { getCharacterProfile, isBlackStarCharacterId } from '@/domain/characters/roster';
+import type { CharacterId } from '@/domain/characters/types';
 import { styles as appStyles } from '@/ui/layout/appStyles';
 import { Text } from '@/ui/layout/visualPrimitives';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 const REACTION_COLLECTION_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-reaction-collection-v1.png');
 const REACTION_COLLECTION_PANEL_ASPECT_RATIO = 957 / 1462;
@@ -115,15 +118,18 @@ function AnimatedReactionPreview({ id, source, index, size, reduceMotion }: {
   </View>;
 }
 
-export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduceMotion = false, onSelectMobby, onClose }: {
-  selectedMobbyId: MobbyId;
+export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, reduceMotion = false, onSelectCharacter, onClose }: {
+  selectedCharacterId: CharacterId;
   collectedIds: readonly string[];
   reduceMotion?: boolean;
-  onSelectMobby: (id: MobbyId) => void;
+  onSelectCharacter: (id: CharacterId) => void;
   onClose: () => void;
 }) {
-  const mobby = getMobby(selectedMobbyId);
-  const stickers = REACTION_STICKERS[selectedMobbyId] ?? [];
+  const [showBlackStars, setShowBlackStars] = useState(() => isBlackStarCharacterId(selectedCharacterId));
+  const { activeTheme } = useGachaTheme();
+  const visibleCharacterIds: readonly CharacterId[] = showBlackStars ? REACTION_BLACK_STAR_IDS : REACTION_MOBBY_IDS;
+  const character = getCharacterProfile(selectedCharacterId);
+  const stickers = REACTION_STICKERS[selectedCharacterId] ?? [];
   const collected = useMemo(() => new Set(collectedIds), [collectedIds]);
   const [previewStickerId, setPreviewStickerId] = useState<string | null>(null);
   const characterTabsRef = useRef<ScrollView>(null);
@@ -166,13 +172,13 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
     }
     onClose();
   };
-  useEffect(() => setPreviewStickerId(null), [selectedMobbyId]);
+  useEffect(() => setPreviewStickerId(null), [selectedCharacterId]);
   useEffect(() => {
-    const selectedIndex = REACTION_MOBBY_IDS.indexOf(selectedMobbyId);
+    const selectedIndex = Math.max(0, visibleCharacterIds.indexOf(selectedCharacterId));
     const viewport = Math.max(0, panelWidth - 52);
     const contentWidth = REACTION_TAB_PADDING * 2
-      + REACTION_MOBBY_IDS.length * REACTION_TAB_WIDTH
-      + Math.max(0, REACTION_MOBBY_IDS.length - 1) * REACTION_TAB_GAP;
+      + visibleCharacterIds.length * REACTION_TAB_WIDTH
+      + Math.max(0, visibleCharacterIds.length - 1) * REACTION_TAB_GAP;
     const selectedCenter = REACTION_TAB_PADDING + selectedIndex * (REACTION_TAB_WIDTH + REACTION_TAB_GAP) + REACTION_TAB_WIDTH / 2;
     const targetOffset = Math.max(0, Math.min(contentWidth - viewport, selectedCenter - viewport / 2));
     const frame = requestAnimationFrame(() => {
@@ -180,12 +186,12 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
       characterTabsRef.current?.scrollTo({ x: targetOffset, animated: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [panelWidth, selectedMobbyId]);
+  }, [panelWidth, selectedCharacterId, visibleCharacterIds]);
   return <Modal animationType="none" onRequestClose={dismissPreviewOrClose} presentationStyle="overFullScreen" transparent visible>
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable accessibilityLabel={previewSticker ? 'リアクションの拡大表示を閉じる' : 'リアクション図鑑を閉じる'} accessibilityRole="button" onPress={dismissPreviewOrClose} style={styles.backdrop} />
-      <View accessibilityViewIsModal accessibilityLabel={`${mobby.name}のリアクション図鑑`} style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
-      <ImageBackground accessible={false} imageStyle={[styles.panelImage, styles.backgroundImage]} resizeMode="cover" source={REACTION_COLLECTION_POPUP_BACKGROUND} style={styles.panelBackground}>
+      <View accessibilityViewIsModal accessibilityLabel={`${character.name}のリアクション図鑑`} style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
+      <ImageBackground accessible={false} imageStyle={[styles.panelImage, !activeTheme && styles.backgroundImage]} resizeMode={activeTheme ? 'stretch' : 'cover'} source={activeTheme?.assets.popup ?? REACTION_COLLECTION_POPUP_BACKGROUND} style={styles.panelBackground}>
       <View style={styles.panelContent}>
       <View
         accessibilityElementsHidden={Boolean(previewSticker)}
@@ -197,12 +203,22 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>REACTION STAMPS</Text>
           <Text accessibilityRole="header" style={styles.title}>リアクション図鑑</Text>
-          <Text style={styles.subtitle}>{mobby.name}のリアクションを集めよう ・ {collectedCount}/{stickers.length}</Text>
+          <Text style={styles.subtitle}>{character.name}のリアクションを集めよう ・ {collectedCount}/{stickers.length}</Text>
         </View>
         <Pressable accessibilityLabel="リアクション図鑑を閉じる" accessibilityRole="button" hitSlop={8} onPress={onClose} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
           <Text style={styles.closeText}>×</Text>
         </Pressable>
       </View>
+      <BlackStarToggle
+        active={showBlackStars}
+        onChange={(active) => {
+          setShowBlackStars(active);
+          setPreviewStickerId(null);
+          onSelectCharacter(active ? REACTION_BLACK_STAR_IDS[0] : REACTION_MOBBY_IDS[0]);
+        }}
+        style={styles.blackStarToggle}
+        testID="reaction-black-star-toggle"
+      />
       <View {...(Platform.OS === 'web' ? characterTabsPanResponder.panHandlers : {})} style={styles.tabsGestureArea}>
       <ScrollView
         {...webCharacterTabsProps}
@@ -216,19 +232,19 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
         showsHorizontalScrollIndicator={false}
         style={styles.tabsScroll}
       >
-        {REACTION_MOBBY_IDS.map((id) => {
-          const tabMobby = getMobby(id);
-          const selected = id === selectedMobbyId;
+        {visibleCharacterIds.map((id) => {
+          const tabCharacter = getCharacterProfile(id);
+          const selected = id === selectedCharacterId;
           return <Pressable
-            accessibilityLabel={`${tabMobby.name}のリアクション`}
+            accessibilityLabel={`${tabCharacter.name}のリアクション`}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             key={id}
-            onPress={() => onSelectMobby(id)}
+            onPress={() => onSelectCharacter(id)}
             style={({ pressed }) => [styles.tab, selected && styles.tabSelected, pressed && styles.pressed]}
           >
-            <Image accessible={false} source={tabMobby.image} resizeMode="contain" style={styles.tabImage} />
-            <Text numberOfLines={1} style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{tabMobby.name}</Text>
+            <Image accessible={false} source={tabCharacter.image} resizeMode="contain" style={styles.tabImage} />
+            <Text numberOfLines={1} style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{tabCharacter.name}</Text>
             {selected ? <View pointerEvents="none" style={styles.tabIndicator} /> : null}
           </Pressable>;
         })}
@@ -246,7 +262,7 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
             return <Pressable
               accessibilityHint={owned ? '大きく表示します' : undefined}
               key={sticker.id}
-              accessibilityLabel={owned ? `${mobby.name}のリアクション${sticker.index + 1}を拡大表示` : '未収集のリアクション'}
+              accessibilityLabel={owned ? `${character.name}のリアクション${sticker.index + 1}を拡大表示` : '未収集のリアクション'}
               accessibilityRole="button"
               accessibilityState={{ disabled: !owned }}
               disabled={!owned}
@@ -266,7 +282,7 @@ export function ReactionCollectionPopover({ selectedMobbyId, collectedIds, reduc
       <Text style={styles.hint}>ほっぺを引っぱると、新しいリアクションが増えるよ</Text>
       </View>
       {previewSticker ? <Pressable
-        accessibilityLabel={`${mobby.name}のリアクション${previewSticker.index + 1}を大きく表示中。タップして図鑑に戻る`}
+        accessibilityLabel={`${character.name}のリアクション${previewSticker.index + 1}を大きく表示中。タップして図鑑に戻る`}
         accessibilityRole="button"
         accessibilityViewIsModal
         onPress={() => setPreviewStickerId(null)}
@@ -314,6 +330,7 @@ const styles = StyleSheet.create({
   subtitle: { color: '#8A6C79', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 3 },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#7E4C60', fontSize: 30, lineHeight: 32, fontWeight: '900' },
+  blackStarToggle: { alignSelf: 'flex-end', minWidth: 86, minHeight: 36, marginTop: -6, marginRight: 29, marginBottom: 4, transform: [{ scale: 0.86 }] },
   tabsGestureArea: { marginHorizontal: 26 },
   tabsScroll: { flexGrow: 0 },
   tabs: { gap: 8, paddingHorizontal: 4, paddingBottom: 9 },

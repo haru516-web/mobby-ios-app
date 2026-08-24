@@ -1,3 +1,5 @@
-import { MobbyRouteScene } from '@/state/MobbyAppShell';
+import { Redirect } from 'expo-router';
 
-export default MobbyRouteScene;
+export default function LegacyTradeRoute() {
+  return <Redirect href="/mobby-time" />;
+}
