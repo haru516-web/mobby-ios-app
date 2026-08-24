@@ -86,10 +86,12 @@ function ResultBadge({ result }: { result: GachaPullResult }) {
 
 function PullResultCard({ result, compact }: { result: GachaPullResult; compact: boolean }) {
   const rerolled = result.rerollReason !== 'none';
-  return <View
+  return <MobbyAssetSurface
     accessible
     accessibilityLabel={`${result.reward.name}、${result.isNew ? '新しく獲得' : `所持数${result.inventoryCount}`}`}
+    variant="paper"
     style={[styles.resultCard, compact && styles.resultCardCompact]}
+    contentStyle={[styles.resultCardContent, compact && styles.resultCardContentCompact]}
   >
     <View style={styles.resultArtworkWrap}>
       <RewardArtwork reward={result.reward} compact={compact} />
@@ -104,11 +106,12 @@ function PullResultCard({ result, compact }: { result: GachaPullResult; compact:
     {rerolled ? <Text numberOfLines={1} style={styles.rerollText}>
       {result.rerollReason === 'duplicate-theme' ? '重複テーマを再抽選' : 'コンプリート振替'}
     </Text> : null}
-  </View>;
+  </MobbyAssetSurface>;
 }
 
 function GachaResultModal({ outcome, onClose }: { outcome: GachaPullOutcome | null; onClose: () => void }) {
   const tenPull = outcome?.size === 10;
+  const singleResultIsNew = outcome?.results[0]?.isNew ?? false;
   return <Modal
     animationType="fade"
     onRequestClose={onClose}
@@ -118,7 +121,12 @@ function GachaResultModal({ outcome, onClose }: { outcome: GachaPullOutcome | nu
   >
     <View style={styles.modalRoot}>
       <Pressable accessibilityLabel="ガチャ結果を閉じる" onPress={onClose} style={styles.modalBackdrop} />
-      <View accessibilityViewIsModal style={[styles.modalCard, tenPull && styles.modalCardTen]}>
+      <MobbyAssetSurface
+        accessibilityViewIsModal
+        variant="modalPortrait"
+        style={[styles.modalCard, tenPull && styles.modalCardTen]}
+        contentStyle={[styles.modalCardContent, tenPull && styles.modalCardContentTen]}
+      >
         <View pointerEvents="none" style={styles.modalGlow} />
         <View style={styles.modalHeadingRow}>
           <View>
@@ -128,7 +136,11 @@ function GachaResultModal({ outcome, onClose }: { outcome: GachaPullOutcome | nu
           <View style={styles.freeSeal}><Text style={styles.freeSealText}>FREE</Text></View>
         </View>
         <Text accessibilityLiveRegion="polite" style={styles.modalLead}>
-          {tenPull ? '10個のアイテムを受け取りました！' : '新しいアイテムを受け取りました！'}
+          {tenPull
+            ? '10個のアイテムを受け取りました！'
+            : singleResultIsNew
+              ? '新しいアイテムを受け取りました！'
+              : 'アイテムを受け取りました！'}
         </Text>
         <ScrollView
           contentContainerStyle={[styles.results, tenPull && styles.resultsTen]}
@@ -149,7 +161,7 @@ function GachaResultModal({ outcome, onClose }: { outcome: GachaPullOutcome | nu
         >
           <Text style={styles.closeButtonText}>受け取って閉じる</Text>
         </MobbyAssetButton>
-      </View>
+      </MobbyAssetSurface>
     </View>
   </Modal>;
 }
@@ -509,8 +521,10 @@ const styles = StyleSheet.create({
   themeStatusSelected: { color: '#C15E6B' },
   modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 20 },
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(55,35,49,0.68)' },
-  modalCard: { width: '100%', maxWidth: 400, maxHeight: '90%', minHeight: 488, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 18, borderRadius: 30, backgroundColor: '#FFF5DC', borderWidth: 3, borderColor: '#D7A56A', shadowColor: '#382330', shadowOpacity: 0.34, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 18, overflow: 'hidden' },
+  modalCard: { width: '100%', maxWidth: 400, maxHeight: '90%', minHeight: 488, borderRadius: 30, shadowColor: '#382330', shadowOpacity: 0.34, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 18, overflow: 'hidden' },
   modalCardTen: { maxWidth: 470, height: '90%' },
+  modalCardContent: { minHeight: 488, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 18, overflow: 'hidden' },
+  modalCardContentTen: { flex: 1, minHeight: 0 },
   modalGlow: { position: 'absolute', width: 300, height: 220, borderRadius: 150, top: -120, right: -80, backgroundColor: 'rgba(255,218,115,0.34)' },
   modalHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalEyebrow: { color: '#A46F78', fontSize: 12, lineHeight: 14, fontWeight: '900', letterSpacing: 1.8 },
@@ -521,8 +535,10 @@ const styles = StyleSheet.create({
   resultsScroll: { flexGrow: 0, flexShrink: 1 },
   results: { alignItems: 'center', paddingVertical: 5 },
   resultsTen: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'space-between', rowGap: 9 },
-  resultCard: { width: '100%', maxWidth: 278, minHeight: 302, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 22, backgroundColor: 'rgba(255,253,241,0.92)', borderWidth: 1.5, borderColor: '#E1C294', alignItems: 'center' },
-  resultCardCompact: { width: '48.5%', minHeight: 210, paddingHorizontal: 7, paddingVertical: 9, borderRadius: 17 },
+  resultCard: { width: '100%', maxWidth: 278, minHeight: 302, borderRadius: 22, overflow: 'hidden' },
+  resultCardCompact: { width: '48.5%', minHeight: 210, borderRadius: 17 },
+  resultCardContent: { minHeight: 302, paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' },
+  resultCardContentCompact: { minHeight: 210, paddingHorizontal: 7, paddingVertical: 9 },
   resultArtworkWrap: { position: 'relative' },
   artwork: { width: 178, height: 178, borderRadius: 25, borderWidth: 3, overflow: 'hidden', backgroundColor: '#F5E3C8', alignItems: 'center', justifyContent: 'center' },
   artworkCompact: { width: 104, height: 104, borderRadius: 17, borderWidth: 2 },

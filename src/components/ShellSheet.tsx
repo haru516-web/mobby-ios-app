@@ -4,20 +4,24 @@ import { Text } from '@/ui/layout/visualPrimitives';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MobbyAssetButton } from '@/components/mobby-ui';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 export function SheetScreen({ title, children, footer, backgroundSource, closeImageSource }: { title: string; children: ReactNode; footer?: ReactNode; backgroundSource?: ImageSourcePropType; closeImageSource?: ImageSourcePropType }) {
+  const { activeTheme } = useGachaTheme();
+  const resolvedBackground = activeTheme?.assets.appBackground ?? backgroundSource;
+  const resolvedCloseImage = activeTheme ? undefined : closeImageSource;
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, backgroundSource ? styles.safeWithBackground : null]}>
-      {backgroundSource ? <View pointerEvents="none" style={styles.backgroundImage}><Image accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={backgroundSource} resizeMode="cover" style={styles.backgroundImageAsset} /></View> : null}
+    <SafeAreaView edges={['bottom']} style={[styles.safe, resolvedBackground ? styles.safeWithBackground : null]}>
+      {resolvedBackground ? <View pointerEvents="none" style={styles.backgroundImage}><Image accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={resolvedBackground} resizeMode="cover" style={styles.backgroundImageAsset} /></View> : null}
       <View style={styles.header}>
         <Text accessibilityRole="header" style={styles.title}>{title}</Text>
-        {closeImageSource ? <Pressable
+        {resolvedCloseImage ? <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${title}を閉じる`}
           onPress={() => router.back()}
           style={({ pressed }) => [styles.closeImageButton, pressed && styles.closeImageButtonPressed]}
         >
-          <Image accessible={false} source={closeImageSource} resizeMode="contain" style={styles.closeImage} />
+          <Image accessible={false} source={resolvedCloseImage} resizeMode="contain" style={styles.closeImage} />
         </Pressable> : <MobbyAssetButton accessibilityLabel={`${title}を閉じる`} tone="cream" onPress={() => router.back()} style={styles.close} contentStyle={styles.closeContent}>
           <Text style={styles.closeText}>閉じる</Text>
         </MobbyAssetButton>}

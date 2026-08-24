@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Image,
   ImageBackground,
+  Modal,
   ScrollView,
   StyleSheet,
   View,
@@ -9,6 +10,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IncidentComicPlayer } from '@/components/incidents/IncidentComicPlayer';
 import {
@@ -89,13 +91,20 @@ export function IncidentComicsScreen({
 
   if (selectedIncident) {
     return (
-      <View onLayout={handleRootLayout} style={[styles.readerHost, style]}>
-        <IncidentComicPlayer
-          incident={selectedIncident}
-          onComplete={completeIncident}
-          onSkip={skipIncident}
-        />
-      </View>
+      <Modal
+        animationType="none"
+        onRequestClose={() => skipIncident(selectedIncident.id)}
+        presentationStyle="fullScreen"
+        visible
+      >
+        <SafeAreaView onLayout={handleRootLayout} style={[styles.readerHost, style]}>
+          <IncidentComicPlayer
+            incident={selectedIncident}
+            onComplete={completeIncident}
+            onSkip={skipIncident}
+          />
+        </SafeAreaView>
+      </Modal>
     );
   }
 

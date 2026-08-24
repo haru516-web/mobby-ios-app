@@ -15,6 +15,7 @@ import {
 } from '@/data/incidentComics';
 import { getEnemy } from '@/data/enemies';
 import { getMobby } from '@/data/mobies';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 export type IncidentComicPlayerProps = {
@@ -30,6 +31,7 @@ export function IncidentComicPlayer({
   onSkip,
   onPanelChange,
 }: IncidentComicPlayerProps) {
+  const { activeTheme } = useGachaTheme();
   const [panelIndex, setPanelIndex] = useState(0);
   const panel = incident.panels[panelIndex];
   const lastPanel = panelIndex === incident.panels.length - 1;
@@ -69,9 +71,13 @@ export function IncidentComicPlayer({
     <View
       accessibilityLabel={`${incident.title}を表示中`}
       accessibilityViewIsModal
-      style={styles.root}
+      style={[styles.root, activeTheme && styles.rootThemed]}
       testID="incident-comic-player"
     >
+      {activeTheme ? <>
+        <Image accessible={false} source={activeTheme.assets.appBackground} resizeMode="cover" style={styles.themedBackground} />
+        <View pointerEvents="none" style={styles.themedShade} />
+      </> : null}
       <View style={styles.topBar}>
         <View style={styles.titleCopy}>
           <Text numberOfLines={1} style={styles.eyebrow}>BLACK STAR INCIDENT</Text>
@@ -184,9 +190,12 @@ const styles = StyleSheet.create({
     minHeight: 0,
     paddingHorizontal: 10,
     paddingTop: 8,
-    paddingBottom: 78,
+    paddingBottom: 8,
     backgroundColor: '#1C1720',
   },
+  rootThemed: { backgroundColor: 'transparent' },
+  themedBackground: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  themedShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,14,24,0.68)' },
   topBar: {
     minHeight: 52,
     flexDirection: 'row',

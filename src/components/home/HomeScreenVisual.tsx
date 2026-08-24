@@ -10,7 +10,7 @@ import { MobbyAssetButton } from '@/components/mobby-ui';
 import { PullableMobby } from '@/components/mobby/PullableMobby';
 import { ReactionCollectionPopover } from '@/components/home/ReactionCollectionPopover';
 import { EMPTY_OWNED, ITEM_ENEMY_IDS, ITEM_MOBBY_IDS, collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectibleVariant, type Item } from '@/data/collectibles';
-import { ALL_REACTION_IDS, REACTION_STICKERS, normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY, type ReactionSticker } from '@/data/reactionCollection';
+import { ALL_REACTION_IDS, REACTION_MOBBY_IDS, REACTION_STICKERS, normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY, type ReactionSticker } from '@/data/reactionCollection';
 import { getCharacterProfile, toBlackStarCharacterId } from '@/domain/characters/roster';
 import type { CharacterId } from '@/domain/characters/types';
 import { useGachaTheme } from '@/theme/GachaThemeContext';
@@ -232,6 +232,13 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
     ? toBlackStarCharacterId(ITEM_ENEMY_IDS[selected.id])
     : ITEM_MOBBY_IDS[selected.id] ?? 'mobichi';
   const selectedCharacter = getCharacterProfile(selectedCharacterId);
+  const ownedReactionCharacterIds = useMemo(() => characters.flatMap<CharacterId>((character) => {
+    if (!character.owned) return [];
+    const enemyId = ITEM_ENEMY_IDS[character.id];
+    if (enemyId) return [toBlackStarCharacterId(enemyId)];
+    const mobbyId = ITEM_MOBBY_IDS[character.id];
+    return mobbyId ? [mobbyId] : [];
+  }), [characters]);
   const [characterPickerOpen, setCharacterPickerOpen] = useState(false);
   const [reactionBookOpen, setReactionBookOpen] = useState(false);
   const [reactionTabId, setReactionTabId] = useState<CharacterId>(selectedCharacterId);
@@ -426,7 +433,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
         animation.start(({ finished }) => {
           if (finished && !cancelled) schedule();
         });
-      }, (reduceMotion ? 12000 : 7000) + Math.random() * 7000);
+      }, 5000 + Math.random() * 8000);
     };
     schedule();
     return () => {
@@ -702,7 +709,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
         </Animated.View>
         <MobbyAssetButton
           accessibilityLabel="リアクション図鑑を開く"
-          onPress={() => { onUiTap(); setCharacterPickerOpen(false); setReactionTabId(selectedCharacterId); setReactionBookOpen(true); }}
+          onPress={() => { onUiTap(); setCharacterPickerOpen(false); setReactionTabId(REACTION_MOBBY_IDS[0]); setReactionBookOpen(true); }}
           backgroundSource={activeTheme ? undefined : HOME_CONTROL_BUTTON_BACKGROUND}
           backgroundResizeMode="stretch"
           tone="cream"
@@ -767,6 +774,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
     /> : null}
     {reactionBookOpen ? <ReactionCollectionPopover
       collectedIds={collectedReactionIds}
+      ownedCharacterIds={ownedReactionCharacterIds}
       onClose={() => setReactionBookOpen(false)}
       onSelectCharacter={setReactionTabId}
       reduceMotion={reduceMotion}

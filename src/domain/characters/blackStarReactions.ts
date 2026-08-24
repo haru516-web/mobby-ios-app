@@ -55,6 +55,30 @@ export type BlackStarReactionCatalogEntry = {
 
 export type BlackStarReactionCatalog = ExactlyTwenty<BlackStarReactionCatalogEntry>;
 
+const BLACK_STAR_REACTION_ASSET_EXTENSIONS: Readonly<Record<EnemyId, 'png' | 'webp'>> = {
+  magician: 'png',
+  informant: 'webp',
+  tracker: 'webp',
+  safecracker: 'webp',
+  'veiled-duchess': 'webp',
+  courier: 'png',
+  commander: 'png',
+};
+
+// The first generated magician set predates the normalized slot slugs. Keep
+// its physical filenames explicit so diagnostics point to the asset Metro
+// actually loads instead of reporting a non-existent canonical filename.
+const MAGICIAN_PHYSICAL_SLUGS: Partial<Record<BlackStarReactionIndex, string>> = {
+  6: 'escape',
+  7: 'swatt',
+  8: 'stomp',
+  9: 'bawling',
+  10: 'curl',
+  12: 'faint',
+  18: 'turnaway',
+  19: 'rage-shake',
+};
+
 function assertExactlyTwenty<T>(values: readonly T[]): asserts values is ExactlyTwenty<T> {
   if (values.length !== BLACK_STAR_REACTION_COUNT) {
     throw new Error(`Black Star reactions must contain exactly ${BLACK_STAR_REACTION_COUNT} entries.`);
@@ -63,7 +87,8 @@ function assertExactlyTwenty<T>(values: readonly T[]): asserts values is Exactly
 
 function expectedAssetPath(enemyId: EnemyId, slot: BlackStarReactionSlot): string {
   const number = String(slot.index).padStart(2, '0');
-  return `assets/black-stars/reactions/${enemyId}/${number}-${slot.slug}.webp`;
+  const slug = enemyId === 'magician' ? MAGICIAN_PHYSICAL_SLUGS[slot.index] ?? slot.slug : slot.slug;
+  return `assets/black-stars/reactions/${enemyId}/${number}-${slug}.${BLACK_STAR_REACTION_ASSET_EXTENSIONS[enemyId]}`;
 }
 
 function generationBrief(profile: BlackStarCharacterProfile, slot: BlackStarReactionSlot): string {

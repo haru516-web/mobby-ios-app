@@ -4,12 +4,12 @@ import type { EnemyId } from '@/data/enemies';
 import type { IncidentComicProgressV1 } from './incidentComicStorage';
 
 /**
- * Temporary preview switches agreed for the large feature implementation.
- * Story completion is still recorded normally; inventory integrations may use
- * `getEffectiveUnlockedBlackStars` until art and every screen are ready.
+ * Local-only controls for exercising the irregular incident schedule.
+ * Character ownership has its own __DEV__-guarded preview switch; keeping a
+ * second unconditional unlock here could accidentally bypass story progress.
  */
 export const INCIDENT_COMIC_DEVELOPMENT = {
-  previewAllBlackStarsUnlocked: true,
+  previewAllBlackStarsUnlocked: false,
   // The agreed force-appearance hook is available only in local/dev builds;
   // release builds keep the normal irregular 1–3 day schedule.
   showForceAppearanceControl: __DEV__,
