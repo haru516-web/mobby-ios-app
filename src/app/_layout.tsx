@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, Platform, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import { Platform, StyleSheet } from 'react-native';
 
 import { DailyLoopProvider } from '@/game/DailyLoopContext';
 import MobbyAppShell from '@/state/MobbyAppShell';
@@ -9,7 +10,7 @@ import { useGachaTheme } from '@/theme/GachaThemeContext';
 function ThemedStack() {
   const { activeTheme } = useGachaTheme();
   const headerBackground = activeTheme
-    ? () => <Image accessible={false} source={activeTheme.assets.navigation} resizeMode="stretch" style={styles.headerBackground} />
+    ? () => <Image accessible={false} source={activeTheme.assets.navigation} contentFit="cover" style={styles.headerBackground} />
     : undefined;
   return <>
     <StatusBar style="dark" />

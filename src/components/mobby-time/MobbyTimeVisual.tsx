@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, ImageBackground, Pressable, View, type LayoutChangeEvent } from 'react-native';
+import { Image, ImageBackground } from 'expo-image';
+import { Animated, Pressable, View, type LayoutChangeEvent } from 'react-native';
 
 import { ParticleBurst } from '@/components/effects';
 import { MobbyAssetButton } from '@/components/mobby-ui';
@@ -48,6 +49,7 @@ export function MobbyTimeVisual({
   presentation?: 'screen' | 'popover';
 }) {
   const { activeTheme } = useGachaTheme();
+  const mobbyTimeThemeAssets = activeTheme?.mobbyTimeAssets;
   const { width: appWidth, height: appHeight } = useAppLayout();
   const popover = presentation === 'popover';
   const [headerHeight, setHeaderHeight] = useState(popover ? POPOVER_TIME_HEADER_HEIGHT : 110);
@@ -318,12 +320,12 @@ export function MobbyTimeVisual({
   const statusMessage = onboardingFlow
     ? !dailyHydrated ? '最初のグッズを安全に保存しています' : opening ? '光が集まっています…' : rewardInProgress ? (placed ? '受け取りが完了しました' : '最初のグッズを安全に受け取れます') : '箱を開けて、最初の子に会おう'
     : !dailyHydrated ? 'デイリー情報を確認しています' : opening ? '光が集まっています…' : rewardInProgress ? (placed ? '受け取りが完了しました' : '同じグッズを安全に受け取れます') : dailyStatus === 'opened' ? '同じ日はもう一度開封できません' : dailyStatus === 'expired' ? '未開封分は翌日に1回だけ持ち越されます' : dailyStatus === 'carryover' ? '昨日の未開封分を開けられます' : dailyStatus === 'available' ? '箱を開けて、今日の子に会おう' : 'MOBBY TIMEが届くとここに表示されます';
-  const packageArtwork = <Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={styles.mobbyTimePackageAsset} />;
+  const packageArtwork = <Image source={MOBBY_TIME_PACKAGE} contentFit="contain" style={styles.mobbyTimePackageAsset} />;
   return (
     <Animated.View style={[styles.timeScrollContent, { opacity: entryMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0.86, 1] }), transform: [{ translateY: entryMotion.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [18, 0] : [22, 0] }) }, { scale: entryMotion.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [0.94, 1] : [0.965, 1] }) }] }]}>
-        <View onLayout={handleHeaderLayout} style={[styles.timeHeader, popover && styles.timeHeaderPopover]}>{!popover ? <Text style={styles.timeTitle}>{onboardingFlow ? 'はじめてのBOX' : 'MOBBY TIME'}</Text> : null}<Text style={styles.timeHeaderSub}>{statusTitle}</Text><ImageBackground source={activeTheme?.assets.buttonSecondary ?? MOBBY_TIME_TIMER_PLAQUE} resizeMode={activeTheme ? 'stretch' : 'contain'} style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{onboardingFlow ? 'WELCOME' : canOpen ? 'あと' : '状態'}</Text><Text style={styles.bigTimerValue}>{onboardingFlow ? !dailyHydrated ? '準備中' : opening ? '開封中' : rewardInProgress ? '受取中' : 'BOX' : canOpen ? `${minutes}:${seconds}` : opening ? '開封中' : rewardInProgress ? '受取中' : !dailyHydrated ? '読込中' : dailyStatus === 'opened' ? '開封済' : dailyStatus === 'expired' ? '期限切れ' : '待機中'}</Text></ImageBackground></View>
+        <View onLayout={handleHeaderLayout} style={[styles.timeHeader, popover && styles.timeHeaderPopover]}>{!popover ? <Text style={styles.timeTitle}>{onboardingFlow ? 'はじめてのBOX' : 'MOBBY TIME'}</Text> : null}<Text style={styles.timeHeaderSub}>{statusTitle}</Text><ImageBackground source={mobbyTimeThemeAssets?.timerPlaque ?? MOBBY_TIME_TIMER_PLAQUE} contentFit="contain" contentPosition="center" style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{onboardingFlow ? 'WELCOME' : canOpen ? 'あと' : '状態'}</Text><Text style={styles.bigTimerValue}>{onboardingFlow ? !dailyHydrated ? '準備中' : opening ? '開封中' : rewardInProgress ? '受取中' : 'BOX' : canOpen ? `${minutes}:${seconds}` : opening ? '開封中' : rewardInProgress ? '受取中' : !dailyHydrated ? '読込中' : dailyStatus === 'opened' ? '開封済' : dailyStatus === 'expired' ? '期限切れ' : '待機中'}</Text></ImageBackground></View>
       <View style={{ width: encounterBoardBaseWidth * encounterBoardScale, height: encounterBoardBaseHeight * encounterBoardScale }}>
-      <ImageBackground source={activeTheme?.assets.card ?? MOBBY_TIME_BOARD} resizeMode="stretch" style={[styles.encounterCard, { width: encounterBoardBaseWidth, height: encounterBoardBaseHeight, transform: [{ scale: encounterBoardScale }], transformOrigin: 'top left' }]} imageStyle={styles.encounterCardImage}>
+      <ImageBackground source={mobbyTimeThemeAssets?.board ?? MOBBY_TIME_BOARD} contentFit="contain" contentPosition="center" style={[styles.encounterCard, { width: encounterBoardBaseWidth, height: encounterBoardBaseHeight, transform: [{ scale: encounterBoardScale }], transformOrigin: 'top left' }]} imageStyle={styles.encounterCardImage}>
         <View style={styles.arrivalNotice}><Text style={styles.arrivalNoticeText}>{statusMessage}</Text></View>
         <View style={styles.encounterScene}>
           {opening ? (
@@ -348,18 +350,18 @@ export function MobbyTimeVisual({
           ) : <>
             <Animated.View style={[styles.encounterRewardWrap, { transform: placing ? [{ translateY: placementMotion.interpolate({ inputRange: [0, 1], outputRange: [-20, placementDistance] }) }, { scale: placementMotion.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1.16, 0.86] }) }, { rotate: placementMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '-5deg', '0deg'] }) }] : placed ? [{ scale: revealMotion }] : [{ translateY: -20 }, { scale: revealMotion }] }]}>
               <Animated.View style={rewardIdleTransform}>
-                <Image source={rewardImage} resizeMode="contain" style={[styles.encounterKeyImage, todayVariant === 'key-small' && styles.encounterSmallKeyImage, todayVariant === 'plush' && styles.encounterPlushImage]} />
+                <Image source={rewardImage} contentFit="contain" style={[styles.encounterKeyImage, todayVariant === 'key-small' && styles.encounterSmallKeyImage, todayVariant === 'plush' && styles.encounterPlushImage]} />
               </Animated.View>
             </Animated.View>
           </>}
           {opening ? <View pointerEvents="none" style={styles.magicParticles}><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text><Text style={styles.magicParticle}>✦</Text><Text style={styles.magicParticle}>✧</Text></View> : null}
           <ParticleBurst type="sparkle" count={reduceMotion ? 4 : opening ? 8 : 12} large={revealed} active={opening || (revealed && !placing && !placed)} burstKey={stage} seed={`${today.id}-${stage}`} style={styles.timeParticleBurst} />
           {placing ? <Animated.View pointerEvents="none" style={[styles.placementSparkles, { opacity: placementBurst }]}><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text><Text style={styles.placementSparkle}>★</Text><Text style={styles.placementSparkle}>✦</Text><Text style={styles.placementSparkle}>✧</Text></Animated.View> : null}
-          <ImageBackground source={activeTheme?.assets.card ?? MOBBY_TIME_MESSAGE_PLAQUE} resizeMode={activeTheme ? 'stretch' : 'contain'} style={styles.encounterBubble}><Text style={styles.encounterBubbleTitle}>{!active ? onboardingFlow ? '準備中' : 'また明日' : placed ? '飾ったよ' : placing ? `${placement}へ移動中` : revealed ? rewardName : opening ? 'もうすぐ会えるよ' : '箱をタップ'}</Text><Text style={styles.encounterBubbleText}>{!active ? onboardingFlow ? 'グッズを安全に保存しています' : '次のMOBBY TIMEを待ってね' : placed ? `${collectibleVariantLabel(todayVariant)}が${placement}に仲間入り` : placing ? '大切に飾っています' : revealed ? `${onboardingFlow ? '最初' : '今日'}の${collectibleVariantLabel(todayVariant)}` : opening ? 'なにが入っているかな' : '開封しよう'}</Text></ImageBackground>
-          {revealed && !placed && !placing ? <ImageBackground source={activeTheme?.assets.buttonPrimary ?? MOBBY_TIME_REWARD_SEAL} resizeMode={activeTheme ? 'stretch' : 'contain'} style={styles.newBadge}><Text style={styles.newBadgeText}>NEW!</Text></ImageBackground> : null}
+          <ImageBackground source={mobbyTimeThemeAssets?.messagePlaque ?? MOBBY_TIME_MESSAGE_PLAQUE} contentFit="contain" contentPosition="center" style={styles.encounterBubble}><Text style={styles.encounterBubbleTitle}>{!active ? onboardingFlow ? '準備中' : 'また明日' : placed ? '飾ったよ' : placing ? `${placement}へ移動中` : revealed ? rewardName : opening ? 'もうすぐ会えるよ' : '箱をタップ'}</Text><Text style={styles.encounterBubbleText}>{!active ? onboardingFlow ? 'グッズを安全に保存しています' : '次のMOBBY TIMEを待ってね' : placed ? `${collectibleVariantLabel(todayVariant)}が${placement}に仲間入り` : placing ? '大切に飾っています' : revealed ? `${onboardingFlow ? '最初' : '今日'}の${collectibleVariantLabel(todayVariant)}` : opening ? 'なにが入っているかな' : '開封しよう'}</Text></ImageBackground>
+          {revealed && !placed && !placing ? <ImageBackground source={mobbyTimeThemeAssets?.rewardSeal ?? MOBBY_TIME_REWARD_SEAL} contentFit="contain" contentPosition="center" style={styles.newBadge}><Text style={styles.newBadgeText}>NEW!</Text></ImageBackground> : null}
         </View>
         {!revealed ? <MobbyAssetButton accessibilityLabel={openButtonLabel} accessibilityState={{ disabled: !canOpen || opening }} disabled={!canOpen || opening} onPress={startOpening} style={[styles.encounterOpenButton, (!canOpen || opening) && styles.encounterOpenButtonDisabled]} contentStyle={styles.encounterOpenButtonAsset}><Text style={styles.encounterOpenButtonText}>{openButtonLabel}</Text></MobbyAssetButton> : null}
-        {revealed ? <MobbyAssetButton accessibilityLabel={placed ? '配置完了' : `${placement}に追加する`} accessibilityState={{ disabled: placed || !active || placing }} onPress={onPlace} disabled={placed || !active || placing} tone="cream" style={[styles.timePrimaryButton, (placed || !active || placing) && styles.timePrimaryButtonInactive]} contentStyle={styles.assetButtonInner}><Image source={MOBBY_ICON} resizeMode="contain" style={styles.primaryButtonIcon} /><Text style={[styles.primaryButtonText, styles.timePrimaryButtonText]}>{placed ? '配置完了' : placing ? `${placement}へ飾り付け中…` : `${placement}に追加する`}</Text></MobbyAssetButton> : <View style={styles.packageCaptionSpacer} />}
+        {revealed ? <MobbyAssetButton accessibilityLabel={placed ? '配置完了' : `${placement}に追加する`} accessibilityState={{ disabled: placed || !active || placing }} onPress={onPlace} disabled={placed || !active || placing} tone="cream" style={[styles.timePrimaryButton, (placed || !active || placing) && styles.timePrimaryButtonInactive]} contentStyle={styles.assetButtonInner}><Image source={MOBBY_ICON} contentFit="contain" style={styles.primaryButtonIcon} /><Text style={[styles.primaryButtonText, styles.timePrimaryButtonText]}>{placed ? '配置完了' : placing ? `${placement}へ飾り付け中…` : `${placement}に追加する`}</Text></MobbyAssetButton> : <View style={styles.packageCaptionSpacer} />}
       </ImageBackground>
       </View>
     </Animated.View>

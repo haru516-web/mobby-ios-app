@@ -1,4 +1,5 @@
-import { Image, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Text } from '@/ui/layout/visualPrimitives';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMobbyAppShell } from '@/state/MobbyAppShell';
@@ -9,7 +10,7 @@ export default function SettingsRoute() {
   const shell = useMobbyAppShell();
   const { activeTheme } = useGachaTheme();
   return <SafeAreaView edges={['bottom']} style={[styles.safe, activeTheme && styles.safeThemed]}>
-    {activeTheme ? <Image accessible={false} source={activeTheme.assets.appBackground} resizeMode="cover" style={styles.background} /> : null}
+    {activeTheme ? <Image accessible={false} source={activeTheme.assets.appBackground} contentFit="cover" style={styles.background} /> : null}
     <ScrollView contentContainerStyle={styles.content}>
     <View style={styles.section}><Text style={styles.heading}>サウンド</Text><MobbyAssetSurface variant="notice" style={styles.row} contentStyle={styles.rowContent}><View style={styles.copy}><Text style={styles.label}>音を鳴らす</Text><Text style={styles.detail}>BGMと効果音をまとめて切り替えます。</Text></View><Switch accessibilityLabel="音を鳴らす" value={shell.soundEnabled} onValueChange={shell.setSoundEnabled}/></MobbyAssetSurface></View>
     <View style={styles.section}><Text style={styles.heading}>アクセシビリティ</Text><MobbyAssetSurface variant="notice" style={styles.row} contentStyle={styles.rowContent}><View style={styles.copy}><Text style={styles.label}>低モーション</Text><Text style={styles.detail}>端末の「視差効果を減らす」設定に従います。アプリからは上書きしません。</Text><Text style={styles.status}>現在：{shell.reduceMotion ? 'オン' : 'オフ'}</Text></View></MobbyAssetSurface></View>

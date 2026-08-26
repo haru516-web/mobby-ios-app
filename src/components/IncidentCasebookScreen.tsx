@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, ImageBackground } from 'expo-image';
 import {
   Animated,
-  Image,
-  ImageBackground,
   StyleSheet,
   View,
   type ImageSourcePropType,
@@ -107,9 +106,9 @@ export function IncidentCasebookScreen({
     <Text numberOfLines={1} style={styles.kicker}>{activeEpisode.chapter} ・ {activeEpisode.progressLabel}</Text>
     <Text accessibilityRole="header" numberOfLines={2} style={[styles.caseTitle, compact && styles.caseTitleCompact]}>{compact ? balancedCaseTitle(activeEpisode.title) : activeEpisode.title}</Text>
     <View style={[styles.pair, compact && styles.pairCompact]}>
-      <Image accessible={false} source={activeEpisode.enemyImage} resizeMode="contain" style={styles.person} />
+      <Image accessible={false} source={activeEpisode.enemyImage} contentFit="contain" style={styles.person} />
       <Text style={styles.cross}>×</Text>
-      <Image accessible={false} source={activeEpisode.targetImage} resizeMode="contain" style={styles.person} />
+      <Image accessible={false} source={activeEpisode.targetImage} contentFit="contain" style={styles.person} />
     </View>
     <Text numberOfLines={1} style={styles.meta}>{activeEpisode.enemyName} × {activeEpisode.targetName}</Text>
     <View style={styles.actionRow}>
@@ -134,7 +133,7 @@ export function IncidentCasebookScreen({
     <Text numberOfLines={1} style={styles.kicker}>{episode.chapter} ・ {episode.unlocked ? `再生 ${episode.playCount}回` : '前話クリアで解放'}</Text>
     <Text accessibilityRole="header" numberOfLines={compact ? 2 : 1} style={[styles.caseTitle, compact && styles.caseTitleCompact]}>{episode.unlocked && compact ? balancedCaseTitle(episode.title) : episode.unlocked ? episode.title : '？？？'}</Text>
     {episode.unlocked ? <>
-      <Image accessible={false} source={episode.keyVisual} resizeMode="cover" style={[styles.episodeVisual, compact && styles.episodeVisualCompact]} />
+      <Image accessible={false} source={episode.keyVisual} contentFit="cover" style={[styles.episodeVisual, compact && styles.episodeVisualCompact]} />
       <Text numberOfLines={1} style={styles.meta}>{episode.enemyName} × {episode.targetName}</Text>
       <Text numberOfLines={compact ? 1 : 2} style={styles.body}>{episode.synopsis}</Text>
       {episode.playCount > 0 ? <View style={styles.record}>
@@ -154,7 +153,7 @@ export function IncidentCasebookScreen({
   const relationshipContent = relationship ? <View style={styles.section}>
     <Pager index={relationshipIndex} length={relationships.length} label="関係性" onChange={setRelationshipIndex} />
     <Text style={styles.kicker}>RELATIONSHIP RECORD</Text>
-    <Image accessible={false} source={relationship.image} resizeMode="contain" style={[styles.relationshipImage, compact && styles.relationshipImageCompact]} />
+    <Image accessible={false} source={relationship.image} contentFit="contain" style={[styles.relationshipImage, compact && styles.relationshipImageCompact]} />
     <Text accessibilityRole="header" numberOfLines={1} style={styles.caseTitle}>{relationship.enemyName} × {relationship.mobbyName}</Text>
     <Text numberOfLines={3} style={styles.relationshipLead}>{relationship.label}</Text>
   </View> : <View style={[styles.section, styles.centerSection]}>
@@ -172,7 +171,8 @@ export function IncidentCasebookScreen({
     <ImageBackground
       accessible={false}
       imageStyle={styles.backgroundImage}
-      resizeMode={activeTheme ? 'stretch' : embedded ? 'cover' : 'contain'}
+      contentFit={activeTheme || embedded ? 'cover' : 'contain'}
+      contentPosition="center"
       source={activeTheme?.assets.appBackground ?? CASEBOOK_BACKGROUND}
       style={[styles.background, embedded ? styles.backgroundEmbedded : backgroundSize]}
     >
@@ -188,7 +188,7 @@ export function IncidentCasebookScreen({
         </MobbyAssetSelectable>)}
       </View>
       <View onLayout={handleStageLayout} style={styles.stage}>
-        <ImageBackground accessible={false} imageStyle={styles.frameImage} resizeMode={activeTheme ? 'stretch' : 'contain'} source={activeTheme?.assets.popup ?? CASEBOOK_FRAME} style={[styles.frame, frameSize]}>
+        <ImageBackground accessible={false} imageStyle={styles.frameImage} contentFit="contain" contentPosition="center" source={CASEBOOK_FRAME} style={[styles.frame, frameSize]}>
           <View style={[styles.frameContent, compact && styles.frameContentCompact]}>
             {tab === 'active' ? activeContent : null}
             {tab === 'episodes' ? episodeContent : null}

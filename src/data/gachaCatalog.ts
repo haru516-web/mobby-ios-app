@@ -3,6 +3,7 @@ import type { ImageSourcePropType } from 'react-native';
 import { ENEMIES, type EnemyId } from '@/data/enemies';
 import { MOBBIES, type MobbyId } from '@/data/mobies';
 
+import { getGeneratedGachaHomeThemeAssets } from './gachaHomeThemeAssets.generated';
 import { getGeneratedGachaThemeAssets } from './gachaThemeAssets.generated';
 
 export const GACHA_STYLE_NUMBERS = [1, 2, 3, 4, 5] as const;
@@ -30,6 +31,26 @@ export type GachaThemeAssetSlot =
   | 'navigation'
   | 'popup';
 
+// Home furniture and its stitched-paper controls have shapes that cannot be
+// represented faithfully by the generic app-wide card/navigation/popup slots.
+// Keep these slots optional so every current theme continues to use the proven
+// normal-home artwork until a purpose-built replacement is authored.
+export type GachaHomeThemeAssetSlot =
+  | 'controlButton'
+  | 'garland'
+  | 'hook'
+  | 'inventoryTile'
+  | 'inventoryTileSelected'
+  | 'inventoryTray'
+  | 'reactionBubble'
+  | 'shelf';
+
+export type GachaMobbyTimeThemeAssetSlot =
+  | 'board'
+  | 'timerPlaque'
+  | 'messagePlaque'
+  | 'rewardSeal';
+
 export type GachaThemeAssetReference = {
   /** Stable key for replacing the temporary source with generated artwork. */
   assetKey: string;
@@ -40,6 +61,8 @@ export type GachaThemeAssetReference = {
 };
 
 export type GachaThemeAssetGroup = Record<GachaThemeAssetSlot, GachaThemeAssetReference>;
+export type GachaHomeThemeAssetGroup = Record<GachaHomeThemeAssetSlot, GachaThemeAssetReference>;
+export type GachaMobbyTimeThemeAssetGroup = Record<GachaMobbyTimeThemeAssetSlot, GachaThemeAssetReference>;
 
 type GachaRewardBase = {
   id: GachaRewardId;
@@ -72,6 +95,8 @@ export type GachaThemeReward = GachaRewardBase & {
   characterId: GachaCharacterId;
   styleNumber: GachaStyleNumber;
   assets: GachaThemeAssetGroup;
+  homeAssets: GachaHomeThemeAssetGroup;
+  mobbyTimeAssets: GachaMobbyTimeThemeAssetGroup;
 };
 
 export type GachaReward = GachaToolReward | GachaGoodsReward | GachaThemeReward;
@@ -132,6 +157,22 @@ const THEME_FALLBACK_SOURCES: Record<GachaThemeAssetSlot, ImageSourcePropType> =
   card: require('../../assets/generated-ui/surface-paper-wide-v1.png'),
   navigation: require('../../assets/home-ui/panels/nav-backdrop-v4.png'),
   popup: require('../../assets/generated-ui/popup-settings-v1.png'),
+};
+const HOME_THEME_FALLBACK_SOURCES: Record<GachaHomeThemeAssetSlot, ImageSourcePropType> = {
+  controlButton: require('../../assets/generated-ui/home-control-button-v1.png'),
+  garland: require('../../assets/backgrounds/home-garland-trimmed-v1.png'),
+  hook: require('../../assets/backgrounds/hook-transparent.png'),
+  inventoryTile: require('../../assets/generated-ui/surface-tile-square-v1.png'),
+  inventoryTileSelected: require('../../assets/generated-ui/surface-tile-selected-v1.png'),
+  inventoryTray: require('../../assets/generated-ui/inventory-tray-background-v1.png'),
+  reactionBubble: require('../../assets/generated-ui/speech-bubble-paper-v1.png'),
+  shelf: require('../../assets/backgrounds/plush-base-transparent.png'),
+};
+const MOBBY_TIME_THEME_FALLBACK_SOURCES: Record<GachaMobbyTimeThemeAssetSlot, ImageSourcePropType> = {
+  board: require('../../assets/backgrounds/mobby-time-board.png'),
+  timerPlaque: require('../../assets/mobby-time/timer-plaque.png'),
+  messagePlaque: require('../../assets/mobby-time/message-plaque.png'),
+  rewardSeal: require('../../assets/mobby-time/reward-seal.png'),
 };
 
 const ENEMY_ACCENTS: Readonly<Record<EnemyId, string>> = {
@@ -209,6 +250,32 @@ function themeAssets(characterId: GachaCharacterId, styleNumber: GachaStyleNumbe
   ) as GachaThemeAssetGroup;
 }
 
+function homeThemeAssets(characterId: GachaCharacterId, styleNumber: GachaStyleNumber): GachaHomeThemeAssetGroup {
+  const generatedAssets = getGeneratedGachaHomeThemeAssets(characterId, styleNumber);
+  return Object.fromEntries(
+    (Object.keys(HOME_THEME_FALLBACK_SOURCES) as GachaHomeThemeAssetSlot[]).map((slot) => [
+      slot,
+      {
+        assetKey: `themes/${characterId}/${String(styleNumber).padStart(2, '0')}/home/${slot}`,
+        fallbackSource: HOME_THEME_FALLBACK_SOURCES[slot],
+        source: generatedAssets[slot],
+      },
+    ]),
+  ) as GachaHomeThemeAssetGroup;
+}
+
+function mobbyTimeThemeAssets(characterId: GachaCharacterId, styleNumber: GachaStyleNumber): GachaMobbyTimeThemeAssetGroup {
+  return Object.fromEntries(
+    (Object.keys(MOBBY_TIME_THEME_FALLBACK_SOURCES) as GachaMobbyTimeThemeAssetSlot[]).map((slot) => [
+      slot,
+      {
+        assetKey: `themes/${characterId}/${String(styleNumber).padStart(2, '0')}/mobby-time/${slot}`,
+        fallbackSource: MOBBY_TIME_THEME_FALLBACK_SOURCES[slot],
+      },
+    ]),
+  ) as GachaMobbyTimeThemeAssetGroup;
+}
+
 const TOOL_REWARDS: readonly GachaToolReward[] = GACHA_TOOL_KINDS.flatMap((toolKind) =>
   GACHA_STYLE_NUMBERS.map((styleNumber): GachaToolReward => ({
     id: `tool:${toolKind}:${styleNumber}`,
@@ -242,6 +309,8 @@ const GOODS_REWARDS: readonly GachaGoodsReward[] = GACHA_CHARACTERS.flatMap((cha
 const THEME_REWARDS: readonly GachaThemeReward[] = GACHA_CHARACTERS.flatMap((character) =>
   GACHA_STYLE_NUMBERS.map((styleNumber): GachaThemeReward => {
     const assets = themeAssets(character.id, styleNumber);
+    const homeAssets = homeThemeAssets(character.id, styleNumber);
+    const mobbyTimeAssets = mobbyTimeThemeAssets(character.id, styleNumber);
     return {
       id: `theme:${character.id}:${styleNumber}`,
       category: 'theme',
@@ -253,6 +322,8 @@ const THEME_REWARDS: readonly GachaThemeReward[] = GACHA_CHARACTERS.flatMap((cha
       previewImage: assets.appBackground.source ?? THEME_PREVIEW,
       assetKey: `themes/${character.id}/${String(styleNumber).padStart(2, '0')}`,
       assets,
+      homeAssets,
+      mobbyTimeAssets,
     };
   }),
 );

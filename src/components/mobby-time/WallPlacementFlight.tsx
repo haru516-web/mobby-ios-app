@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Animated, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 import { ITEMS, collectibleImage, type CollectibleVariant, type Item } from '@/data/collectibles';
@@ -46,7 +47,7 @@ export function WallPlacementFlight({ item, variant, targetSlotIndex, onComplete
       <View style={styles.status}><Text style={styles.statusText}>ぬいキーが壁へ移動中…</Text></View>
       <Animated.View style={[styles.trail, { opacity: progress.interpolate({ inputRange: [0, 0.18, 0.82, 1], outputRange: [0, 0.92, 0.72, 0] }), transform: [{ translateX: flightX }, { translateY: flightY }, { scale: progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.6, 1.25, 0.85] }) }] }]} />
       <Animated.View style={[styles.item, { transform: [{ translateX: flightX }, { translateY: flightY }, { scale: progress.interpolate({ inputRange: [0, 0.18, 0.82, 1], outputRange: [1.35, 1.55, 1.08, 1] }) }, { rotate: progress.interpolate({ inputRange: [0, 0.45, 0.75, 1], outputRange: ['-7deg', '8deg', '-4deg', '0deg'] }) }] }]}>
-        <Image source={collectibleImage(item, variant)} resizeMode="contain" style={[styles.image, variant === 'key-small' && styles.smallImage]} />
+        <Image source={collectibleImage(item, variant)} contentFit="contain" style={[styles.image, variant === 'key-small' && styles.smallImage]} />
       </Animated.View>
       <Animated.View style={[styles.burst, { left: targetCenterX - 38, top: targetCenterY - 38, opacity: progress.interpolate({ inputRange: [0, 0.82, 1], outputRange: [0, 0, 1] }), transform: [{ scale: progress.interpolate({ inputRange: [0, 0.82, 1], outputRange: [0.3, 0.3, 1.35] }) }] }]}><Text style={styles.burstText}>✦</Text></Animated.View>
     </View>

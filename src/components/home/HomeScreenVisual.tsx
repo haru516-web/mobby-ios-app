@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementRef, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AccessibilityInfo, Animated, Easing, Image, ImageBackground, PanResponder, Platform, Pressable, View, type LayoutChangeEvent } from 'react-native';
+import { Image, ImageBackground } from 'expo-image';
+import { AccessibilityInfo, Animated, Easing, PanResponder, Platform, Pressable, View, type LayoutChangeEvent } from 'react-native';
 
 import { CharacterPickerPopover, type CharacterPickerCharacter } from '@/components/home/CharacterPickerPopover';
 import { HomeInventoryTray } from '@/components/home/HomeInventoryTray';
@@ -26,6 +27,8 @@ import {
 } from '@/domain/home/homeLayout';
 import { styles } from '@/ui/layout/appStyles';
 import { Text, useAppLayout } from '@/ui/layout/visualPrimitives';
+
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 const HOME_GARLAND = require('../../../assets/backgrounds/home-garland-trimmed-v1.png');
 const WOODEN_HOOK = require('../../../assets/backgrounds/hook-transparent.png');
@@ -179,15 +182,14 @@ function HomeWallKeychain({ item, placementId, variant, index, selectedId, owned
       pressed && styles.homeSelectablePressed,
     ]}
   >
-    <Image source={WOODEN_HOOK} resizeMode="contain" style={styles.homeWallHook} />
     {incidentState === 'stolen' ? <View style={styles.homeWallStolenMarker}>
-      <Image source={collectibleImage(item, variant)} resizeMode="contain" style={[styles.homeWallStolenGhost, variant === 'key-small' && styles.homeWallStolenGhostSmall]} />
+      <Image source={collectibleImage(item, variant)} contentFit="contain" style={[styles.homeWallStolenGhost, variant === 'key-small' && styles.homeWallStolenGhostSmall]} />
       <View style={styles.homeWallCaseTag}><Text style={styles.homeWallCaseTagText}>STORY 04</Text></View>
       <View style={styles.homeWallStolenBand}><Text style={styles.homeWallStolenBandText}>おでかけ中</Text></View>
       <Text numberOfLines={1} style={styles.homeWallStolenName}>{name}</Text>
       <Text style={styles.homeWallResume}>タップして続きを見る</Text>
     </View> : owned ? <Animated.View style={[styles.homeWallKeySwing, { transform: [{ rotate: rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '18deg'] }) }] }]}>
-      <Image source={collectibleImage(item, variant)} resizeMode="contain" style={[styles.homeWallKeyImage, variant === 'key-small' && styles.homeWallSmallKeyImage, incidentState === 'returning' && styles.homeWallReturningImage]} />
+      <Image source={collectibleImage(item, variant)} contentFit="contain" style={[styles.homeWallKeyImage, variant === 'key-small' && styles.homeWallSmallKeyImage, incidentState === 'returning' && styles.homeWallReturningImage]} />
     </Animated.View> : null}
   </Pressable>;
 }
@@ -217,6 +219,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   entryNonce?: number;
 }) {
   const { activeTheme } = useGachaTheme();
+  const homeThemeAssets = activeTheme?.homeAssets;
   const { height } = useAppLayout();
   const compact = height < 780;
   const [roomSize, setRoomSize] = useState({ width: 440, height: 646 });
@@ -443,6 +446,18 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
     };
   }, [busy, dailyHydrated, editing, entryMotion, entryNonce, homeLayoutReady, reduceMotion]);
 
+  // Ambient home motion must never carry on underneath a cheek drag. If a
+  // drag starts during the irregular entry jump or a tool animation, stop it
+  // and restore the neutral transform immediately so the character cannot
+  // appear to move on its own.
+  useEffect(() => {
+    if (!busy && !editing) return;
+    entryMotion.stopAnimation();
+    entryMotion.setValue(0);
+    teaseToolMotion.stopAnimation();
+    teaseToolMotion.setValue(0);
+  }, [busy, editing, entryMotion, teaseToolMotion]);
+
   const setCurrentDragSession = useCallback((next: HomeDragSession | null) => {
     dragSessionRef.current = next;
     setDragSession(next);
@@ -579,11 +594,11 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   return <View style={styles.homeScreenBackground}>
     <View ref={roomRef} style={styles.homeRoom} onLayout={handleLayout}>
       <Pressable accessibilityLabel={editing ? '並べ替えを完了' : '長押しして並べ替え'} delayLongPress={440} onLongPress={() => beginEditing()} onPress={editing ? finishEditing : undefined} style={styles.homeArrangeBackgroundTarget} />
-      <MobbyAssetButton backgroundSource={activeTheme ? undefined : HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" accessibilityLabel={editing ? '並べ替えを終了' : '壁と棚を並べ替え'} accessibilityState={{ expanded: editing }} onPress={editing ? finishEditing : () => beginEditing()} style={styles.homeReorderButton} contentStyle={styles.homeReorderButtonContent}>
+      <MobbyAssetButton backgroundSource={homeThemeAssets?.controlButton ?? HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="contain" preferBackgroundSource tone="cream" accessibilityLabel={editing ? '並べ替えを終了' : '壁と棚を並べ替え'} accessibilityState={{ expanded: editing }} onPress={editing ? finishEditing : () => beginEditing()} style={styles.homeReorderButton} contentStyle={styles.homeReorderButtonContent}>
         <Text style={[styles.homeReorderButtonText, editing && styles.homeReorderButtonTextActive]}>{editing ? '完了' : '並べ替え'}</Text>
       </MobbyAssetButton>
-      <Image source={PLUSH_SHELF_BASE} resizeMode="contain" style={styles.homeShelfBase} />
-      <View pointerEvents="none" style={styles.homeGarland}><Image source={HOME_GARLAND} resizeMode="contain" style={styles.homeDecorAsset} /></View>
+      <Image source={homeThemeAssets?.shelf ?? PLUSH_SHELF_BASE} contentFit="contain" style={styles.homeShelfBase} />
+      <View pointerEvents="none" style={styles.homeGarland}><Image source={homeThemeAssets?.garland ?? HOME_GARLAND} contentFit="contain" style={styles.homeDecorAsset} /></View>
       <View ref={wallGridRef} onLayout={measureDropFrames} style={styles.homeWallKeys}>{renderedWallPlacements.map((placement, index) => {
         const source = dragSession?.origin === 'slot' && dragSession.kind === 'wall' && dragSession.originIndex === index;
         const placementIncidentState = !editing && placement?.id === incidentWallPlacementId && incidentWallState !== 'none' ? incidentWallState : placement?.id === placementHiddenWallPlacementId ? 'placement-hidden' : 'normal';
@@ -592,6 +607,13 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
         const placementOwnedCount = placement ? ownedCollectibleCount(owned, placement.item.id, placement.variant) : 0;
         const wallCopyLabel = placement && placementOwnedCount > 1 ? ` ${placement.copyNumber}個目／${placementOwnedCount}個中` : '';
         return <View key={`wall-slot-${index}`} style={[styles.homeWallSlot, editing && styles.homeArrangeSlot, placementSelection === placement?.id && styles.homeArrangeActiveSlot, source && styles.homeArrangeSourceSlot, target && styles.homeArrangeDropTarget]}>
+          <Image
+            accessible={false}
+            pointerEvents="none"
+            source={homeThemeAssets?.hook ?? WOODEN_HOOK}
+            contentFit="contain"
+            style={styles.homeWallHook}
+          />
           <DraggableHomePlacement
             disabled={!source && (!placement || placementIncidentState !== 'normal')}
             editing={editing}
@@ -636,7 +658,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
             reduceMotion={reduceMotion}
           >
             {placement ? <View style={[styles.homeArrangePlacementVisual, dragged && styles.homeArrangeDraggedItem]}><Pressable accessibilityRole="button" accessibilityLabel={editing ? `${itemCharacterName(placement.item)} ぬいぐるみ${shelfCopyLabel}を移動` : `${itemCharacterName(placement.item)} ぬいぐるみ${shelfCopyLabel}を揺らす`} accessibilityState={{ selected: placementSelection === placement.id }} delayLongPress={420} onLongPress={() => { if (!editing) beginEditing('plush', placement.id); }} onPress={editing ? () => activateSlot('plush', index, placement.id) : onKeychainSwing} style={[styles.homePlushItem, placementSelection === placement.id && styles.homeReorderSelected]}>
-              <View style={styles.homePlushSwing}><Image source={collectibleImage(placement.item, placement.variant)} resizeMode="contain" style={[styles.homePlushImage, plushImageSize, { bottom: -belowFeet }]} /></View>
+              <View style={styles.homePlushSwing}><Image source={collectibleImage(placement.item, placement.variant)} contentFit="contain" style={[styles.homePlushImage, plushImageSize, { bottom: -belowFeet }]} /></View>
             </Pressable></View> : editing ? <Pressable accessibilityLabel={`棚の空き位置${index + 1}${placementSelection ? 'に選択中のアイテムを飾る' : ''}`} accessibilityRole="button" onPress={() => activateSlot('plush', index, null)} style={styles.homeArrangeEmptySlot}><Text style={styles.homeArrangeEmptyPlus}>＋</Text></Pressable> : null}
           </DraggableHomePlacement>
           {editing && !dragSession && placement ? <Pressable accessibilityLabel={`${itemCharacterName(placement.item)} ぬいぐるみ${shelfCopyLabel}をホームから外す`} accessibilityRole="button" hitSlop={8} onPress={() => removePlacement(placement.id)} style={styles.homeArrangeRemoveButton}><Text style={styles.homeArrangeRemoveText}>−</Text></Pressable> : null}
@@ -655,11 +677,12 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
           <Animated.View style={{ opacity: activeTeaseReaction
             ? teaseToolMotion.interpolate({ inputRange: [0, 0.22, 0.34, 0.78, 0.9, 1], outputRange: [1, 1, 0, 0, 1, 1] })
             : 1 }}>
-            <MobbyIdleMotion enabled={!busy && !editing}><PullableMobby selected={selected} selectedMobbyName={selectedCharacter.name} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={dailyHydrated && !editing} onValidRelease={onDailyPullRelease} onReaction={collectReaction} /></MobbyIdleMotion>
+            <MobbyIdleMotion enabled={!busy && !editing}><PullableMobby selected={selected} selectedMobbyName={selectedCharacter.name} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={!editing} onValidRelease={dailyHydrated ? onDailyPullRelease : undefined} onReaction={collectReaction} /></MobbyIdleMotion>
           </Animated.View>
-          {activeTeaseReaction ? <Animated.Image
+          {activeTeaseReaction ? <AnimatedImage
             accessible={false}
-            resizeMode="contain"
+            contentFit="contain"
+            contentPosition="center"
             source={activeTeaseReaction.source}
             style={{
               position: 'absolute',
@@ -672,9 +695,10 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
             }}
           /> : null}
         </Animated.View>
-        {activeTeaseTool ? <Animated.Image
+        {activeTeaseTool ? <AnimatedImage
           accessible={false}
-          resizeMode="contain"
+          contentFit="contain"
+          contentPosition="center"
           source={activeTeaseTool.source}
           style={{
             position: 'absolute',
@@ -695,7 +719,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
           }}
         /> : null}
         <HomeTeaseTools disabled={busy || editing || !dailyHydrated} onUse={useTeaseTool} />
-        <MobbyAssetButton accessibilityLabel={`メインキャラを選ぶ（現在：${selectedCharacter.name}）`} backgroundSource={activeTheme ? undefined : HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="stretch" tone="cream" onPress={() => { onUiTap(); setReactionBookOpen(false); setCharacterPickerOpen(true); }} style={[styles.characterPickerButton, styles.characterPickerButtonCompact]} contentStyle={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></MobbyAssetButton>
+        <MobbyAssetButton accessibilityLabel={`メインキャラを選ぶ（現在：${selectedCharacter.name}）`} backgroundSource={homeThemeAssets?.controlButton ?? HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="contain" preferBackgroundSource tone="cream" onPress={() => { onUiTap(); setReactionBookOpen(false); setCharacterPickerOpen(true); }} disabled={busy || editing} style={[styles.characterPickerButton, styles.characterPickerButtonCompact]} contentStyle={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></MobbyAssetButton>
         <Animated.View pointerEvents="none" style={{
           position: 'absolute', top: -12, right: -10, zIndex: 5,
           opacity: entryMotion.interpolate({ inputRange: [0, 0.14, 0.24, 0.76, 0.94, 1], outputRange: [0, 0, 1, 1, 0.7, 0] }),
@@ -710,9 +734,11 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
         <MobbyAssetButton
           accessibilityLabel="リアクション図鑑を開く"
           onPress={() => { onUiTap(); setCharacterPickerOpen(false); setReactionTabId(REACTION_MOBBY_IDS[0]); setReactionBookOpen(true); }}
-          backgroundSource={activeTheme ? undefined : HOME_CONTROL_BUTTON_BACKGROUND}
-          backgroundResizeMode="stretch"
+          backgroundSource={homeThemeAssets?.controlButton ?? HOME_CONTROL_BUTTON_BACKGROUND}
+          backgroundResizeMode="contain"
+          preferBackgroundSource
           tone="cream"
+          disabled={busy || editing}
           style={[styles.reactionBookButton, compact && styles.reactionBookButtonCompact]}
           contentStyle={styles.reactionBookButtonContent}
         >
@@ -723,8 +749,8 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
       {reaction && !editing ? <ImageBackground
         accessible={false}
         accessibilityLiveRegion="polite"
-        source={activeTheme?.assets.popup ?? SPEECH_BUBBLE_PAPER}
-        resizeMode="stretch"
+        source={homeThemeAssets?.reactionBubble ?? SPEECH_BUBBLE_PAPER}
+        contentFit="contain"
         imageStyle={styles.homeReactionBubbleImage}
       style={[styles.homeReactionBubble, { pointerEvents: 'none', top: shelfSurfaceY + 4 }]}
       ><Text accessibilityRole="alert" style={styles.homeReactionBubbleText}>{reaction}</Text></ImageBackground> : null}
@@ -758,7 +784,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
             top: dragSession.pageY - roomWindowRef.current.y - height / 2,
             width,
             height,
-          }]}><Image source={collectibleImage(placement.item, placement.variant)} resizeMode="contain" style={styles.homeArrangeDragOverlayImage} /></View>;
+          }]}><Image source={collectibleImage(placement.item, placement.variant)} contentFit="contain" style={styles.homeArrangeDragOverlayImage} /></View>;
         })() : null}
       </> : null}
     </View>

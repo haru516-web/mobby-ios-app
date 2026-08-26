@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { StyleSheet, View } from 'react-native';
 import { PlatformPressable } from '@react-navigation/elements';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Text } from '@/ui/layout/visualPrimitives';
@@ -20,7 +21,7 @@ const INACTIVE_TINT = '#A48189';
 function TabIcon({ source, focused, compact = false, badge = false }: { source: number; focused: boolean; compact?: boolean; badge?: boolean }) {
   return <View style={styles.iconWrap}>
     {focused ? <View pointerEvents="none" style={styles.activeTabPanel} /> : null}
-    <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no" source={source} resizeMode="contain" style={[styles.icon, compact && styles.compactIcon, focused && styles.activeIcon]} />
+    <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no" source={source} contentFit="contain" style={[styles.icon, compact && styles.compactIcon, focused && styles.activeIcon]} />
     {badge ? <View pointerEvents="none" style={styles.badge}><Text style={styles.badgeText}>!</Text></View> : null}
   </View>;
 }
@@ -51,7 +52,7 @@ export default function TabLayout() {
         tabBarItemStyle: styles.tabBarItem,
         tabBarIconStyle: styles.tabBarIcon,
         tabBarLabelStyle: styles.tabBarLabel,
-        tabBarBackground: () => <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no-hide-descendants" source={activeTheme?.assets.navigation ?? BOTTOM_STRIP} resizeMode="stretch" style={styles.tabBarBackground} />,
+        tabBarBackground: () => <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no-hide-descendants" source={BOTTOM_STRIP} contentFit="contain" contentPosition="center" style={styles.tabBarBackground} />,
         sceneStyle: { backgroundColor: 'transparent' },
       }}>
       <Tabs.Screen name="index" options={{ title: 'ホーム', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={HOME_ICON} focused={focused} /> }} />

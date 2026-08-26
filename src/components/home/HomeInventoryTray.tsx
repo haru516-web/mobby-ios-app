@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useRef, useState } from 'react';
-import { Image, ImageBackground, PanResponder, Pressable, ScrollView, StyleSheet, View, type PanResponderGestureState } from 'react-native';
+import { Image, ImageBackground } from 'expo-image';
+import { PanResponder, Pressable, ScrollView, StyleSheet, View, type PanResponderGestureState } from 'react-native';
 
 import {
   collectibleImage,
@@ -53,6 +54,7 @@ function TrayItem({
   selected,
 }: TrayItemProps) {
   const { activeTheme } = useGachaTheme();
+  const homeThemeAssets = activeTheme?.homeAssets;
   const placement = resolveHomePlacement(id);
   const suppressPressRef = useRef(false);
   const axisRef = useRef<'pending' | 'horizontal' | 'vertical' | 'rejected'>('pending');
@@ -127,9 +129,9 @@ function TrayItem({
       onPress={() => { if (!dragging && !suppressPressRef.current) onSelect(id); }}
       style={({ pressed }) => [trayStyles.itemButton, placed && trayStyles.placedItem, dragging && trayStyles.draggingItem, pressed && !dragging && trayStyles.pressed]}
     >
-      <ImageBackground source={activeTheme?.assets.card ?? (selected ? TILE_SELECTED_SURFACE : TILE_SURFACE)} resizeMode="stretch" style={trayStyles.tile} imageStyle={trayStyles.tileImage}>
+      <ImageBackground source={(selected ? homeThemeAssets?.inventoryTileSelected : homeThemeAssets?.inventoryTile) ?? (selected ? TILE_SELECTED_SURFACE : TILE_SURFACE)} contentFit="contain" style={trayStyles.tile} imageStyle={trayStyles.tileImage}>
         <View style={trayStyles.dragHandle}>
-          <Image source={collectibleImage(placement.item, placement.variant)} resizeMode="contain" style={[trayStyles.itemImage, placement.variant === 'key-small' && trayStyles.itemImageSmall]} />
+          <Image source={collectibleImage(placement.item, placement.variant)} contentFit="contain" style={[trayStyles.itemImage, placement.variant === 'key-small' && trayStyles.itemImageSmall]} />
         </View>
         {placed ? <View pointerEvents="none" style={trayStyles.placedOverlay}><Text style={trayStyles.placedOverlayText}>✓ 飾り中</Text></View> : null}
         <View pointerEvents="none" style={trayStyles.ownedBadge}><Text style={trayStyles.ownedBadgeText}>所持×{copyCount}</Text></View>
@@ -172,6 +174,7 @@ export function HomeInventoryTray({
   selectedId: HomePlacementId | null;
 }) {
   const { activeTheme } = useGachaTheme();
+  const homeThemeAssets = activeTheme?.homeAssets;
   const [showBlackStars, setShowBlackStars] = useState(false);
   const filteredIds = useMemo(() => ownedHomePlacementIds(owned, activeKind).filter((id) => {
     const placement = resolveHomePlacement(id);
@@ -194,7 +197,7 @@ export function HomeInventoryTray({
   const hiddenCount = ids.filter((id) => !placedIds.has(id)).length;
   const firstPlacedIndex = ids.findIndex((id) => orderPlacedIds.has(id));
 
-  return <ImageBackground source={activeTheme?.assets.navigation ?? TRAY_SURFACE} resizeMode={activeTheme ? 'stretch' : 'cover'} style={trayStyles.surface} imageStyle={trayStyles.surfaceImage}>
+  return <ImageBackground source={homeThemeAssets?.inventoryTray ?? TRAY_SURFACE} contentFit="cover" style={trayStyles.surface} imageStyle={trayStyles.surfaceImage}>
     <View style={trayStyles.header}>
       <View style={trayStyles.headingCopy}>
         <Text style={trayStyles.eyebrow}>MY ITEMS</Text>

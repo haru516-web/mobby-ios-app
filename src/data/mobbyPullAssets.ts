@@ -3,7 +3,7 @@ import type { ImageSourcePropType } from 'react-native';
 import type { MobbyId } from './mobies';
 
 export type PullFrame = { x: number; y: number; width: number; height: number };
-export type PullImageResizeMode = 'contain' | 'stretch';
+export type PullImageResizeMode = 'contain';
 
 export type MobbyPullAsset = {
   body: ImageSourcePropType;
@@ -194,11 +194,10 @@ const assets: Record<MobbyId, MobbyPullAsset> = {
     body: require('../../assets/mobies/pull/mobiyan-noneye.webp'),
     eyes: mobiyanEyes,
     mouths: yankiMouths,
-    // The generated reaction-eye files are wide transparent canvases. Keep
-    // their visible art centered on the normal eye, then stretch only this
-    // face layer enough to match the default eye's visual footprint.
-    eyeFrame: { x: 358, y: 483, width: 240, height: 132 },
-    eyeResizeMode: 'stretch',
+    // The generated reaction-eye files use a 400:170 transparent canvas.
+    // Match that ratio in the face frame so the eye is never squeezed.
+    eyeFrame: { x: 358, y: 498, width: 240, height: 102 },
+    eyeResizeMode: 'contain',
     mouthFrame: standardMouthFrame,
     defaultEye: mobiyanDefaultEye,
     defaultEyeFrame: { x: 366, y: 465, width: 227, height: 166 },

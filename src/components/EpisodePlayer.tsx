@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, ImageBackground } from 'expo-image';
 import {
   Animated,
-  Image,
-  ImageBackground,
   PanResponder,
   Platform,
   ScrollView,
@@ -23,7 +22,6 @@ import {
 } from '@/data/episodes/playback';
 import { resolveEpisodeAsset } from '@/data/episodes/registry';
 import { MobbyAssetButton, MobbyAssetSelectable, MobbyAssetSurface } from '@/components/mobby-ui';
-import { useGachaTheme } from '@/theme/GachaThemeContext';
 import type {
   CompletionResult,
   Cue,
@@ -116,7 +114,7 @@ function ReactionImage({ asset, assetId, reduceMotion }: { asset: ReactionAsset;
         ],
       }]}
     >
-      <Image accessibilityLabel={asset.accessibilityLabel} accessible={false} resizeMode="contain" source={asset.source} style={styles.sceneReactionImage} />
+      <Image accessibilityLabel={asset.accessibilityLabel} accessible={false} contentFit="contain" source={asset.source} style={styles.sceneReactionImage} />
     </Animated.View>
   );
 }
@@ -132,7 +130,6 @@ export function EpisodePlayer({
   onInterrupt,
   onComplete,
 }: EpisodePlayerProps) {
-  const { activeTheme } = useGachaTheme();
   const { height: viewportHeight } = useWindowDimensions();
   const stageHeight = Math.max(112, Math.min(420, viewportHeight * (viewportHeight < 500 ? 0.42 : 0.55)));
   const sceneMap = useMemo(() => new Map(episode.scenes.map((scene) => [scene.id, scene])), [episode]);
@@ -355,7 +352,7 @@ export function EpisodePlayer({
     <View style={styles.stage}>
       <View style={[styles.stageArea, { maxHeight: stageHeight }]}>
         <View style={styles.topbar}>
-        <ImageBackground source={activeTheme?.assets.navigation ?? EPISODE_TOPBAR_SOURCE} resizeMode="stretch" imageStyle={styles.headingImage} style={styles.heading}>
+        <ImageBackground source={EPISODE_TOPBAR_SOURCE} contentFit="cover" contentPosition="center" imageStyle={styles.headingImage} style={styles.heading}>
           <Text style={styles.chapter}>{episode.chapter} · {scene.title ?? episode.title}</Text>
           <Text accessibilityLabel={`場面 ${routeProgress.current}、全${routeProgress.total}場面`} style={styles.progress}>{routeProgress.current}/{routeProgress.total}</Text>
         </ImageBackground>
@@ -374,7 +371,7 @@ export function EpisodePlayer({
         {scene.actors?.map((actor) => <ActorView key={actor.id} actor={actor} />)}
         {reactionAsset ? <ReactionImage asset={reactionAsset} assetId={reactionAssetId} reduceMotion={reduceMotion} /> : null}
         {scene.visualOverlay
-          ? <ImageBackground accessibilityLabel={scene.visualOverlay.accessibilityLabel} accessible imageStyle={styles.visualOverlayImage} resizeMode="stretch" source={activeTheme?.assets.popup ?? SPEECH_BUBBLE_SOURCE} style={styles.visualOverlay}><Text style={styles.visualOverlayText}>{scene.visualOverlay.text}</Text></ImageBackground>
+          ? <ImageBackground accessibilityLabel={scene.visualOverlay.accessibilityLabel} accessible imageStyle={styles.visualOverlayImage} contentFit="contain" contentPosition="center" source={SPEECH_BUBBLE_SOURCE} style={styles.visualOverlay}><Text style={styles.visualOverlayText}>{scene.visualOverlay.text}</Text></ImageBackground>
           : null}
           {scene.mechanic ? <MobbyAssetSurface variant="darkCase" accessible accessibilityLabel={`${scene.mechanic.instruction}。${scene.mechanic.tokens.join('、')}`} style={styles.mechanic} contentStyle={styles.mechanicContent}><Text style={styles.mechanicTitle}>{scene.mechanic.instruction}</Text><Text style={styles.mechanicTokens}>{scene.mechanic.tokens.join('  →  ')}</Text></MobbyAssetSurface> : null}
         </View>
@@ -411,7 +408,7 @@ export function EpisodePlayer({
   return (
     <View accessibilityLabel={`${episode.chapter} ${episode.title}`} style={styles.root}>
       {background
-        ? <Image accessibilityLabel={background.accessibilityLabel} resizeMode="cover" source={background.source} style={StyleSheet.absoluteFill} />
+        ? <Image accessibilityLabel={background.accessibilityLabel} contentFit="cover" contentPosition="center" source={background.source} style={StyleSheet.absoluteFill} />
         : <View style={[StyleSheet.absoluteFill, styles.missing]}><Text style={styles.missingText}>背景：{scene.backgroundAssetId}</Text></View>}
       <View style={styles.scrim} />
       {reduceMotion
@@ -427,7 +424,7 @@ function ActorView({ actor }: { actor: NonNullable<Scene['actors']>[number] }) {
   return (
     <View style={[styles.actor, sideStyle, { transform: [{ scale: actor.scale ?? 1 }, { scaleX: actor.mirrored ? -1 : 1 }] }]}>
       {asset
-        ? <Image accessibilityLabel={asset.accessibilityLabel} resizeMode="contain" source={asset.source} style={styles.actorImage} />
+        ? <Image accessibilityLabel={asset.accessibilityLabel} contentFit="contain" source={asset.source} style={styles.actorImage} />
         : <MobbyAssetSurface variant="paper" style={styles.actorFallback} contentStyle={styles.actorFallbackContent}><Text style={styles.actorFallbackText}>{actor.name}</Text></MobbyAssetSurface>}
     </View>
   );
@@ -583,7 +580,7 @@ const styles = StyleSheet.create({
   sceneReaction: { position: 'absolute', left: '38%', width: '24%', height: '48%', bottom: '12%', zIndex: 2 },
   sceneReactionImage: { width: '100%', height: '100%' },
   visualOverlay: { position: 'absolute', left: '32%', right: '32%', bottom: '36%', minWidth: 100, minHeight: 72, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, zIndex: 3 },
-  visualOverlayImage: { resizeMode: 'stretch' },
+  visualOverlayImage: {},
   visualOverlayText: { fontSize: 38, textAlign: 'center' },
   interaction: { gap: 8, marginBottom: 10, alignItems: 'stretch' },
   prompt: { color: '#FFF', fontWeight: '900', textAlign: 'center', textShadowColor: '#241424', textShadowRadius: 4 },

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
 import {
@@ -64,6 +65,7 @@ export function HomeTeaseTools({ disabled = false, onUse }: {
       accessibilityLabel={`いじめる道具を選ぶ。所持${ownedCount}種類`}
       accessibilityState={{ expanded: open }}
       disabled={disabled}
+      pointerEvents={disabled ? 'none' : 'auto'}
       onPress={() => setOpen(true)}
       tone="cream"
       style={styles.openButton}
@@ -104,7 +106,7 @@ export function HomeTeaseTools({ disabled = false, onUse }: {
                 onPress={() => handleUseTool(reward)}
                 style={({ pressed }) => [styles.tool, !owned && styles.toolLocked, pressed && styles.toolPressed]}
               >
-                <Image accessible={false} resizeMode="contain" source={reward.previewImage} style={[styles.toolImage, !owned && styles.toolImageLocked]} />
+                <Image accessible={false} contentFit="contain" source={reward.previewImage} style={[styles.toolImage, !owned && styles.toolImageLocked]} />
                 {!owned ? <View pointerEvents="none" style={styles.lockedCover}><Text style={styles.lock}>🔒</Text></View> : null}
                 <Text numberOfLines={2} style={styles.toolName}>{reward.name}</Text>
                 <Text style={styles.toolMeta}>{reward.toolKind === 'poke' ? 'へこむ' : 'つぶれる'}{owned ? ` · ×${count}` : ''}</Text>

@@ -1,9 +1,9 @@
 import { Asset } from 'expo-asset';
+import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
-  Image,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -16,6 +16,8 @@ import {
 
 import { MOBBIES, type Mobby, type MobbyId } from '@/data/mobies';
 import { MobbyAssetButton, MobbyAssetSurface, MobbyColors } from './mobby-ui';
+
+const AnimatedImage = Animated.createAnimatedComponent(ExpoImage);
 
 // Native port of mobby-main/docs/index.html's hero carousel. Its 74%-wide
 // slides, 63% neighbor spacing, 0.76 neighbor scale and 0.34 opacity are kept
@@ -48,7 +50,7 @@ function circularDelta(index: number, center: number, length: number) {
 
 function CharacterArt({ mobby }: { mobby: Mobby }) {
   return (
-    <Image accessible={false} source={mobby.image} resizeMode="contain" style={styles.characterArt} />
+    <ExpoImage accessible={false} source={mobby.image} contentFit="contain" style={styles.characterArt} />
   );
 }
 
@@ -115,10 +117,11 @@ function SelectedJoyArt({
 
   return (
     <Animated.View pointerEvents="none" style={[styles.selectionPop, { transform: [{ scale }] }]}>
-      <Animated.Image
+      <AnimatedImage
         accessible={false}
         source={mobby.image}
-        resizeMode="contain"
+        contentFit="contain"
+        contentPosition="center"
         style={[
           styles.characterArtLayer,
           {
@@ -129,10 +132,11 @@ function SelectedJoyArt({
         ]}
       />
       {!failed ? (
-        <Animated.Image
+        <AnimatedImage
           accessible={false}
           source={mobby.joyImage}
-          resizeMode="contain"
+          contentFit="contain"
+          contentPosition="center"
           onLoad={() => setReady(true)}
           onError={() => setFailed(true)}
           style={[styles.characterArtLayer, { opacity: joyOpacity }]}
@@ -311,10 +315,10 @@ export function MobbyCarousel({ selectedId, onSelect, onInteract, interactionSca
       </View>
 
       <MobbyAssetButton accessibilityLabel="前のモビー" tone="cream" onPress={() => setActive(activeIndexRef.current - 1)} style={[styles.arrow, styles.arrowLeft]} contentStyle={styles.arrowContent}>
-        <Image source={ICONS.left} resizeMode="contain" style={styles.arrowIconLeft} />
+        <ExpoImage source={ICONS.left} contentFit="contain" style={styles.arrowIconLeft} />
       </MobbyAssetButton>
       <MobbyAssetButton accessibilityLabel="次のモビー" tone="cream" onPress={() => setActive(activeIndexRef.current + 1)} style={[styles.arrow, styles.arrowRight]} contentStyle={styles.arrowContent}>
-        <Image source={ICONS.right} resizeMode="contain" style={styles.arrowIconRight} />
+        <ExpoImage source={ICONS.right} contentFit="contain" style={styles.arrowIconRight} />
       </MobbyAssetButton>
 
       <MobbyAssetSurface variant="labelPill" pointerEvents="none" accessibilityLiveRegion="polite" style={styles.characterName} contentStyle={styles.characterNameContent}>

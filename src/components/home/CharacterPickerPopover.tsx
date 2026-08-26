@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Image, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
+import { Image, ImageBackground } from 'expo-image';
+import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 
 import { MobbyAssetButton } from '@/components/mobby-ui';
 import { BlackStarToggle } from '@/components/characters';
@@ -8,7 +9,6 @@ import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 const CHARACTER_PICKER_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-character-picker-v1.png');
 const CHARACTER_PICKER_PANEL_ASPECT_RATIO = 950 / 1460;
-const CHARACTER_PICKER_BACKGROUND_SCALE = 1536 / 1460;
 
 export type CharacterPickerCharacter = {
   id: string;
@@ -52,7 +52,7 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable accessibilityLabel="キャラ選択を閉じる" accessibilityRole="button" onPress={close} style={styles.backdrop} />
       <View accessibilityViewIsModal accessibilityLabel="メインモビーのキャラ選択" style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
-      <ImageBackground accessible={false} imageStyle={[styles.panelImage, !activeTheme && styles.backgroundImage]} resizeMode={activeTheme ? 'stretch' : 'cover'} source={activeTheme?.assets.popup ?? CHARACTER_PICKER_POPUP_BACKGROUND} style={styles.panelBackground}>
+      <ImageBackground accessible={false} imageStyle={styles.panelImage} contentFit="cover" source={activeTheme?.assets.popup ?? CHARACTER_PICKER_POPUP_BACKGROUND} style={styles.panelBackground}>
       <View style={styles.panelContent}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
@@ -99,7 +99,7 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
             style={({ pressed }) => [styles.character, unavailable && styles.characterUnavailable, pressed && styles.characterPressed]}
           >
             <View style={[styles.characterImageWrap, selected && styles.characterImageWrapSelected]}>
-              <Image accessible={false} source={character.image} resizeMode="contain" style={[styles.characterImage, !character.owned && character.faction === 'kuroboshi' && styles.characterSilhouette]} />
+              <Image accessible={false} source={character.image} contentFit="contain" style={[styles.characterImage, !character.owned && character.faction === 'kuroboshi' && styles.characterSilhouette]} />
               {selected ? <Text pointerEvents="none" style={styles.selectedMark}>✓</Text> : null}
             </View>
             <Text numberOfLines={1} style={[styles.characterName, selected && styles.characterNameSelected]}>{character.name}</Text>
@@ -145,7 +145,6 @@ const styles = StyleSheet.create({
   },
   panelBackground: { flex: 1, width: '100%', height: '100%', minHeight: 0, borderRadius: 28, overflow: 'hidden' },
   panelImage: { borderRadius: 28 },
-  backgroundImage: { transform: [{ scale: CHARACTER_PICKER_BACKGROUND_SCALE }] },
   panelContent: { flex: 1, minHeight: 0, zIndex: 1 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 20, paddingHorizontal: 30, paddingBottom: 10 },
   headerCopy: { flex: 1 },

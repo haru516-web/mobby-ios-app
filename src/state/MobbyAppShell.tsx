@@ -4,14 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ZenMaruGothic_400Regular, ZenMaruGothic_500Medium, ZenMaruGothic_700Bold, ZenMaruGothic_900Black } from '@expo-google-fonts/zen-maru-gothic';
 import { Asset } from 'expo-asset';
 import * as Font from 'expo-font';
+import { Image, ImageBackground } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AccessibilityInfo,
   Animated,
   AppState,
   Easing,
-  Image,
-  ImageBackground,
   Pressable,
   Platform,
   SafeAreaView,
@@ -117,6 +116,7 @@ type OnboardingRewardState = {
 type OnboardingStep = 'none' | 'favorite' | 'mobbyTime' | 'opening' | 'place' | 'wallFlight' | 'home' | 'collection' | 'time';
 type IncidentResolutionPhase = 'none' | 'returning' | 'aftermath';
 
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 const LEGACY_SCENE_MAX_WIDTH = 720;
 const BOTTOM_NAV_CELLS = [
   { left: 0, width: 106 },
@@ -279,7 +279,7 @@ const OPENING_KEY_DECORATIONS = [
 function Header({ onBell, onSettings }: { onBell: () => void; onSettings: () => void }) {
   return (
     <View style={styles.header}>
-      <View style={styles.brandWrap}><Image source={TAKARA_MOBBY_LOGO} resizeMode="contain" style={styles.headerLogoImage} /></View>
+      <View style={styles.brandWrap}><Image source={TAKARA_MOBBY_LOGO} contentFit="contain" style={styles.headerLogoImage} /></View>
       <View style={styles.headerSpacer} />
       <View style={styles.headerActions}>
         <MobbyAssetIconButton accessibilityLabel="設定を開く" icon={HEADER_SETTINGS_ICON} iconStyle={styles.headerSettingsIcon} onPress={onSettings} style={styles.soundButton} />
@@ -303,9 +303,10 @@ function LoadingMascot({ compact = false }: { compact?: boolean }) {
 
   return (
     <View pointerEvents="none" style={[styles.loadingMascotWrap, compact && styles.loadingMascotWrapCompact]}>
-      <Animated.Image
+      <AnimatedImage
         source={MOBIYAN_LOADING}
-        resizeMode="contain"
+        contentFit="contain"
+        contentPosition="center"
         style={[
           styles.loadingMascotImage,
           compact && styles.loadingMascotImageCompact,
@@ -338,9 +339,8 @@ function LoadingMascot({ compact = false }: { compact?: boolean }) {
 }
 
 function NoticeToast({ notice, onClose }: { notice: string; onClose: () => void }) {
-  const { activeTheme } = useGachaTheme();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${notice}。閉じる`} accessibilityLiveRegion="polite" onPress={onClose} style={styles.noticeToast}>
-    <ImageBackground accessible={false} source={activeTheme?.assets.card ?? NOTICE_SURFACE} resizeMode="stretch" style={styles.noticeToastImage} />
+    <ImageBackground accessible={false} source={NOTICE_SURFACE} contentFit="cover" contentPosition="center" style={styles.noticeToastImage} />
     <View style={styles.noticeToastContent}><Text style={styles.noticeToastText}>{notice}</Text><Text style={styles.noticeToastClose}>×</Text></View>
   </Pressable>;
 }
@@ -350,7 +350,7 @@ function LoadingOverlay() {
   return (
     <View accessibilityRole="progressbar" accessibilityLabel="読み込み中" accessibilityViewIsModal style={styles.loadingOverlay}>
       <View style={styles.loadingCard}>
-        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ImageBackground source={activeTheme?.assets.popup ?? MODAL_SURFACE} resizeMode="stretch" style={styles.loadingCardImage} /></View>
+        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ImageBackground source={activeTheme?.assets.popup ?? MODAL_SURFACE} contentFit="cover" style={styles.loadingCardImage} /></View>
         <LoadingMascot />
         <Text style={styles.loadingTitle}>お部屋を準備中</Text>
         <Text style={styles.loadingText}>もびやんがグッズを運んでいます</Text>
@@ -382,7 +382,7 @@ function FavoriteMobbyPicker({
       <View style={styles.onboardingOverlay}>
       <View style={styles.onboardingBackdrop} />
       <Animated.View style={[styles.favoriteCard, { opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }]}> 
-        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ImageBackground source={activeTheme?.assets.popup ?? MODAL_SURFACE} resizeMode="stretch" style={styles.favoriteCardImage} /></View>
+        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ImageBackground source={activeTheme?.assets.popup ?? MODAL_SURFACE} contentFit="cover" style={styles.favoriteCardImage} /></View>
         <View pointerEvents="none" style={styles.favoriteGlassSheen} />
         <Text style={styles.onboardingKicker}>WELCOME TO MOBBY</Text>
         <Text style={styles.favoriteTitle}>お気に入りのモビーは？</Text>
@@ -423,7 +423,6 @@ const ONBOARDING_COPY: Partial<Record<OnboardingStep, OnboardingCopy>> = {
 };
 
 function OnboardingGuide({ step, onNext, onSkip }: { step: OnboardingStep; onNext: () => void; onSkip: () => void }) {
-  const { activeTheme } = useGachaTheme();
   const copy = ONBOARDING_COPY[step];
   if (!copy) return null;
   const interactive = Boolean(copy.action);
@@ -432,7 +431,7 @@ function OnboardingGuide({ step, onNext, onSkip }: { step: OnboardingStep; onNex
   return (
     <View pointerEvents={interactive ? 'auto' : 'box-none'} style={styles.guideOverlay}>
       {navCell ? <View pointerEvents="none" style={[styles.guideNavHighlight, { left: 8 + navCell.left, width: navCell.width }]}><View style={styles.guideNavHighlightInner} /></View> : null}
-      <ImageBackground source={activeTheme?.assets.card ?? UI_WIDE_PAPER} resizeMode="stretch" style={[styles.guideCard, cardAtTop ? styles.guideCardTop : styles.guideCardBottom]} imageStyle={styles.guideCardImage}>
+      <ImageBackground source={UI_WIDE_PAPER} contentFit="cover" contentPosition="center" style={[styles.guideCard, cardAtTop ? styles.guideCardTop : styles.guideCardBottom]} imageStyle={styles.guideCardImage}>
         <View style={styles.guideHeadingRow}>
           <Text style={styles.guideStep}>{copy.step}</Text>
           {interactive ? <Pressable accessibilityRole="button" onPress={onSkip} hitSlop={10}><Text style={styles.guideSkip}>スキップ</Text></Pressable> : null}
@@ -530,7 +529,7 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
       accessibilityViewIsModal
       style={styles.openingScreen}
     >
-      <Image source={activeTheme?.assets.appBackground ?? OPENING_BACKDROP} resizeMode="cover" style={styles.openingBackdrop} />
+      <Image source={activeTheme?.assets.appBackground ?? OPENING_BACKDROP} contentFit="cover" style={styles.openingBackdrop} />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={assetsReady ? '画面をタップしてスタート' : '読み込み中'}
@@ -540,22 +539,23 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
       />
       <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ scale: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }] }]}> 
       <Animated.View pointerEvents="none" style={[styles.openingTitleWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) }] }]}>
-        <ImageBackground source={activeTheme?.assets.buttonSecondary ?? MOBBY_TIME_TIMER_PLAQUE} resizeMode={activeTheme ? 'stretch' : 'contain'} style={styles.openingTitlePlaque}>
-          <Image source={TAKARA_MOBBY_LOGO} resizeMode="contain" style={styles.openingLogoImage} />
+        <ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} contentFit="contain" contentPosition="center" style={styles.openingTitlePlaque}>
+          <Image source={TAKARA_MOBBY_LOGO} contentFit="contain" style={styles.openingLogoImage} />
           <Text style={styles.openingTitleSub}>C O L L E C T I O N</Text>
         </ImageBackground>
         <Text style={styles.openingTagline}>モビーたちと、毎日を飾ろう。</Text>
       </Animated.View>
       <View pointerEvents="none" style={[styles.openingScene, { top: openingSceneTop, height: openingCompositionHeight }]}>
-        <Animated.Image source={MOBBY_TIME_OPENED_BOX} resizeMode="contain" style={[styles.openingOpenedBox, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.76, 1] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1deg', '1deg'] }) }] }]} />
+        <AnimatedImage source={MOBBY_TIME_OPENED_BOX} contentFit="contain" contentPosition="center" style={[styles.openingOpenedBox, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.76, 1] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1deg', '1deg'] }) }] }]} />
         {OPENING_KEY_DECORATIONS.map((decoration, index) => {
           const motion = index % 2 === 0 ? float : bob;
           const item = ITEMS[decoration.itemIndex];
           return (
-            <Animated.Image
+            <AnimatedImage
               key={`opening-key-${item.id}`}
               source={item.keyImage ?? item.image}
-              resizeMode="contain"
+              contentFit="contain"
+              contentPosition="center"
               style={[
                 styles.openingKeyDecoration,
                 {
@@ -575,13 +575,13 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
             />
           );
         })}
-        <Animated.Image source={ITEMS[0].image} resizeMode="contain" style={[styles.openingMobby, { opacity: intro, transform: [{ translateY: mobbyTranslateY }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.5deg', '1.5deg'] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }] }]} />
-        <Animated.Image source={MOBBY_TIME_PACKAGE} resizeMode="contain" style={[styles.openingUnopenedPackage, { top: openingPackageTop, width: openingPackageSize, height: openingPackageSize, marginLeft: -openingPackageSize / 2, opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.4deg', '1.4deg'] }) }] }]} />
+        <AnimatedImage source={ITEMS[0].image} contentFit="contain" contentPosition="center" style={[styles.openingMobby, { opacity: intro, transform: [{ translateY: mobbyTranslateY }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.5deg', '1.5deg'] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }] }]} />
+        <AnimatedImage source={MOBBY_TIME_PACKAGE} contentFit="contain" contentPosition="center" style={[styles.openingUnopenedPackage, { top: openingPackageTop, width: openingPackageSize, height: openingPackageSize, marginLeft: -openingPackageSize / 2, opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1.4deg', '1.4deg'] }) }] }]} />
       </View>
       <Animated.View pointerEvents="box-none" style={[styles.openingStartWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [25, 0] }) }, { scale: startPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }) }] }]}>
         {!assetsReady ? <LoadingMascot compact /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={assetsReady ? 'タップしてスタート' : '読み込み中'} disabled={leaving || !assetsReady} onPress={startGame} style={({ pressed }) => [styles.openingStartButton, { width: openingStartWidth, height: openingStartHeight }, !assetsReady && styles.openingStartLoading, pressed && styles.openingStartPressed]}>
-          <ImageBackground source={activeTheme?.assets.buttonPrimary ?? MOBBY_TIME_MESSAGE_PLAQUE} resizeMode={activeTheme ? 'stretch' : 'contain'} style={[styles.openingStartPlaque, { width: openingStartWidth, height: openingStartHeight }]}>
+          <ImageBackground source={MOBBY_TIME_MESSAGE_PLAQUE} contentFit="contain" contentPosition="center" style={[styles.openingStartPlaque, { width: openingStartWidth, height: openingStartHeight }]}>
             <Text style={styles.openingStartTitle}>{assetsReady ? 'TAP TO START' : 'LOADING…'}</Text>
             <Text style={styles.openingStartSub}>{assetsReady ? 'モビーの部屋へ' : 'モビーたちを呼んでいます'}</Text>
           </ImageBackground>
@@ -680,6 +680,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const [wallPlacement, setWallPlacement] = useState<CollectibleReward | null>(null);
   const [homeLayout, setHomeLayout] = useState(() => createDefaultHomeLayout(INITIAL_OWNED));
+  const [homeLayoutInventoryReady, setHomeLayoutInventoryReady] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [tutorialComplete, setTutorialComplete] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('none');
@@ -689,6 +690,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const pullReactionIndexRef = useRef<Record<string, number>>({});
   const lastKeyJingleRef = useRef(0);
   const placementHandledIdRef = useRef<string | null>(null);
+  const storedHomeLayoutRawRef = useRef<string | null>(null);
   const storageWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   const incidentStorageRef = useRef(incidentStorage);
   const ownedRef = useRef(owned);
@@ -895,7 +897,8 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
         setFavoriteDraftId(storedFavorite);
         setSelectedId(storedFavorite);
         setOwned(storedOwned);
-        setHomeLayout(decodeHomeLayout(values[STORAGE_HOME_LAYOUT] ?? null, storedOwned));
+        storedHomeLayoutRawRef.current = values[STORAGE_HOME_LAYOUT] ?? null;
+        setHomeLayout(decodeHomeLayout(storedHomeLayoutRawRef.current, storedOwned));
         setOnboardingReward(storedOnboardingReward);
         if (values[STORAGE_CASES]) {
           try {
@@ -917,6 +920,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       .catch(() => {
         if (!mounted) return;
         const fallbackOwned = EMPTY_OWNED;
+        storedHomeLayoutRawRef.current = null;
         setOwned(fallbackOwned);
         setHomeLayout(createDefaultHomeLayout(fallbackOwned));
       })
@@ -925,7 +929,16 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!storageReady) return;
+    if (!storageReady || !gachaReady || homeLayoutInventoryReady) return;
+    // The shell inventory and gacha inventory hydrate independently. Decode a
+    // second time only after both are ready so saved gacha plush/key placements
+    // are not discarded as "unowned" during the faster shell-storage read.
+    setHomeLayout(decodeHomeLayout(storedHomeLayoutRawRef.current, effectiveOwned));
+    setHomeLayoutInventoryReady(true);
+  }, [effectiveOwned, gachaReady, homeLayoutInventoryReady, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady || !homeLayoutInventoryReady) return;
     const entries: [string, string][] = [
       [STORAGE_CASES, JSON.stringify(incidentStorage)],
       [STORAGE_HOME_LAYOUT, JSON.stringify(homeLayout)],
@@ -941,12 +954,12 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       .catch(() => undefined)
       .then(() => AsyncStorage.multiSet(entries))
       .catch(() => undefined);
-  }, [homeLayout, incidentStorage, owned, selectedId, storageReady, tutorialComplete]);
+  }, [homeLayout, homeLayoutInventoryReady, incidentStorage, owned, selectedId, storageReady, tutorialComplete]);
 
   useEffect(() => {
-    if (!storageReady) return;
+    if (!storageReady || !homeLayoutInventoryReady) return;
     setHomeLayout((current) => reconcileHomeLayout(current, effectiveOwned));
-  }, [effectiveOwned, storageReady]);
+  }, [effectiveOwned, homeLayoutInventoryReady, storageReady]);
 
   const enqueueStorageWrite = useCallback(async (operation: () => Promise<void>) => {
     const write = storageWriteChainRef.current
@@ -1614,10 +1627,12 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
                 importantForAccessibility={appBaseIsolated ? 'no-hide-descendants' : 'auto'}
               >
               {appStarted ? <>
-              {equippedThemeBackground ? <Image source={equippedThemeBackground} resizeMode="cover" style={styles.appShellBackground} /> : screen === 'collection' ? <>
-                <Image source={ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />
-                <Image source={COLLECTION_WALL_BACKGROUND} resizeMode="cover" style={styles.collectionReferenceBackground} />
-              </> : <Image source={screen === 'home' ? HOME_WALL_BACKGROUND : ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />}
+              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+                {equippedThemeBackground ? <Image accessible={false} source={equippedThemeBackground} contentFit="cover" style={styles.appShellBackground} /> : screen === 'collection' ? <>
+                  <Image accessible={false} source={ROOM_BACKGROUND} contentFit="cover" style={styles.appShellBackground} />
+                  <Image accessible={false} source={COLLECTION_WALL_BACKGROUND} contentFit="cover" style={styles.collectionReferenceBackground} />
+                </> : <Image accessible={false} source={screen === 'home' ? HOME_WALL_BACKGROUND : ROOM_BACKGROUND} contentFit="cover" style={styles.appShellBackground} />}
+              </View>
               {incidentExperienceActive ? <View pointerEvents="none" style={styles.globalHeaderPlaceholder} /> : <Header
                 onSettings={() => {
                   playSfx('tap');
@@ -1728,7 +1743,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   );
   const mobbyTimeOpenScene = useMemo(() => (
     <View style={styles.appShell}>
-      <Image source={equippedThemeBackground ?? ROOM_BACKGROUND} resizeMode="cover" style={styles.appShellBackground} />
+      <Image source={equippedThemeBackground ?? ROOM_BACKGROUND} contentFit="cover" style={styles.appShellBackground} />
       <MobbyTimeScreen
         flow="daily"
         today={today}

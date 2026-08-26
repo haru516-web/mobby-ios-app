@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
+import { ImageBackground } from 'expo-image';
 import {
-  ImageBackground,
   Modal,
   Pressable,
   ScrollView,
@@ -16,8 +16,6 @@ import { Text } from '@/ui/layout/visualPrimitives';
 
 const DETAIL_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-settings-v1.png');
 const DETAIL_PANEL_ASPECT_RATIO = 978 / 1485;
-const DETAIL_BACKGROUND_SCALE_X = 1024 / 978;
-const DETAIL_BACKGROUND_SCALE_Y = 1536 / 1485;
 
 export function ShellDetailPopover({
   accessibilityLabel,
@@ -63,8 +61,8 @@ export function ShellDetailPopover({
         <View style={styles.panelClip}>
           <ImageBackground
             accessible={false}
-            imageStyle={[styles.panelImage, !activeTheme && styles.backgroundImage]}
-            resizeMode="stretch"
+            imageStyle={styles.panelImage}
+            contentFit="cover"
             source={activeTheme?.assets.popup ?? DETAIL_POPUP_BACKGROUND}
             style={styles.panelBackground}
           >
@@ -119,7 +117,6 @@ const styles = StyleSheet.create({
   panelClip: { flex: 1, minHeight: 0, borderRadius: 30, overflow: 'hidden' },
   panelBackground: { flex: 1, width: '100%', height: '100%', minHeight: 0 },
   panelImage: { borderRadius: 30 },
-  backgroundImage: { transform: [{ scaleX: DETAIL_BACKGROUND_SCALE_X }, { scaleY: DETAIL_BACKGROUND_SCALE_Y }] },
   panelContent: { flex: 1, minHeight: 0, zIndex: 1 },
   header: { paddingTop: 26, paddingLeft: 66, paddingRight: 58, paddingBottom: 10 },
   eyebrow: { color: '#A45D68', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },

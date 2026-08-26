@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, ImageBackground, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Image, ImageBackground } from 'expo-image';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 
 import { MobbyAssetButton } from '@/components/mobby-ui';
 import { BlackStarToggle } from '@/components/characters';
-import { useGachaTheme } from '@/theme/GachaThemeContext';
 import {
   COLLECTIBLE_VARIANTS,
   ITEMS,
@@ -56,7 +56,6 @@ type TradeScreenProps = {
 };
 
 export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: TradeScreenProps) {
-  const { activeTheme } = useGachaTheme();
   const focused = useIsFocused();
   const [stageSize, setStageSize] = useState({ width: MAX_BOARD_WIDTH + 16, height: 760 });
   const [variant, setVariant] = useState<CollectibleVariant>('key-normal');
@@ -127,7 +126,7 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
         height: boardHeight,
         transform: [{ translateY: boardTranslateY }, { scale: boardScale }],
       }]}>
-        <ImageBackground imageStyle={styles.boardImage} source={activeTheme?.assets.card ?? TRADE_BOARD} resizeMode={activeTheme ? 'stretch' : 'contain'} style={styles.board}>
+        <ImageBackground imageStyle={styles.boardImage} source={TRADE_BOARD} contentFit="contain" contentPosition="center" style={styles.board}>
           {pickerOpen ? <>
             <View style={styles.topPanel}>
               <Text style={styles.eyebrow}>CHOOSE YOUR ITEM</Text>
@@ -190,7 +189,7 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
                         pressed && styles.selectionPressed,
                       ]}
                     >
-                      <Image source={collectibleImage(option.item, option.variant)} resizeMode="contain" style={[styles.optionImage, compact && styles.optionImageCompact]} />
+                      <Image source={collectibleImage(option.item, option.variant)} contentFit="contain" style={[styles.optionImage, compact && styles.optionImageCompact]} />
                       {optionSelected ? <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.optionCheck}>✓</Text> : null}
                     </Pressable>
                     <Text numberOfLines={1} style={styles.optionName}>{itemCharacterName(option.item)}</Text>
@@ -214,7 +213,7 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
               <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>モビー交換会</Text>
               <View style={styles.qrArea}>
                 <View style={styles.qrVisual}>
-                  {qrVisible ? <QrCode size={qrSize} /> : <Image source={TRADE_ICON} resizeMode="contain" style={[styles.tradeIcon, { width: qrSize, height: qrSize }]} />}
+                  {qrVisible ? <QrCode size={qrSize} /> : <Image source={TRADE_ICON} contentFit="contain" style={[styles.tradeIcon, { width: qrSize, height: qrSize }]} />}
                 </View>
                 <View style={styles.qrCopy}>
                   <Text style={styles.sectionTitle}>QRを見せあう</Text>
@@ -235,14 +234,14 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
               <Text style={styles.eyebrow}>YOUR ITEM</Text>
               <Text style={styles.sectionTitle}>交換する子</Text>
               {selected ? <View style={styles.selected}>
-                <Image source={collectibleImage(selected.item, selected.variant)} resizeMode="contain" style={[styles.selectedImage, compact && styles.selectedImageCompact]} />
+                <Image source={collectibleImage(selected.item, selected.variant)} contentFit="contain" style={[styles.selectedImage, compact && styles.selectedImageCompact]} />
                 <View style={styles.selectedCopy}>
                   <Text numberOfLines={2} style={[styles.selectedName, compact && styles.selectedNameCompact]}>{collectibleName(selected.item, selected.variant)}</Text>
                   <Text style={styles.selectedMeta}>{collectibleVariantLabel(selected.variant)}</Text>
                   <Text style={styles.selectedCount}>所持 ×{selected.count}</Text>
                 </View>
               </View> : <View style={styles.emptySelection}><Text style={styles.empty}>{isHydrated ? '交換できるグッズはまだありません' : 'グッズを確認しています'}</Text></View>}
-              <MobbyAssetButton accessibilityLabel="交換するモビーを選び直す" backgroundSource={RESELECT_BUTTON} backgroundResizeMode="stretch" disabled={!allOwnedOptions.length} onPress={openPicker} style={styles.chooseButton} contentStyle={styles.chooseButtonContent}>
+              <MobbyAssetButton accessibilityLabel="交換するモビーを選び直す" backgroundSource={RESELECT_BUTTON} backgroundResizeMode="contain" preferBackgroundSource disabled={!allOwnedOptions.length} onPress={openPicker} style={styles.chooseButton} contentStyle={styles.chooseButtonContent}>
                 <Text style={styles.secondaryText}>交換するモビーを選び直す</Text>
               </MobbyAssetButton>
             </View>

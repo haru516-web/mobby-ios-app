@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Image, ImageBackground } from 'expo-image';
 import {
-  Image,
-  ImageBackground,
   Pressable,
   StyleSheet,
   View,
@@ -75,7 +74,7 @@ export function IncidentComicPlayer({
       testID="incident-comic-player"
     >
       {activeTheme ? <>
-        <Image accessible={false} source={activeTheme.assets.appBackground} resizeMode="cover" style={styles.themedBackground} />
+        <Image accessible={false} source={activeTheme.assets.appBackground} contentFit="cover" style={styles.themedBackground} />
         <View pointerEvents="none" style={styles.themedShade} />
       </> : null}
       <View style={styles.topBar}>
@@ -104,7 +103,7 @@ export function IncidentComicPlayer({
         <ImageBackground
           accessible={false}
           imageStyle={styles.panelBackgroundImage}
-          resizeMode="cover"
+          contentFit="cover"
           source={panel.image}
           style={styles.panelBackground}
         >
@@ -112,13 +111,13 @@ export function IncidentComicPlayer({
           {panel.imageStatus === 'temporary-existing-background' ? <>
             <Image
               accessible={false}
-              resizeMode="contain"
+              contentFit="contain"
               source={featuredMobby.image}
               style={[styles.character, styles.mobbyCharacter]}
             />
             <Image
               accessible={false}
-              resizeMode="contain"
+              contentFit="contain"
               source={blackStar.image}
               style={[styles.character, styles.blackStarCharacter]}
             />

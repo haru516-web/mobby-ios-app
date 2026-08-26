@@ -1,4 +1,5 @@
-import { Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { Image } from 'expo-image';
+import { StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
@@ -12,7 +13,7 @@ export type IncidentResolutionOverlayProps = {
 export function IncidentResolutionOverlay({ phase, targetName, targetImage, enemyName, endingLabel, relationshipLabel, onReturnComplete, onDismiss, onOpenCasebook }: IncidentResolutionOverlayProps) {
   return <View style={styles.overlay} accessibilityViewIsModal><MobbyAssetSurface variant="darkCaseTall" style={styles.card} contentStyle={styles.cardContent}>
     <Text style={styles.kicker}>{phase === 'returning' ? 'ターゲット帰還' : 'オチ／後日談'}</Text>
-    <Image accessibilityLabel={targetName} source={targetImage} resizeMode="contain" style={styles.image} />
+    <Image accessibilityLabel={targetName} source={targetImage} contentFit="contain" style={styles.image} />
     <Text style={styles.title}>{phase === 'returning' ? `おかえり、${targetName}` : '金庫より難しい王子様'}</Text>
     <Text style={styles.copy}>{phase === 'returning' ? `${targetName}は無事ホームへ戻った。` : `${enemyName}は金庫を開けられず、なぜか紅茶係に任命された。`}</Text>
     {phase === 'aftermath' ? <><MobbyAssetSurface variant="notice" style={styles.relationship} contentStyle={styles.relationshipContent}><Text style={styles.label}>関係性</Text><Text style={styles.relationshipText}>{relationshipLabel}</Text></MobbyAssetSurface><Text style={styles.ending}>ENDING：{endingLabel}</Text></> : null}

@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Image, type ImageProps } from 'expo-image';
 import {
   AccessibilityInfo,
   Animated,
   Easing,
-  Image,
   StyleSheet,
   View,
-  type ImageProps,
   type ImageSourcePropType,
   type StyleProp,
   type ViewStyle,
@@ -103,7 +102,7 @@ export function MobbyIdleMotion({
   return (
     <View style={[styles.container, style]}>
       <Animated.View style={motionStyle}>
-        {children ?? (image ? <Image {...imageProps} source={image} /> : null)}
+        {children ?? (image ? <Image {...imageProps} contentFit="contain" source={image} /> : null)}
       </Animated.View>
       {(blinkCue || renderBlinkOverlay) ? (
         <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={styles.overlay}>

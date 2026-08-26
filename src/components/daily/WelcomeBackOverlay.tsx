@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { Pressable, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 import { MobbyIdleMotion } from '@/components/mobby';
@@ -48,7 +49,7 @@ export function WelcomeBackOverlay({ logicalDate, mobbyName, image, enabled }: P
       <MobbyAssetSurface variant="paperTall" style={styles.card} contentStyle={styles.cardContent} accessible accessibilityRole="summary">
         <Text style={styles.kicker}>WELCOME BACK</Text>
         <MobbyIdleMotion style={styles.motion}>
-          <Image source={image} resizeMode="contain" style={styles.image} />
+          <Image source={image} contentFit="contain" style={styles.image} />
         </MobbyIdleMotion>
         <Text style={styles.title}>おかえり！</Text>
         <Text style={styles.name}>{mobbyName}より</Text>

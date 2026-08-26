@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Image, ImageBackground } from 'expo-image';
 import {
-  Image,
-  ImageBackground,
   Modal,
   ScrollView,
   StyleSheet,
@@ -28,10 +27,10 @@ import type { EnemyId } from '@/data/enemies';
 import { INCIDENT_COMIC_DEVELOPMENT } from '@/features/incidentComics/incidentComicDevelopment';
 import { useIncidentComicProgress } from '@/features/incidentComics/useIncidentComicProgress';
 import { Text } from '@/ui/layout/visualPrimitives';
-import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 const INCIDENT_BOARD = require('../../assets/backgrounds/incident-archive-board-transparent-v1.png');
 const BOARD_ASPECT_RATIO = 2 / 3;
+const INCIDENT_CARD_ASPECT_RATIO = 2 / 3;
 const TAB_BAR_CLEARANCE = 78;
 const MAX_BOARD_WIDTH = 440;
 
@@ -50,7 +49,6 @@ export function IncidentComicsScreen({
   showDeveloperTools = INCIDENT_COMIC_DEVELOPMENT.showForceAppearanceControl,
   style,
 }: IncidentComicsScreenProps) {
-  const { activeTheme } = useGachaTheme();
   const [rootSize, setRootSize] = useState({ width: 455, height: 782 });
   const [readerIncidentId, setReaderIncidentId] = useState<IncidentComicId | null>(null);
   const controller = useIncidentComicProgress({ entryNonce, onBlackStarUnlocked });
@@ -131,8 +129,9 @@ export function IncidentComicsScreen({
       <ImageBackground
         accessible={false}
         imageStyle={styles.boardImage}
-        resizeMode={activeTheme ? 'stretch' : 'contain'}
-        source={activeTheme?.assets.card ?? INCIDENT_BOARD}
+        contentFit="contain"
+        contentPosition="center"
+        source={INCIDENT_BOARD}
         style={[styles.board, { width: boardWidth, height: boardHeight }]}
       >
         <View style={styles.content}>
@@ -205,12 +204,12 @@ export function IncidentComicsScreen({
                   onPress={() => openIncident(incident.id)}
                   style={[styles.card, compact && styles.cardCompact]}
                   contentStyle={[styles.cardContent, compact && styles.cardContentCompact]}
-                  variant={appearing ? 'tile' : 'paperTall'}
+                  variant="modalPortrait"
                 >
                   <View style={[styles.thumbnailFrame, appearing && styles.thumbnailFrameAppearing]}>
                     <Image
                       accessible={false}
-                      resizeMode="contain"
+                      contentFit="contain"
                       source={incident.thumbnail}
                       style={[styles.thumbnail, !visible && styles.thumbnailLocked]}
                     />
@@ -285,10 +284,10 @@ const styles = StyleSheet.create({
   cardScroll: { flex: 1, minHeight: 0 },
   cardRail: { gap: 10, paddingRight: 10, paddingBottom: 5 },
   cardRailCompact: { gap: 7, paddingRight: 7 },
-  card: { width: 158, minHeight: 285, overflow: 'hidden' },
-  cardCompact: { width: 137, minHeight: 253 },
+  card: { width: 190, aspectRatio: INCIDENT_CARD_ASPECT_RATIO, overflow: 'hidden' },
+  cardCompact: { width: 168 },
   cardContent: { minHeight: 285, paddingHorizontal: 13, paddingTop: 15, paddingBottom: 13 },
-  cardContentCompact: { minHeight: 253, paddingHorizontal: 10, paddingTop: 12, paddingBottom: 10 },
+  cardContentCompact: { minHeight: 252, paddingHorizontal: 10, paddingTop: 12, paddingBottom: 10 },
   thumbnailFrame: {
     height: 136,
     borderRadius: 18,

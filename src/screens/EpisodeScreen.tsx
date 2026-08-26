@@ -1,4 +1,5 @@
-import { Image, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EpisodePlayer, type EpisodePlayerProps } from '@/components/EpisodePlayer';
@@ -10,7 +11,7 @@ export type EpisodeScreenProps = EpisodePlayerProps;
 export function EpisodeScreen(props: EpisodeScreenProps) {
   const { activeTheme } = useGachaTheme();
   return <SafeAreaView style={[styles.safe, activeTheme && styles.safeThemed]} accessibilityViewIsModal>
-    {activeTheme ? <Image accessible={false} source={activeTheme.assets.appBackground} resizeMode="cover" style={styles.background} /> : null}
+    {activeTheme ? <Image accessible={false} source={activeTheme.assets.appBackground} contentFit="cover" style={styles.background} /> : null}
     <EpisodePlayer {...props} />
   </SafeAreaView>;
 }

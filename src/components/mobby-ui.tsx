@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Image, ImageBackground, Pressable, StyleSheet, View, type AccessibilityRole, type AccessibilityState, type AccessibilityValue, type ImageSourcePropType, type ImageStyle, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Image, ImageBackground } from 'expo-image';
+import { Pressable, StyleSheet, View, type AccessibilityRole, type AccessibilityState, type AccessibilityValue, type ImageSourcePropType, type ImageStyle, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 
 import { Text } from '@/ui/layout/visualPrimitives';
 import { OutlinedText } from '@/ui/text/OutlinedText';
@@ -29,6 +30,19 @@ const HEADER_CIRCLE_PAPER = require('../../assets/generated-ui/header-circle-pap
 
 function surfaceResizeMode(variant: MobbyAssetSurfaceVariant): 'contain' | 'cover' {
   return variant === 'paperTall' || variant === 'modalPortrait' || variant === 'darkCaseTall' ? 'contain' : 'cover';
+}
+
+function themedSurfaceSource(activeTheme: ReturnType<typeof useGachaTheme>['activeTheme'], variant: MobbyAssetSurfaceVariant) {
+  if (!activeTheme) return null;
+  // Theme popup art is the only generic theme surface whose portrait aspect
+  // and semantic role match these tall overlays. Other standard surfaces have
+  // purpose-built silhouettes (square tiles, speech bubbles, notices, pills,
+  // top bars, and wide papers) that must not be replaced by a cropped generic
+  // card or navigation strip.
+  if (variant === 'paperTall') {
+    return activeTheme.assets.popup;
+  }
+  return null;
 }
 
 export const MobbyColors = {
@@ -95,34 +109,42 @@ export function MobbyAssetButton({
   tone = 'coral',
   backgroundSource,
   backgroundResizeMode,
+  preferBackgroundSource = false,
   onPress,
   style,
   contentStyle,
   disabled = false,
+  pointerEvents = 'auto',
 }: {
   children: ReactNode;
   accessibilityLabel: string;
   accessibilityState?: AccessibilityState;
   tone?: 'coral' | 'cream';
   backgroundSource?: ImageSourcePropType;
-  backgroundResizeMode?: 'cover' | 'contain' | 'stretch';
+  backgroundResizeMode?: 'cover' | 'contain';
+  /** Keep a shape-specific supplied bitmap instead of replacing it with a generic theme button. */
+  preferBackgroundSource?: boolean;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   disabled?: boolean;
+  pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
 }) {
   const { activeTheme } = useGachaTheme();
   const themedBackground = activeTheme?.assets[tone === 'cream' ? 'buttonSecondary' : 'buttonPrimary'];
-  // An equipped full-app theme owns the button skin even when a legacy caller
-  // supplied a one-off background. Without this precedence, old screens kept
-  // their fixed assets and broke the promised app-wide dress-up.
-  const resolvedBackground = themedBackground ?? backgroundSource ?? ASSET_BUTTON_SOURCES[tone];
+  const suppliedBackground = backgroundSource ?? ASSET_BUTTON_SOURCES[tone];
+  const resolvedBackground = preferBackgroundSource ? suppliedBackground : themedBackground ?? suppliedBackground;
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       accessibilityState={{ ...accessibilityState, disabled }}
       disabled={disabled}
+      // A disabled control must leave the hit-test tree as well as ignoring
+      // press callbacks. This matters during cheek drags: the surrounding
+      // controls overlap the character and otherwise can still become the
+      // web pointer target while `disabled` is being rendered.
+      pointerEvents={disabled ? 'none' : pointerEvents}
       onPress={onPress}
       style={({ pressed }) => [
         styles.assetButton,
@@ -134,7 +156,8 @@ export function MobbyAssetButton({
       <Image
         accessible={false}
         source={resolvedBackground}
-        resizeMode={themedBackground ? 'stretch' : backgroundResizeMode ?? (backgroundSource ? 'stretch' : 'cover')}
+        contentFit={backgroundResizeMode ?? 'cover'}
+        contentPosition="center"
         style={styles.assetButtonImage}
       />
       <View style={[styles.assetButtonContent, contentStyle]}>{children}</View>
@@ -161,8 +184,6 @@ export function MobbyAssetIconButton({
   badge?: ReactNode;
   disabled?: boolean;
 }) {
-  const { activeTheme } = useGachaTheme();
-  const themedSource = activeTheme?.assets.buttonSecondary;
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
@@ -176,11 +197,12 @@ export function MobbyAssetIconButton({
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        resizeMode={themedSource ? 'stretch' : 'cover'}
-        source={themedSource ?? HEADER_CIRCLE_PAPER}
+        contentFit="cover"
+        contentPosition="center"
+        source={HEADER_CIRCLE_PAPER}
         style={styles.iconButtonSurface}
       >
-        <Image accessible={false} source={icon} resizeMode="contain" style={[styles.iconButtonImage, iconStyle]} />
+        <Image accessible={false} source={icon} contentFit="contain" style={[styles.iconButtonImage, iconStyle]} />
       </ImageBackground>
       {badge}
     </Pressable>
@@ -217,12 +239,13 @@ export function MobbyAssetSurface({
   testID?: string;
 }) {
   const { activeTheme } = useGachaTheme();
-  const themedSource = activeTheme?.assets[variant === 'modalPortrait' ? 'popup' : 'card'];
+  const themedSource = themedSurfaceSource(activeTheme, variant);
   return (
     <View accessible={accessible} accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole} accessibilityState={accessibilityState} accessibilityValue={accessibilityValue} accessibilityLiveRegion={accessibilityLiveRegion} accessibilityViewIsModal={accessibilityViewIsModal} pointerEvents={pointerEvents} testID={testID} style={style}>
       <ImageBackground
         accessible={false}
-        resizeMode={themedSource ? 'stretch' : surfaceResizeMode(variant)}
+        contentFit={surfaceResizeMode(variant)}
+        contentPosition="center"
         source={themedSource ?? SURFACE_SOURCES[variant]}
         style={[styles.assetSurface, contentStyle]}
       >
@@ -261,7 +284,7 @@ export function MobbyAssetSelectable({
 }) {
   const { activeTheme } = useGachaTheme();
   const resolvedVariant = variant === 'tile' && selected ? 'tileSelected' : variant;
-  const themedSource = activeTheme?.assets[resolvedVariant === 'modalPortrait' ? 'popup' : 'card'];
+  const themedSource = themedSurfaceSource(activeTheme, resolvedVariant);
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
@@ -277,7 +300,8 @@ export function MobbyAssetSelectable({
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        resizeMode={themedSource ? 'stretch' : surfaceResizeMode(resolvedVariant)}
+        contentFit={surfaceResizeMode(resolvedVariant)}
+        contentPosition="center"
         source={themedSource ?? SURFACE_SOURCES[resolvedVariant]}
         style={[styles.assetSurface, contentStyle]}
       >

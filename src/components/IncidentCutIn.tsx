@@ -1,4 +1,5 @@
-import { Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { Image } from 'expo-image';
+import { StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
@@ -18,9 +19,9 @@ export function IncidentCutIn({ enemyName, enemyImage, targetName, targetImage, 
       <Text style={styles.kicker}>新しい関係性エピソード</Text>
       <Text style={styles.title}>{enemyName}と{targetName}が、まさかの共演！</Text>
       <View style={styles.scene}>
-        <Image accessibilityLabel={enemyName} source={enemyImage} resizeMode="contain" style={styles.enemy} />
+        <Image accessibilityLabel={enemyName} source={enemyImage} contentFit="contain" style={styles.enemy} />
         <Text style={styles.arrow}>→</Text>
-        <Image accessibilityLabel={targetName} source={targetImage} resizeMode="contain" style={styles.target} />
+        <Image accessibilityLabel={targetName} source={targetImage} contentFit="contain" style={styles.target} />
       </View>
       <Text style={styles.copy}>正反対のふたりがどうして出会ったのか、短編エピソードで見届けよう。</Text>
       <MobbyAssetButton accessibilityLabel="第1話を再生" onPress={onPlay} style={styles.primary}><Text style={styles.primaryText}>第1話を再生</Text></MobbyAssetButton>

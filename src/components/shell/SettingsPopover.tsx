@@ -1,5 +1,5 @@
+import { ImageBackground } from 'expo-image';
 import {
-  ImageBackground,
   Modal,
   Pressable,
   ScrollView,
@@ -14,8 +14,6 @@ import { Text } from '@/ui/layout/visualPrimitives';
 
 const SETTINGS_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-settings-v1.png');
 const SETTINGS_PANEL_ASPECT_RATIO = 978 / 1485;
-const SETTINGS_BACKGROUND_SCALE_X = 1024 / 978;
-const SETTINGS_BACKGROUND_SCALE_Y = 1536 / 1485;
 
 export function SettingsPopover({
   soundEnabled,
@@ -45,8 +43,8 @@ export function SettingsPopover({
         <View style={styles.panelClip}>
           <ImageBackground
             accessible={false}
-            imageStyle={[styles.panelImage, !activeTheme && styles.backgroundImage]}
-            resizeMode="stretch"
+            imageStyle={styles.panelImage}
+            contentFit="cover"
             source={activeTheme?.assets.popup ?? SETTINGS_POPUP_BACKGROUND}
             style={styles.panelBackground}
           >
@@ -131,12 +129,6 @@ const styles = StyleSheet.create({
   panelClip: { flex: 1, minHeight: 0, borderRadius: 30, overflow: 'hidden' },
   panelBackground: { flex: 1, width: '100%', height: '100%', minHeight: 0 },
   panelImage: { borderRadius: 30 },
-  backgroundImage: {
-    transform: [
-      { scaleX: SETTINGS_BACKGROUND_SCALE_X },
-      { scaleY: SETTINGS_BACKGROUND_SCALE_Y },
-    ],
-  },
   panelContent: { flex: 1, minHeight: 0, zIndex: 1 },
   header: {
     flexDirection: 'row',

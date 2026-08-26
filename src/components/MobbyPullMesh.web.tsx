@@ -9,12 +9,15 @@ type Vertex = {
   targetX: number; targetY: number;
 };
 
+// Match mobby-main's desktop carousel mesh density. Pointer updates are
+// already frame-coalesced by the browser, so the spring remains responsive
+// without moving the whole sprite.
 const DIVISIONS = 17;
 // Keep the mesh deformation inside a conservative envelope.  The original
 // pull demo allows a wider stretch, but that can fold the coarse triangles
 // when a pointer is moved quickly and makes the face/body look torn apart.
-const MAX_PULL_RATIO = 0.22;
-const PULL_RADIUS_RATIO = 0.18;
+const MAX_PULL_RATIO = 0.36;
+const PULL_RADIUS_RATIO = 0.245;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const smoothPull = (value: number) => {
   const t = clamp(value, 0, 1);
@@ -64,6 +67,7 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
   const verticesRef = useRef<Vertex[]>([]);
   const originRef = useRef({ x: size / 2, y: size / 2 });
   const frameRef = useRef(0);
+  const draggingRef = useRef(false);
   const lastAtRef = useRef(0);
   const sizeRef = useRef(size);
   sizeRef.current = size;
@@ -108,6 +112,8 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
       const maxOffset = sizeRef.current * MAX_PULL_RATIO;
       let settling = false;
       for (let subStep = 0; subStep < steps; subStep += 1) {
+        // mobby-main keeps one spring model for both follow and release. This
+        // avoids a velocity discontinuity when pointer events arrive unevenly.
         const damping = Math.exp(-step * 10.2);
         for (const vertex of verticesRef.current) {
           vertex.velocityX += (vertex.targetX - vertex.offsetX) * 118 * step;
@@ -123,7 +129,11 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
         }
       }
       render();
-      if (settling) frameRef.current = requestAnimationFrame(tick);
+      // Keep rendering while the pointer is still down even when the spring
+      // has temporarily caught up with the last input sample. Without this,
+      // a slow drag would stop receiving visual updates and snap back before
+      // release.
+      if (draggingRef.current || settling) frameRef.current = requestAnimationFrame(tick);
       else frameRef.current = 0;
     };
     frameRef.current = requestAnimationFrame(tick);
@@ -140,6 +150,7 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
     begin(x, y) {
       const spriteSize = sizeRef.current;
       originRef.current = { x: clamp(x, 0, spriteSize), y: clamp(y, 0, spriteSize) };
+      draggingRef.current = true;
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       frameRef.current = 0;
       for (const vertex of verticesRef.current) {
@@ -165,10 +176,11 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
       }
       startAnimation();
     },
-    release() { resetTargets(); startAnimation(); },
+    release() { draggingRef.current = false; resetTargets(); startAnimation(); },
     reset() {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       frameRef.current = 0;
+      draggingRef.current = false;
       resetTargets();
       for (const vertex of verticesRef.current) {
         vertex.offsetX = 0; vertex.offsetY = 0; vertex.velocityX = 0; vertex.velocityY = 0;

@@ -282,7 +282,9 @@ export const styles = StyleSheet.create({
   // PanResponder turns this view into an accessible button on web. Suppress
   // the browser's default focus ring so a completed pull does not leave a
   // harsh black rectangle over the parchment stage.
-  pullableSlot: { ...StyleSheet.absoluteFillObject, width: 320, height: 320, alignItems: 'center', justifyContent: 'center', zIndex: 2, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  // Match mobby-main's touch surface: prevent browser scrolling/selection
+  // from cancelling a long cheek drag before pointerup.
+  pullableSlot: { ...StyleSheet.absoluteFillObject, width: 320, height: 320, alignItems: 'center', justifyContent: 'center', zIndex: 2, outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent', touchAction: 'none', userSelect: 'none' },
   pullableBody: { width: 320, height: 320 },
   pullableFaceLayer: { zIndex: 4 },
   pullableReactionLayer: { ...StyleSheet.absoluteFillObject, zIndex: 5 },

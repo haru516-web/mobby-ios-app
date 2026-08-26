@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image, ImageBackground } from 'expo-image';
 import {
-  Image,
-  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +13,6 @@ import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
 import { COMIC_CHARACTER_ORDER, COMIC_VOLUMES, getComicsForCharacter, type ComicVolumeId } from '@/data/comics';
 import { getMobby, type MobbyId } from '@/data/mobies';
 import { IncidentComicsScreen, type IncidentComicsScreenProps } from '@/screens/IncidentComicsScreen';
-import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 const STORY_BOARD = require('../../assets/backgrounds/trade-exchange-board.png');
@@ -76,7 +74,6 @@ type StoriesScreenProps = {
 };
 
 export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesScreenProps) {
-  const { activeTheme } = useGachaTheme();
   const [rootSize, setRootSize] = useState({ width: 455, height: 782 });
   const [section, setSection] = useState<'comic' | 'incident'>('comic');
   const [incidentPlayerVisible, setIncidentPlayerVisible] = useState(false);
@@ -197,7 +194,7 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
       <View style={[styles.readerStage, { height: availableHeight }]}>
         <Image
           accessibilityLabel={`${character.name}の4コマ漫画、${selectedVolume.label}、${selectedComic.title}`}
-          resizeMode="contain"
+          contentFit="contain"
           source={selectedComic.image}
           style={[styles.comicImage, { width: comicWidth, height: comicHeight }]}
         />
@@ -259,8 +256,9 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
     <ImageBackground
       accessible={false}
       imageStyle={styles.boardImage}
-      resizeMode={activeTheme ? 'stretch' : 'contain'}
-      source={activeTheme?.assets.card ?? STORY_BOARD}
+      contentFit="contain"
+      contentPosition="center"
+      source={STORY_BOARD}
       style={[styles.board, { width: boardWidth, height: boardHeight }]}
     >
       <View style={styles.topPanel}>
@@ -311,7 +309,7 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
               style={({ pressed }) => [styles.characterTab, compact && styles.characterTabCompact, pressed && styles.pressed]}
             >
               <View style={[styles.characterImageWrap, compact && styles.characterImageWrapCompact, selected && styles.characterImageWrapSelected]}>
-                <Image accessible={false} source={item.image} resizeMode="contain" style={styles.characterImage} />
+                <Image accessible={false} source={item.image} contentFit="contain" style={styles.characterImage} />
               </View>
               <Text numberOfLines={1} style={[styles.characterName, compact && styles.characterNameCompact, selected && styles.characterNameSelected]}>{item.name}</Text>
               {selected ? <View style={styles.characterUnderline} /> : null}
@@ -346,7 +344,7 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
               style={({ pressed }) => [styles.volumeItem, compact && styles.volumeItemCompact, !unlocked && styles.volumeItemLocked, pressed && styles.volumePressed]}
             >
               <View style={[styles.thumbnailFrame, compact && styles.thumbnailFrameCompact]}>
-                <Image accessible={false} resizeMode="contain" source={comic.thumbnail} style={[styles.thumbnail, !unlocked && styles.thumbnailLocked]} />
+                <Image accessible={false} contentFit="contain" source={comic.thumbnail} style={[styles.thumbnail, !unlocked && styles.thumbnailLocked]} />
                 {!unlocked ? <View pointerEvents="none" style={styles.lockedCover}>
                   <Text style={[styles.lockIcon, compact && styles.lockIconCompact]}>🔒</Text>
                   <Text style={[styles.lockedText, compact && styles.lockedTextCompact]}>未開放</Text>

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, ImageBackground } from 'expo-image';
 import {
   Animated,
   Easing,
-  Image,
-  ImageBackground,
   Modal,
   PanResponder,
   Platform,
@@ -26,9 +25,10 @@ import { styles as appStyles } from '@/ui/layout/appStyles';
 import { Text } from '@/ui/layout/visualPrimitives';
 import { useGachaTheme } from '@/theme/GachaThemeContext';
 
+const AnimatedImage = Animated.createAnimatedComponent(Image);
+
 const REACTION_COLLECTION_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-reaction-collection-v1.png');
 const REACTION_COLLECTION_PANEL_ASPECT_RATIO = 957 / 1462;
-const REACTION_COLLECTION_BACKGROUND_SCALE = 1536 / 1462;
 const REACTION_TAB_WIDTH = 58;
 const REACTION_TAB_GAP = 8;
 const REACTION_TAB_PADDING = 4;
@@ -103,10 +103,11 @@ function AnimatedReactionPreview({ id, source, index, size, reduceMotion }: {
   const sulkDrop = motion.interpolate({ inputRange: [0.52, 0.68, 1], outputRange: [-5, 2, 5], extrapolate: 'clamp' });
 
   return <View pointerEvents="none" style={[styles.previewMotionStage, { width: size, height: size }]}>
-    <Animated.Image
+    <AnimatedImage
       accessible={false}
       source={source}
-      resizeMode="contain"
+      contentFit="contain"
+      contentPosition="center"
       style={[styles.previewMotionImage, { transform: [{ translateX }, { translateY }, { rotate }, { scaleX }, { scaleY }] }]}
     />
     {effectKind === 0 ? <Animated.View style={[appStyles.pullableReactionBurst, { opacity: burstOpacity, transform: [{ scale: burstScale }] }]} /> : null}
@@ -202,7 +203,7 @@ export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, o
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable accessibilityLabel={previewSticker ? 'リアクションの拡大表示を閉じる' : 'リアクション図鑑を閉じる'} accessibilityRole="button" onPress={dismissPreviewOrClose} style={styles.backdrop} />
       <View accessibilityViewIsModal accessibilityLabel={`${displayedCharacterName}のリアクション図鑑`} style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
-      <ImageBackground accessible={false} imageStyle={[styles.panelImage, !activeTheme && styles.backgroundImage]} resizeMode={activeTheme ? 'stretch' : 'cover'} source={activeTheme?.assets.popup ?? REACTION_COLLECTION_POPUP_BACKGROUND} style={styles.panelBackground}>
+      <ImageBackground accessible={false} imageStyle={styles.panelImage} contentFit="cover" source={activeTheme?.assets.popup ?? REACTION_COLLECTION_POPUP_BACKGROUND} style={styles.panelBackground}>
       <View style={styles.panelContent}>
       <View
         accessibilityElementsHidden={Boolean(previewSticker)}
@@ -257,7 +258,7 @@ export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, o
             onPress={() => onSelectCharacter(id)}
             style={({ pressed }) => [styles.tab, selected && styles.tabSelected, !owned && styles.tabLocked, pressed && styles.pressed]}
           >
-            <Image accessible={false} source={tabCharacter.image} resizeMode="contain" tintColor={owned ? undefined : '#17131D'} style={[styles.tabImage, !owned && styles.tabImageLocked]} />
+            <Image accessible={false} source={tabCharacter.image} contentFit="contain" tintColor={owned ? undefined : '#17131D'} style={[styles.tabImage, !owned && styles.tabImageLocked]} />
             <Text numberOfLines={1} style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{owned ? tabCharacter.name : '？？？'}</Text>
             {selected ? <View pointerEvents="none" style={styles.tabIndicator} /> : null}
           </Pressable>;
@@ -284,9 +285,9 @@ export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, o
               style={({ pressed }) => [styles.sticker, !owned && styles.stickerMissing, pressed && styles.stickerPressed]}
             >
               {owned
-                ? <Image accessible={false} source={sticker.source} resizeMode="contain" style={styles.stickerImage} />
+                ? <Image accessible={false} source={sticker.source} contentFit="contain" style={styles.stickerImage} />
                 : <>
-                  <Image accessible={false} source={sticker.source} resizeMode="contain" tintColor="#514953" style={styles.stickerGhost} />
+                  <Image accessible={false} source={sticker.source} contentFit="contain" tintColor="#514953" style={styles.stickerGhost} />
                   <View pointerEvents="none" style={styles.stickerHoleMark}><Text style={styles.stickerQuestion}>?</Text></View>
                 </>}
             </Pressable>;
@@ -333,7 +334,6 @@ const styles = StyleSheet.create({
   },
   panelBackground: { flex: 1, width: '100%', height: '100%', minHeight: 0, borderRadius: 28, overflow: 'hidden' },
   panelImage: { borderRadius: 28 },
-  backgroundImage: { transform: [{ scale: REACTION_COLLECTION_BACKGROUND_SCALE }] },
   panelContent: { flex: 1, minHeight: 0, zIndex: 1 },
   collectionContent: { flex: 1, minHeight: 0 },
   collectionContentHidden: { opacity: 0 },
