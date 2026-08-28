@@ -1,13 +1,34 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { Asset } from 'expo-asset';
 
-import type { MobbyPullMeshHandle, MobbyPullMeshProps } from './MobbyPullMesh.types';
+import type { MobbyPullMeshHandle, MobbyPullMeshLayer, MobbyPullMeshProps } from './MobbyPullMesh.types';
 
 type Vertex = {
   u: number; v: number; baseX: number; baseY: number;
   offsetX: number; offsetY: number; velocityX: number; velocityY: number;
   targetX: number; targetY: number;
 };
+
+type MeshImageLayer = {
+  image: HTMLImageElement;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+const layerImageCache = new Map<string, HTMLImageElement>();
+
+function getLayerImage(source: MobbyPullMeshLayer['source']) {
+  const uri = Asset.fromModule(source as number).uri;
+  const cached = layerImageCache.get(uri);
+  if (cached) return cached;
+  const image = new window.Image();
+  image.crossOrigin = 'anonymous';
+  image.src = uri;
+  layerImageCache.set(uri, image);
+  return image;
+}
 
 // Match mobby-main's desktop carousel mesh density. Pointer updates are
 // already frame-coalesced by the browser, so the spring remains responsive
@@ -26,7 +47,7 @@ const smoothPull = (value: number) => {
 
 function drawTriangle(
   context: CanvasRenderingContext2D,
-  image: HTMLImageElement,
+  image: CanvasImageSource,
   source: { x: number; y: number }[],
   destination: { x: number; y: number }[],
 ) {
@@ -59,11 +80,38 @@ function drawTriangle(
   context.restore();
 }
 
+function containLayer(
+  layer: MobbyPullMeshLayer,
+  image: HTMLImageElement,
+  bodyWidth: number,
+  bodyHeight: number,
+): MeshImageLayer {
+  const frameX = layer.frame.x * bodyWidth / layer.sourceSize;
+  const frameY = layer.frame.y * bodyHeight / layer.sourceSize;
+  const frameWidth = layer.frame.width * bodyWidth / layer.sourceSize;
+  const frameHeight = layer.frame.height * bodyHeight / layer.sourceSize;
+  const scale = Math.min(frameWidth / image.naturalWidth, frameHeight / image.naturalHeight);
+  const width = image.naturalWidth * scale;
+  const height = image.naturalHeight * scale;
+  return {
+    image,
+    x: frameX + (frameWidth - width) / 2,
+    y: frameY + (frameHeight - height) / 2,
+    width,
+    height,
+  };
+}
+
 export const SUPPORTS_PULL_MESH = true;
 
-export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>(function MobbyPullMesh({ source, size, visible }, ref) {
+export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>(function MobbyPullMesh({ source, size, visible, layers = [] }, ref) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const compositeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const imageLayersRef = useRef<{
+    layer: MobbyPullMeshLayer;
+    image: HTMLImageElement;
+  }[]>([]);
   const verticesRef = useRef<Vertex[]>([]);
   const originRef = useRef({ x: size / 2, y: size / 2 });
   const frameRef = useRef(0);
@@ -86,6 +134,21 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
     context.translate(padding, padding);
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
+    const composite = compositeCanvasRef.current ?? document.createElement('canvas');
+    compositeCanvasRef.current = composite;
+    if (composite.width !== image.naturalWidth || composite.height !== image.naturalHeight) {
+      composite.width = image.naturalWidth;
+      composite.height = image.naturalHeight;
+    }
+    const compositeContext = composite.getContext('2d');
+    if (!compositeContext) return;
+    compositeContext.clearRect(0, 0, composite.width, composite.height);
+    compositeContext.drawImage(image, 0, 0);
+    for (const { layer, image: layerImage } of imageLayersRef.current) {
+      if (!layerImage.complete || layerImage.naturalWidth <= 0) continue;
+      const contained = containLayer(layer, layerImage, image.naturalWidth, image.naturalHeight);
+      compositeContext.drawImage(contained.image, contained.x, contained.y, contained.width, contained.height);
+    }
     const sourcePoint = (vertex: Vertex) => ({ x: vertex.u * image.naturalWidth, y: vertex.v * image.naturalHeight });
     const destinationPoint = (vertex: Vertex) => ({ x: vertex.baseX + vertex.offsetX, y: vertex.baseY + vertex.offsetY });
     for (let row = 0; row < DIVISIONS; row += 1) {
@@ -95,8 +158,8 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
         const topRight = verticesRef.current[index + 1];
         const bottomLeft = verticesRef.current[index + DIVISIONS + 1];
         const bottomRight = verticesRef.current[index + DIVISIONS + 2];
-        drawTriangle(context, image, [sourcePoint(topLeft), sourcePoint(topRight), sourcePoint(bottomLeft)], [destinationPoint(topLeft), destinationPoint(topRight), destinationPoint(bottomLeft)]);
-        drawTriangle(context, image, [sourcePoint(topRight), sourcePoint(bottomRight), sourcePoint(bottomLeft)], [destinationPoint(topRight), destinationPoint(bottomRight), destinationPoint(bottomLeft)]);
+        drawTriangle(context, composite, [sourcePoint(topLeft), sourcePoint(topRight), sourcePoint(bottomLeft)], [destinationPoint(topLeft), destinationPoint(topRight), destinationPoint(bottomLeft)]);
+        drawTriangle(context, composite, [sourcePoint(topRight), sourcePoint(bottomRight), sourcePoint(bottomLeft)], [destinationPoint(topRight), destinationPoint(bottomRight), destinationPoint(bottomLeft)]);
       }
     }
   };
@@ -215,6 +278,33 @@ export const MobbyPullMesh = forwardRef<MobbyPullMeshHandle, MobbyPullMeshProps>
       frameRef.current = 0;
     };
   }, [size, source]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const previousLayers = imageLayersRef.current;
+    const nextLayers = layers.map((layer) => ({ layer, image: getLayerImage(layer.source) }));
+    const refresh = () => {
+      if (cancelled) return;
+      imageLayersRef.current = nextLayers.map((nextLayer, index) => (
+        nextLayer.image.complete && nextLayer.image.naturalWidth > 0
+          ? nextLayer
+          : previousLayers[index] ?? nextLayer
+      ));
+      render();
+    };
+    for (const { image } of nextLayers) {
+      image.addEventListener('load', refresh);
+      image.addEventListener('error', refresh);
+    }
+    refresh();
+    return () => {
+      cancelled = true;
+      for (const { image } of nextLayers) {
+        image.removeEventListener('load', refresh);
+        image.removeEventListener('error', refresh);
+      }
+    };
+  }, [layers]);
 
   const padding = Math.max(24, size * 0.4);
   return <canvas ref={canvasRef} aria-hidden style={{ display: visible ? 'block' : 'none', pointerEvents: 'none', position: 'absolute', left: -padding, top: -padding, width: size + padding * 2, height: size + padding * 2 }} />;

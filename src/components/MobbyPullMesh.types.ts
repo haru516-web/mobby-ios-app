@@ -7,8 +7,20 @@ export type MobbyPullMeshHandle = {
   reset: () => void;
 };
 
+export type MobbyPullMeshLayer = {
+  source: ImageSourcePropType;
+  sourceSize: number;
+  frame: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+};
+
 export type MobbyPullMeshProps = {
   source: ImageSourcePropType;
   size: number;
   visible: boolean;
+  layers?: readonly MobbyPullMeshLayer[];
 };

@@ -31,22 +31,22 @@ const sharedMouthPairs = PULL_ASSETS.mobiyan.mouthPairs;
 // different heights, and one shared frame visibly drifted on the cap, hat,
 // and cloak silhouettes.
 const faceFrames: Record<EnemyId, PullFrame> = {
-  magician: { x: 365, y: 355, width: 220, height: 140 },
-  informant: { x: 446, y: 382, width: 180, height: 115 },
-  tracker: { x: 410, y: 394, width: 190, height: 121 },
-  safecracker: { x: 410, y: 325, width: 220, height: 140 },
-  'veiled-duchess': { x: 420, y: 364, width: 190, height: 121 },
-  courier: { x: 370, y: 385, width: 220, height: 140 },
-  commander: { x: 410, y: 395, width: 210, height: 134 },
+  magician: { x: 365, y: 375, width: 220, height: 140 },
+  informant: { x: 446, y: 402, width: 180, height: 115 },
+  tracker: { x: 410, y: 414, width: 190, height: 121 },
+  safecracker: { x: 410, y: 345, width: 220, height: 140 },
+  'veiled-duchess': { x: 420, y: 384, width: 190, height: 121 },
+  courier: { x: 370, y: 405, width: 220, height: 140 },
+  commander: { x: 410, y: 415, width: 210, height: 134 },
 };
 const mouthFrames: Record<EnemyId, PullFrame> = {
-  magician: { x: 570, y: 585, width: 220, height: 132 },
-  informant: { x: 570, y: 585, width: 220, height: 132 },
-  tracker: { x: 570, y: 585, width: 220, height: 132 },
-  safecracker: { x: 570, y: 585, width: 220, height: 132 },
-  'veiled-duchess': { x: 570, y: 585, width: 220, height: 132 },
-  courier: { x: 570, y: 585, width: 220, height: 132 },
-  commander: { x: 570, y: 585, width: 220, height: 132 },
+  magician: { x: 520, y: 545, width: 180, height: 108 },
+  informant: { x: 520, y: 545, width: 180, height: 108 },
+  tracker: { x: 520, y: 545, width: 180, height: 108 },
+  safecracker: { x: 520, y: 545, width: 180, height: 108 },
+  'veiled-duchess': { x: 520, y: 545, width: 180, height: 108 },
+  courier: { x: 520, y: 545, width: 180, height: 108 },
+  commander: { x: 520, y: 545, width: 180, height: 108 },
 };
 
 const generatedFeaturelessBases = {

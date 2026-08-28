@@ -464,6 +464,10 @@ function PullableBlackStar({
       window.removeEventListener('pointerup', handlePointerUp, true);
     };
   }, []);
+  useEffect(() => {
+    const preloadAssets = [...pullAsset.eyes, ...pullAsset.mouths].filter((asset): asset is number => typeof asset === 'number');
+    if (preloadAssets.length > 0) void Asset.loadAsync(preloadAssets);
+  }, [pullAsset]);
 
   const resetPose = useCallback(() => {
     Animated.parallel([
@@ -594,6 +598,10 @@ function PullableBlackStar({
   const activeEye = eyeIndex >= 0 ? pullAsset.eyes[eyeIndex] ?? defaultEye : defaultEye;
   const activeMouth = mouthIndex >= 0 ? pullAsset.mouths[mouthIndex] : null;
   const eyeFrame = eyeIndex >= 0 ? pullAsset.eyeFrame : pullAsset.defaultEyeFrame ?? pullAsset.eyeFrame;
+  const meshFaceLayers = useMemo(() => [
+    { source: activeEye, sourceSize: pullAsset.sourceSize, frame: eyeFrame },
+    ...(activeMouth ? [{ source: activeMouth, sourceSize: pullAsset.sourceSize, frame: pullAsset.mouthFrame }] : []),
+  ], [activeEye, activeMouth, eyeFrame, pullAsset.mouthFrame, pullAsset.sourceSize]);
   const special = reactionIndex === reactions.length - 1;
   const reactionScale = reactionMotion.interpolate({
     inputRange: [0, 0.15, 0.42, 0.78, 1],
@@ -625,14 +633,14 @@ function PullableBlackStar({
         }]}
       >
         <Image pointerEvents="none" source={displayBody} contentFit="contain" style={{ width: size, height: size }} />
+        {pullAsset.featurelessBase && !reaction ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.pullableFaceLayer, { opacity: status === 'idle' ? 0 : 1 }]}>
+            <Image source={activeEye} contentFit={pullAsset.eyeResizeMode ?? 'contain'} style={pullFaceFrameStyle(eyeFrame, pullAsset, size)} />
+            {activeMouth ? <Image source={activeMouth} contentFit="contain" style={pullFaceFrameStyle(pullAsset.mouthFrame, pullAsset, size)} /> : null}
+          </View>
+        ) : null}
       </Animated.View>
-      <MobbyPullMesh ref={meshRef} source={pullAsset.body} size={size} visible={meshVisible} />
-      {pullAsset.featurelessBase && !reaction ? (
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.pullableFaceLayer, { opacity: status === 'idle' ? 0 : 1 }]}>
-        <Image source={activeEye} contentFit={pullAsset.eyeResizeMode ?? 'contain'} style={pullFaceFrameStyle(eyeFrame, pullAsset, size)} />
-        {activeMouth ? <Image source={activeMouth} contentFit="contain" style={pullFaceFrameStyle(pullAsset.mouthFrame, pullAsset, size)} /> : null}
-        </Animated.View>
-      ) : null}
+      <MobbyPullMesh ref={meshRef} source={pullAsset.body} size={size} visible={meshVisible} layers={meshFaceLayers} />
       {reaction ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: reactionMotion.interpolate({ inputRange: [0, 0.06, 0.88, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateY: reactionTranslateY }, { scale: reactionScale }] }]}>
         <Image source={reaction.source} contentFit="contain" style={{ width: size, height: size }} />
         <ParticleBurst type={special ? 'star' : 'heart'} count={special ? 12 : 7} large={special} active burstKey={reaction.id} seed={reaction.id} style={styles.pullParticleBurst} />
