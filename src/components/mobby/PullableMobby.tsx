@@ -9,7 +9,7 @@ import { MobbyAssetButton } from '@/components/mobby-ui';
 import { ITEM_ENEMY_IDS, type Item } from '@/data/collectibles';
 import { type MobbyId } from '@/data/mobies';
 import { PULL_ASSETS, type MobbyPullAsset, type PullFrame } from '@/data/mobbyPullAssets';
-import { getBlackStarPullAsset } from '@/data/blackStarPullAssets';
+import { BLACK_STAR_PULL_LAYOUT_VERSION, getBlackStarPullAsset } from '@/data/blackStarPullAssets';
 import { getBlackStarReactionCatalog } from '@/domain/characters/blackStarReactions';
 import { useMobbyHaptics } from '@/hooks/useMobbyHaptics';
 import { styles } from '@/ui/layout/appStyles';
@@ -45,7 +45,7 @@ export type PullableMobbyProps = { selected: Item; onPull: () => number; size?: 
 
 export function PullableMobby(props: PullableMobbyProps) {
   const enemyId = ITEM_ENEMY_IDS[props.selected.id];
-  return enemyId ? <PullableBlackStar {...props} enemyId={enemyId} /> : <StandardPullableMobby {...props} />;
+  return enemyId ? <PullableBlackStar key={`black-star-${BLACK_STAR_PULL_LAYOUT_VERSION}`} {...props} enemyId={enemyId} /> : <StandardPullableMobby {...props} />;
 }
 
 function StandardPullableMobby({ selected, onPull, size = 320, onCharacterPickerPress, selectedMobbyName, specialCentering = false, onInteractionStateChange, enabled = true, onValidRelease, onReaction }: PullableMobbyProps) {
@@ -489,7 +489,10 @@ function PullableBlackStar({
     }
     haptics.light();
     const count = Math.max(1, onPull());
-    const index = (count - 1) % reactions.length;
+    // Keep Black Star's twenty-frame catalog, but use its final frame for
+    // every tenth pull just like the regular Mobby reaction flow does.
+    const special = count % 10 === 0;
+    const index = special ? reactions.length - 1 : (count - 1) % reactions.length;
     const entry = reactions[index];
     setReactionIndex(index);
     setStatus('reacting');
@@ -498,7 +501,8 @@ function PullableBlackStar({
     void onValidRelease?.().catch(() => undefined);
     reactionMotion.setValue(0);
     animationRef.current?.stop();
-    const special = index === reactions.length - 1;
+    // Black Star reactions have twenty distinct frames, while pulls 10, 20,
+    // 30... use the final frame with the regular Mobby's large presentation.
     const animation = Animated.timing(reactionMotion, {
       toValue: 1,
       duration: special ? 2100 : 1050,
@@ -598,11 +602,9 @@ function PullableBlackStar({
   const activeEye = eyeIndex >= 0 ? pullAsset.eyes[eyeIndex] ?? defaultEye : defaultEye;
   const activeMouth = mouthIndex >= 0 ? pullAsset.mouths[mouthIndex] : null;
   const eyeFrame = eyeIndex >= 0 ? pullAsset.eyeFrame : pullAsset.defaultEyeFrame ?? pullAsset.eyeFrame;
-  const meshFaceLayers = useMemo(() => [
-    { source: activeEye, sourceSize: pullAsset.sourceSize, frame: eyeFrame },
-    ...(activeMouth ? [{ source: activeMouth, sourceSize: pullAsset.sourceSize, frame: pullAsset.mouthFrame }] : []),
-  ], [activeEye, activeMouth, eyeFrame, pullAsset.mouthFrame, pullAsset.sourceSize]);
-  const special = reactionIndex === reactions.length - 1;
+  // The final catalog frame is reserved for the same ten-pull special
+  // presentation used by regular Mobies.
+  const special = reaction ? reaction.index === reactions.length : false;
   const reactionScale = reactionMotion.interpolate({
     inputRange: [0, 0.15, 0.42, 0.78, 1],
     outputRange: special ? [0.82, 1.5, 1.28, 1.2, 0.95] : [0.92, 1.12, 1.04, 1, 0.96],
@@ -633,14 +635,22 @@ function PullableBlackStar({
         }]}
       >
         <Image pointerEvents="none" source={displayBody} contentFit="contain" style={{ width: size, height: size }} />
-        {pullAsset.featurelessBase && !reaction ? (
-          <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.pullableFaceLayer, { opacity: status === 'idle' ? 0 : 1 }]}>
-            <Image source={activeEye} contentFit={pullAsset.eyeResizeMode ?? 'contain'} style={pullFaceFrameStyle(eyeFrame, pullAsset, size)} />
-            {activeMouth ? <Image source={activeMouth} contentFit="contain" style={pullFaceFrameStyle(pullAsset.mouthFrame, pullAsset, size)} /> : null}
-          </View>
-        ) : null}
       </Animated.View>
-      <MobbyPullMesh ref={meshRef} source={pullAsset.body} size={size} visible={meshVisible} layers={meshFaceLayers} />
+      <MobbyPullMesh ref={meshRef} source={pullAsset.body} size={size} visible={meshVisible} />
+      {pullAsset.fixedAccessoryParts && !reaction ? (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.pullableFixedLayer, { opacity: status === 'pulling' ? 1 : 0 }]}>
+          <Image source={pullAsset.fixedAccessoryParts.lens} contentFit="contain" style={[StyleSheet.absoluteFillObject, { width: size, height: size }]} />
+          <Image source={pullAsset.fixedAccessoryParts.cross} contentFit="contain" style={[StyleSheet.absoluteFillObject, { width: size, height: size }]} />
+          <Image source={pullAsset.fixedAccessoryParts.buttonLeft} contentFit="contain" style={[StyleSheet.absoluteFillObject, { width: size, height: size }]} />
+          <Image source={pullAsset.fixedAccessoryParts.buttonRight} contentFit="contain" style={[StyleSheet.absoluteFillObject, { width: size, height: size }]} />
+        </View>
+      ) : null}
+      {pullAsset.featurelessBase && !reaction ? (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.pullableFaceLayer, { opacity: status === 'pulling' ? 1 : 0 }]}>
+          <Image source={activeEye} contentFit={pullAsset.eyeResizeMode ?? 'contain'} style={pullFaceFrameStyle(eyeFrame, pullAsset, size)} />
+          {activeMouth ? <Image source={activeMouth} contentFit="contain" style={pullFaceFrameStyle(pullAsset.mouthFrame, pullAsset, size)} /> : null}
+        </View>
+      ) : null}
       {reaction ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: reactionMotion.interpolate({ inputRange: [0, 0.06, 0.88, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateY: reactionTranslateY }, { scale: reactionScale }] }]}>
         <Image source={reaction.source} contentFit="contain" style={{ width: size, height: size }} />
         <ParticleBurst type={special ? 'star' : 'heart'} count={special ? 12 : 7} large={special} active burstKey={reaction.id} seed={reaction.id} style={styles.pullParticleBurst} />
