@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, ImageBackground } from 'expo-image';
+import { Image } from 'expo-image';
 import {
   Animated,
   Easing,
@@ -10,14 +10,18 @@ import {
   View,
 } from 'react-native';
 
-import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
+import { MobbyAssetButton, MobbyAssetSurface, MobbyAssetTabButton } from '@/components/mobby-ui';
 import {
   GACHA_CATALOG_COUNTS,
   GACHA_CATEGORY_RATES,
+  GACHA_CHARACTERS,
   GACHA_GOODS_REWARDS,
   GACHA_THEME_REWARDS,
   GACHA_TOOL_REWARDS,
   getGachaCharacter,
+  getGachaReward,
+  getGachaThemeAssetSource,
+  type GachaCharacterId,
   type GachaReward,
   type GachaThemeRewardId,
 } from '@/data/gachaCatalog';
@@ -37,8 +41,8 @@ import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { useResponsiveLayout } from '@/ui/layout/responsive';
 import { Text } from '@/ui/layout/visualPrimitives';
 
-const GACHA_BACKDROP = require('../../assets/gacha/screen/gacha-atelier-background-v1.png');
 const GACHA_MACHINE = require('../../assets/gacha/screen/gacha-machine-v1.png');
+const GACHA_MACHINE_PANEL = require('../../assets/gacha/screen/gacha-machine-panel-v2.png');
 const GACHA_SPARKLE_RING = require('../../assets/gacha/screen/gacha-sparkle-ring-v1.png');
 const TAB_BAR_CLEARANCE = 82;
 
@@ -156,7 +160,6 @@ function GachaResultModal({ outcome, onClose }: { outcome: GachaPullOutcome | nu
       >
         <View style={styles.modalHeadingRow}>
           <View>
-            <Text style={styles.modalEyebrow}>GACHA RESULT</Text>
             <Text accessibilityRole="header" style={styles.modalTitle}>ガチャ結果</Text>
           </View>
           <MobbyAssetSurface
@@ -209,6 +212,7 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
   const [equippingThemeId, setEquippingThemeId] = useState<GachaThemeRewardId | 'default' | null>(null);
   const [outcome, setOutcome] = useState<GachaPullOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [themeCharacterId, setThemeCharacterId] = useState<GachaCharacterId>(GACHA_THEME_REWARDS[0].characterId);
   const machineMotion = useRef(new Animated.Value(0)).current;
   const lightMotion = useRef(new Animated.Value(0)).current;
   const mountedRef = useRef(true);
@@ -298,6 +302,27 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
   }, [equippingThemeId, haptics, hydrated, pulling]);
 
   const collectedStackableKinds = Object.keys(inventory.stackableCounts).length;
+  const ownedThemeCharacters = useMemo(
+    () => GACHA_CHARACTERS.filter((character) => inventory.ownedThemeIds.some((id) => {
+      const reward = getGachaReward(id);
+      return reward.category === 'theme' && reward.characterId === character.id;
+    })),
+    [inventory.ownedThemeIds],
+  );
+  const visibleThemes = useMemo(
+    () => GACHA_THEME_REWARDS.filter((theme) => theme.characterId === themeCharacterId && inventory.ownedThemeIds.includes(theme.id)),
+    [inventory.ownedThemeIds, themeCharacterId],
+  );
+  useEffect(() => {
+    const equippedReward = inventory.equippedThemeId ? getGachaReward(inventory.equippedThemeId) : null;
+    const equippedCharacterId = equippedReward?.category === 'theme' ? equippedReward.characterId : null;
+    setThemeCharacterId((current) => {
+      if (equippedCharacterId && ownedThemeCharacters.some((character) => character.id === equippedCharacterId)) return equippedCharacterId;
+      return ownedThemeCharacters.some((character) => character.id === current)
+        ? current
+        : ownedThemeCharacters[0]?.id ?? GACHA_THEME_REWARDS[0].characterId;
+    });
+  }, [inventory.equippedThemeId, ownedThemeCharacters]);
   const totalStackableItems = useMemo(
     () => Object.values(inventory.stackableCounts).reduce((sum, count) => sum + (count ?? 0), 0),
     [inventory.stackableCounts],
@@ -314,26 +339,15 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
   const sparkleScale = lightMotion.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.08] });
   const sparkleOpacity = lightMotion.interpolate({ inputRange: [0, 1], outputRange: [0.68, 1] });
   const actionDisabled = !hydrated || pulling;
-  const themeAccent = activeTheme?.character.accent ?? '#D66E78';
-
   return <View style={styles.root}>
-    <ImageBackground
-      contentFit="cover"
-      contentPosition="center"
-      imageStyle={styles.backdropImage}
-      source={activeTheme?.assets.appBackground ?? GACHA_BACKDROP}
-      style={styles.backdrop}
-    >
-      <View pointerEvents="none" style={[styles.backdropWash, activeTheme && styles.backdropWashThemed]} />
+    <View style={styles.backdrop}>
       <ScrollView
         contentContainerStyle={[styles.content, isCompact && styles.contentCompact]}
         showsVerticalScrollIndicator={false}
       >
         <MobbyAssetSurface variant="darkTopbar" style={styles.headerCard} contentStyle={styles.headerCardContent}>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>MOBBY CAPSULE</Text>
             <Text accessibilityRole="header" style={styles.title}>ガチャ</Text>
-            <Text style={styles.subtitle}>何度でも無料。テーマの重複はありません。</Text>
           </View>
           <MobbyAssetSurface
             pointerEvents="none"
@@ -367,69 +381,78 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
           </MobbyAssetSurface>)}
         </View>
 
-        <MobbyAssetSurface variant="paper" style={styles.machineCard} contentStyle={styles.machineCardContent}>
-          <View style={styles.machineStage}>
-            <Animated.View style={[styles.lightHalo, { opacity: lightMotion, transform: [{ scale: lightScale }] }]} />
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.sparkleRing, { opacity: sparkleOpacity, transform: [{ scale: sparkleScale }] }]}
-            >
-              <Image
-                accessible={false}
-                contentFit="contain"
-                contentPosition="center"
-                source={GACHA_SPARKLE_RING}
-                style={styles.sparkleImage}
-              />
-            </Animated.View>
-            <Animated.View style={{ transform: [{ rotate: machineRotate }, { scale: machineScale }] }}>
-              <Image accessible={false} contentFit="contain" contentPosition="center" source={GACHA_MACHINE} style={styles.machineImage} />
-            </Animated.View>
-            <MobbyAssetSurface
-              pointerEvents="none"
-              variant="labelPill"
-              style={styles.machinePlaque}
-              contentStyle={styles.machinePlaqueContent}
-            >
-              <Text style={[styles.machineKicker, activeTheme && styles.navigationSubText]}>{pulling ? 'OPENING...' : 'TAP TO OPEN'}</Text>
-              <Text style={[styles.machineTitle, activeTheme && styles.navigationText]}>{pulling ? 'どきどき…' : '今日は何が出るかな？'}</Text>
-            </MobbyAssetSurface>
-          </View>
+        <View style={styles.machineCard}>
+          <Image
+            accessible={false}
+            pointerEvents="none"
+            contentFit="contain"
+            contentPosition="center"
+            source={GACHA_MACHINE_PANEL}
+            style={styles.machinePanel}
+          />
+          <View style={styles.machineCardContent}>
+            <View style={styles.machineStage}>
+              <Animated.View style={[styles.lightHalo, { opacity: lightMotion, transform: [{ scale: lightScale }] }]} />
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.sparkleRing, { opacity: sparkleOpacity, transform: [{ scale: sparkleScale }] }]}
+              >
+                <Image
+                  accessible={false}
+                  contentFit="contain"
+                  contentPosition="center"
+                  source={GACHA_SPARKLE_RING}
+                  style={styles.sparkleImage}
+                />
+              </Animated.View>
+              <Animated.View style={{ transform: [{ rotate: machineRotate }, { scale: machineScale }] }}>
+                <Image accessible={false} contentFit="contain" contentPosition="center" source={GACHA_MACHINE} style={styles.machineImage} />
+              </Animated.View>
+              <MobbyAssetSurface
+                pointerEvents="none"
+                variant="labelPill"
+                style={styles.machinePlaque}
+                contentStyle={styles.machinePlaqueContent}
+              >
+                <Text style={[styles.machineKicker, activeTheme && styles.navigationSubText]}>{pulling ? 'OPENING...' : 'TAP TO OPEN'}</Text>
+                <Text style={[styles.machineTitle, activeTheme && styles.navigationText]}>{pulling ? 'どきどき…' : '今日は何が出るかな？'}</Text>
+              </MobbyAssetSurface>
+            </View>
 
-          <View style={styles.buttonRow}>
-            <MobbyAssetButton
-              accessibilityLabel="無料ガチャを1回引く"
-              accessibilityState={{ busy: pulling }}
-              disabled={actionDisabled}
-              onPress={() => void handlePull(1)}
-              tone="cream"
-              style={styles.pullButton}
-              contentStyle={styles.pullButtonContent}
-            >
-              <View style={styles.pullButtonCopy}>
-                <Text style={styles.pullButtonSub}>FREE</Text>
-                <Text style={styles.pullButtonTextCream}>1回引く</Text>
-              </View>
-            </MobbyAssetButton>
-            <MobbyAssetButton
-              accessibilityLabel="無料ガチャを10回引く"
-              accessibilityState={{ busy: pulling }}
-              disabled={actionDisabled}
-              onPress={() => void handlePull(10)}
-              style={[styles.pullButton, styles.pullButtonTen]}
-              contentStyle={styles.pullButtonContent}
-            >
-              <View style={styles.pullButtonCopy}>
-                <Text style={styles.pullButtonSubCoral}>FREE</Text>
-                <Text style={styles.pullButtonText}>10回引く</Text>
-              </View>
-            </MobbyAssetButton>
+            <View style={styles.buttonRow}>
+              <MobbyAssetButton
+                accessibilityLabel="無料ガチャを1回引く"
+                accessibilityState={{ busy: pulling }}
+                disabled={actionDisabled}
+                onPress={() => void handlePull(1)}
+                tone="cream"
+                style={styles.pullButton}
+                contentStyle={styles.pullButtonContent}
+              >
+                <View style={styles.pullButtonCopy}>
+                  <Text style={styles.pullButtonSub}>FREE</Text>
+                  <Text style={styles.pullButtonTextCream}>1回引く</Text>
+                </View>
+              </MobbyAssetButton>
+              <MobbyAssetButton
+                accessibilityLabel="無料ガチャを10回引く"
+                accessibilityState={{ busy: pulling }}
+                disabled={actionDisabled}
+                onPress={() => void handlePull(10)}
+                style={[styles.pullButton, styles.pullButtonTen]}
+                contentStyle={styles.pullButtonContent}
+              >
+                <View style={styles.pullButtonCopy}>
+                  <Text style={styles.pullButtonSubCoral}>FREE</Text>
+                  <Text style={styles.pullButtonText}>10回引く</Text>
+                </View>
+              </MobbyAssetButton>
+            </View>
+            {error ? <Text accessibilityLiveRegion="assertive" style={styles.errorText}>{error}</Text> : null}
           </View>
-          {error ? <Text accessibilityLiveRegion="assertive" style={styles.errorText}>{error}</Text> : null}
-        </MobbyAssetSurface>
+        </View>
 
         <View style={styles.lineupHeader}>
-          <Text style={[styles.lineupEyebrow, activeTheme && { color: themeAccent }]}>LINEUP</Text>
           <Text style={styles.lineupTitle}>ガチャの中身</Text>
           <Text style={styles.inventorySummary}>所持アイテム合計 {totalStackableItems + inventory.ownedThemeIds.length}個</Text>
         </View>
@@ -456,7 +479,6 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
 
         <View style={styles.themeHeading}>
           <View>
-            <Text style={[styles.lineupEyebrow, activeTheme && { color: themeAccent }]}>DRESS UP</Text>
             <Text style={styles.lineupTitle}>着せ替えテーマ</Text>
           </View>
           <MobbyAssetButton
@@ -464,6 +486,7 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
             disabled={equippingThemeId !== null || inventory.equippedThemeId === null}
             onPress={() => void handleEquipTheme(null)}
             tone="cream"
+            themeAssetSlot="themeResetButton"
             style={styles.defaultThemeButton}
             contentStyle={styles.defaultThemeButtonContent}
           >
@@ -476,12 +499,32 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
             <Text style={styles.emptyThemeBody}>手に入れたテーマは、ここからアプリ全体へ着せ替えできます。</Text>
           </MobbyAssetSurface>
         ) : (
-          <ScrollView
-            contentContainerStyle={styles.themeList}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-          >
-            {GACHA_THEME_REWARDS.filter((theme) => inventory.ownedThemeIds.includes(theme.id)).map((theme) => {
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.characterTabsContent} style={styles.characterTabs}>
+              {ownedThemeCharacters.map((character) => {
+                const characterTheme = GACHA_THEME_REWARDS.find((theme) => theme.characterId === character.id && inventory.ownedThemeIds.includes(theme.id));
+                return <MobbyAssetTabButton
+                  key={character.id}
+                  accessibilityLabel={`${character.name}の着せ替え`}
+                  selected={themeCharacterId === character.id}
+                  onPress={() => setThemeCharacterId(character.id)}
+                  backgroundResizeMode="cover"
+                  backgroundSource={characterTheme ? getGachaThemeAssetSource(characterTheme, 'themeCharacterTab') : undefined}
+                  preferBackgroundSource
+                  style={[styles.characterTab, { borderColor: character.accent }]}
+                  contentStyle={styles.characterTabContent}
+                >
+                  <Image accessible={false} source={character.image} contentFit="contain" style={styles.characterTabImage} />
+                  <Text numberOfLines={1} style={styles.characterTabText}>{character.name}</Text>
+                </MobbyAssetTabButton>;
+              })}
+            </ScrollView>
+            <ScrollView
+              contentContainerStyle={styles.themeList}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+            >
+            {visibleThemes.map((theme) => {
               const selected = inventory.equippedThemeId === theme.id;
               const character = getGachaCharacter(theme.characterId);
               return <Pressable
@@ -498,43 +541,53 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
                   pressed && styles.themePressed,
                 ]}
               >
-                <View style={styles.themePreviewFrame}>
-                  <Image
-                    accessible={false}
-                    contentFit="contain"
-                    contentPosition="center"
-                    source={theme.previewImage}
-                    style={styles.themePreview}
-                  />
-                </View>
                 <MobbyAssetSurface
-                  pointerEvents="none"
-                  variant="statusWide"
-                  style={styles.themeCardCopy}
-                  contentStyle={styles.themeCardCopyContent}
+                  variant="paper"
+                  backgroundSource={getGachaThemeAssetSource(theme, 'dressUpButton')}
+                  backgroundResizeMode="cover"
+                  style={styles.themeCardSurface}
+                  contentStyle={styles.themeCardSurfaceContent}
                 >
-                  <Text numberOfLines={1} style={styles.themeCharacter}>{character.name}</Text>
-                  <Text style={[styles.themeStyle, { color: character.accent }]}>STYLE {theme.styleNumber}</Text>
-                  <Text style={[styles.themeStatus, selected && { color: character.accent }]}>
-                    {equippingThemeId === theme.id ? '切替中…' : selected ? '使用中' : 'このテーマを使う'}
-                  </Text>
+                  <View style={styles.themePreviewFrame}>
+                    <Image
+                      accessible={false}
+                      contentFit="contain"
+                      contentPosition="center"
+                      source={theme.previewImage}
+                      style={styles.themePreview}
+                    />
+                  </View>
+                  <MobbyAssetSurface
+                    pointerEvents="none"
+                    variant="statusWide"
+                    backgroundSource={getGachaThemeAssetSource(theme, 'themeActionLabel')}
+                    backgroundResizeMode="cover"
+                    style={styles.themeCardCopy}
+                    contentStyle={styles.themeCardCopyContent}
+                  >
+                    <Text numberOfLines={1} style={styles.themeCharacter}>{character.name}</Text>
+                    <Text style={[styles.themeStyle, { color: character.accent }]}>STYLE {theme.styleNumber}</Text>
+                    <Text style={[styles.themeStatus, selected && { color: character.accent }]}>
+                      {equippingThemeId === theme.id ? '切替中…' : selected ? '使用中' : 'このテーマを使う'}
+                    </Text>
+                  </MobbyAssetSurface>
                 </MobbyAssetSurface>
               </Pressable>;
             })}
-          </ScrollView>
+            </ScrollView>
+          </>
         )}
       </ScrollView>
-    </ImageBackground>
+    </View>
     <GachaResultModal outcome={outcome} onClose={() => setOutcome(null)} />
   </View>;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 0, overflow: 'hidden' },
-  backdrop: { flex: 1 },
-  backdropImage: { opacity: 0.92 },
-  backdropWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,247,228,0.42)' },
-  backdropWashThemed: { backgroundColor: 'rgba(255,247,228,0.08)' },
+  // The app shell supplies the shared room/theme background behind this screen.
+  // Keep this layer transparent so a second, partial-size backdrop is not drawn.
+  backdrop: { flex: 1, backgroundColor: 'transparent' },
   content: { width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 14, paddingTop: 8, paddingBottom: TAB_BAR_CLEARANCE + 66 },
   contentCompact: { paddingHorizontal: 10 },
   navigationText: { color: '#FFF8E9', textShadowColor: 'rgba(42,29,39,0.8)', textShadowRadius: 3 },
@@ -542,9 +595,7 @@ const styles = StyleSheet.create({
   headerCard: { minHeight: 94, borderRadius: 24, overflow: 'hidden' },
   headerCardContent: { minHeight: 94, paddingHorizontal: 22, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerCopy: { flex: 1, minWidth: 0, paddingRight: 8 },
-  eyebrow: { color: '#EAC5C8', fontSize: 12, lineHeight: 14, fontWeight: '900', letterSpacing: 2.2, textShadowColor: 'rgba(42,29,39,0.72)', textShadowRadius: 2 },
   title: { color: '#FFF8E9', fontSize: 27, lineHeight: 32, fontWeight: '900', letterSpacing: 0.8, textShadowColor: 'rgba(42,29,39,0.72)', textShadowRadius: 3 },
-  subtitle: { color: '#F3DCDD', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 1, textShadowColor: 'rgba(42,29,39,0.72)', textShadowRadius: 2 },
   headerFreeBadge: { minWidth: 76, height: 32, borderRadius: 16, overflow: 'hidden', transform: [{ rotate: '3deg' }] },
   headerFreeBadgeContent: { height: 32, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
   headerFreeText: { color: '#735039', fontSize: 12, lineHeight: 15, fontWeight: '900' },
@@ -555,7 +606,8 @@ const styles = StyleSheet.create({
   progressUnit: { color: '#886A79', fontSize: 12, fontWeight: '800' },
   progressLabel: { color: '#957382', fontSize: 12, lineHeight: 14, fontWeight: '800', marginTop: 1 },
   machineCard: { height: 410, marginTop: 8, borderRadius: 30, overflow: 'hidden' },
-  machineCardContent: { height: 410, paddingHorizontal: 23, paddingTop: 20, paddingBottom: 23, alignItems: 'center' },
+  machinePanel: { ...StyleSheet.absoluteFillObject },
+  machineCardContent: { height: 410, paddingHorizontal: 23, paddingTop: 20, paddingBottom: 23, alignItems: 'center', zIndex: 1 },
   machineStage: { width: '100%', height: 286, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   lightHalo: { position: 'absolute', width: 250, height: 250, borderRadius: 125, backgroundColor: 'rgba(255,231,121,0.48)', shadowColor: '#FFE06F', shadowOpacity: 0.9, shadowRadius: 28, shadowOffset: { width: 0, height: 0 }, elevation: 7 },
   sparkleRing: { position: 'absolute', width: 278, height: 278, alignItems: 'center', justifyContent: 'center' },
@@ -576,7 +628,6 @@ const styles = StyleSheet.create({
   pullButtonTextCream: { color: '#6A4559', fontSize: 17, lineHeight: 21, fontWeight: '900' },
   errorText: { color: '#B54451', fontSize: 12, lineHeight: 17, fontWeight: '900', textAlign: 'center', marginTop: 5, textShadowColor: 'rgba(255,249,235,0.9)', textShadowRadius: 2 },
   lineupHeader: { minHeight: 50, marginTop: 14, paddingHorizontal: 4, justifyContent: 'center' },
-  lineupEyebrow: { color: '#9A7181', fontSize: 12, lineHeight: 13, fontWeight: '900', letterSpacing: 1.8, textShadowColor: 'rgba(255,249,235,0.94)', textShadowRadius: 2 },
   lineupTitle: { color: '#54394D', fontSize: 19, lineHeight: 23, fontWeight: '900', textShadowColor: 'rgba(255,249,235,0.94)', textShadowRadius: 2 },
   inventorySummary: { position: 'absolute', right: 4, bottom: 5, color: '#8E6B78', fontSize: 12, lineHeight: 15, fontWeight: '800', textShadowColor: 'rgba(255,249,235,0.94)', textShadowRadius: 2 },
   lineupRow: { flexDirection: 'row', gap: 7 },
@@ -596,7 +647,15 @@ const styles = StyleSheet.create({
   emptyThemeTitle: { color: '#614559', fontSize: 15, lineHeight: 19, fontWeight: '900' },
   emptyThemeBody: { color: '#8A6878', fontSize: 12, lineHeight: 17, fontWeight: '700', textAlign: 'center', marginTop: 3 },
   themeList: { gap: 10, paddingHorizontal: 3, paddingBottom: 7 },
+  characterTabs: { flexGrow: 0, marginBottom: 8 },
+  characterTabsContent: { gap: 6, paddingHorizontal: 2 },
+  characterTab: { width: 92, minHeight: 54, borderWidth: 1.5 },
+  characterTabContent: { minHeight: 54, paddingHorizontal: 5, paddingVertical: 4, gap: 2 },
+  characterTabImage: { width: 24, height: 28 },
+  characterTabText: { color: '#614559', fontSize: 10, lineHeight: 12, fontWeight: '900', textAlign: 'center' },
   themeCard: { position: 'relative', width: 174, height: 396, borderRadius: 21, borderWidth: 2, overflow: 'hidden' },
+  themeCardSurface: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
+  themeCardSurfaceContent: { flex: 1, minHeight: 0 },
   themeCardSelected: { borderWidth: 4, shadowColor: '#52384C', shadowOpacity: 0.24, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   themePressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   themePreviewFrame: { width: '100%', aspectRatio: 768 / 1365, overflow: 'hidden' },
@@ -613,7 +672,6 @@ const styles = StyleSheet.create({
   modalCardContent: { minHeight: 488, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 18, overflow: 'hidden' },
   modalCardContentTen: { flex: 1, minHeight: 0 },
   modalHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modalEyebrow: { color: '#A46F78', fontSize: 12, lineHeight: 14, fontWeight: '900', letterSpacing: 1.8 },
   modalTitle: { color: '#55394E', fontSize: 24, lineHeight: 29, fontWeight: '900' },
   modalLead: { color: '#876374', fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 4, marginBottom: 9 },
   freeSeal: { width: 64, height: 32, borderRadius: 16, overflow: 'hidden', transform: [{ rotate: '5deg' }] },

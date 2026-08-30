@@ -20,7 +20,6 @@ const INACTIVE_TINT = '#A48189';
 
 function TabIcon({ source, focused, compact = false, badge = false }: { source: number; focused: boolean; compact?: boolean; badge?: boolean }) {
   return <View style={styles.iconWrap}>
-    {focused ? <View pointerEvents="none" style={styles.activeTabPanel} /> : null}
     <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no" source={source} contentFit="contain" style={[styles.icon, compact && styles.compactIcon, focused && styles.activeIcon]} />
     {badge ? <View pointerEvents="none" style={styles.badge}><Text style={styles.badgeText}>!</Text></View> : null}
   </View>;
@@ -52,7 +51,9 @@ export default function TabLayout() {
         tabBarItemStyle: styles.tabBarItem,
         tabBarIconStyle: styles.tabBarIcon,
         tabBarLabelStyle: styles.tabBarLabel,
-        tabBarBackground: () => <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no-hide-descendants" source={BOTTOM_STRIP} contentFit="contain" contentPosition="center" style={styles.tabBarBackground} />,
+        // Navigation artwork is authored to the tab-bar aspect ratio. Keep the
+        // complete asset visible without stretching or cropping it.
+        tabBarBackground: () => <Image accessible={false} accessibilityElementsHidden accessibilityIgnoresInvertColors importantForAccessibility="no-hide-descendants" source={activeTheme?.assets.navigation ?? BOTTOM_STRIP} contentFit="contain" contentPosition="center" style={styles.tabBarBackground} />,
         sceneStyle: { backgroundColor: 'transparent' },
       }}>
       <Tabs.Screen name="index" options={{ title: 'ホーム', tabBarLabel: TabLabel, tabBarButton: (props) => <ImageTabButton {...props} />, tabBarIcon: ({ focused }) => <TabIcon source={HOME_ICON} focused={focused} /> }} />
@@ -90,12 +91,13 @@ const styles = StyleSheet.create({
   tabBarHidden: { display: 'none', height: 0 },
   // Keep the complete stitched frame visible at every responsive width.
   // Small insets prevent the rounded edge and shadow from being clipped.
-  tabBarBackground: { position: 'absolute', top: 3, right: 5, bottom: 3, left: 5, width: 'auto', height: 'auto' },
+  // Match the source artwork's full-width frame so contain does not create
+  // extra side gutters while still preserving its native aspect ratio.
+  tabBarBackground: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: 'auto', height: 'auto' },
   tabBarItem: { minHeight: 64, paddingHorizontal: 1, paddingVertical: 1, backgroundColor: 'transparent' },
   tabBarIcon: { width: 44, height: 43, marginBottom: 0 },
   tabBarLabel: { fontSize: 10, lineHeight: 12, fontWeight: '900', marginTop: 0, marginBottom: 6, textAlign: 'center', textShadowColor: 'rgba(255,250,237,0.96)', textShadowRadius: 2 },
   tabButton: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  activeTabPanel: { position: 'absolute', top: -3, width: 68, height: 58, borderRadius: 22, backgroundColor: 'rgba(162,124,181,0.28)' },
   tabButtonContent: { flex: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
   iconWrap: { width: 48, height: 42, alignItems: 'center', justifyContent: 'flex-start' },
   icon: { width: 42, height: 42 },

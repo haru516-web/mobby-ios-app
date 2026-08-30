@@ -5,13 +5,12 @@ import { AccessibilityInfo, Animated, Easing, PanResponder, Platform, Pressable,
 
 import { CharacterPickerPopover, type CharacterPickerCharacter } from '@/components/home/CharacterPickerPopover';
 import { HomeInventoryTray } from '@/components/home/HomeInventoryTray';
-import { HomeTeaseTools, type HomeTeaseToolSelection } from '@/components/home/HomeTeaseTools';
 import { MobbyIdleMotion } from '@/components/mobby';
 import { MobbyAssetButton } from '@/components/mobby-ui';
 import { PullableMobby } from '@/components/mobby/PullableMobby';
 import { ReactionCollectionPopover } from '@/components/home/ReactionCollectionPopover';
 import { EMPTY_OWNED, ITEM_ENEMY_IDS, ITEM_MOBBY_IDS, collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectibleVariant, type Item } from '@/data/collectibles';
-import { ALL_REACTION_IDS, REACTION_MOBBY_IDS, REACTION_STICKERS, normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY, type ReactionSticker } from '@/data/reactionCollection';
+import { ALL_REACTION_IDS, REACTION_MOBBY_IDS, normalizeCollectedReactionIds, REACTION_COLLECTION_STORAGE_KEY } from '@/data/reactionCollection';
 import { getCharacterProfile, toBlackStarCharacterId } from '@/domain/characters/roster';
 import type { CharacterId } from '@/domain/characters/types';
 import { useGachaTheme } from '@/theme/GachaThemeContext';
@@ -27,8 +26,6 @@ import {
 } from '@/domain/home/homeLayout';
 import { styles } from '@/ui/layout/appStyles';
 import { Text, useAppLayout } from '@/ui/layout/visualPrimitives';
-
-const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 const HOME_GARLAND = require('../../../assets/backgrounds/home-garland-trimmed-v1.png');
 const WOODEN_HOOK = require('../../../assets/backgrounds/hook-transparent.png');
@@ -130,12 +127,11 @@ function DraggableHomePlacement({ children, disabled, editing, index, onCancel, 
   </Animated.View>;
 }
 
-function HomeWallKeychain({ item, placementId, variant, index, selectedId, ownedCount, incidentState, editSelected, editing, onPress, onEditPress, onEditStart, onSwing, registerSwing }: {
+function HomeWallKeychain({ item, placementId, variant, index, ownedCount, incidentState, editSelected, editing, onPress, onEditPress, onEditStart, onSwing, registerSwing }: {
   item: Item;
   placementId: HomePlacementId;
   variant: Exclude<CollectibleVariant, 'plush'>;
   index: number;
-  selectedId: string;
   ownedCount: number;
   incidentState: 'normal' | 'stolen' | 'returning' | 'placement-hidden';
   editSelected: boolean;
@@ -174,7 +170,6 @@ function HomeWallKeychain({ item, placementId, variant, index, selectedId, owned
     onPress={() => { if (incidentState === 'stolen') onPress?.(); else if (editing && owned && incidentState === 'normal') onEditPress(); else if (!editing) swing(); }}
     style={({ pressed }) => [
       styles.homeWallKey,
-      owned && item.id === selectedId && styles.homeWallKeySelected,
       editSelected && styles.homeReorderSelected,
       incidentState === 'placement-hidden' && styles.homeWallKeyHidden,
       incidentState === 'stolen' && styles.homeWallKeyStolen,
@@ -246,11 +241,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
   const [reactionBookOpen, setReactionBookOpen] = useState(false);
   const [reactionTabId, setReactionTabId] = useState<CharacterId>(selectedCharacterId);
   const [collectedReactionIds, setCollectedReactionIds] = useState<string[]>(() => __DEV__ ? [...ALL_REACTION_IDS] : []);
-  const [activeTeaseTool, setActiveTeaseTool] = useState<HomeTeaseToolSelection | null>(null);
-  const [activeTeaseReaction, setActiveTeaseReaction] = useState<ReactionSticker | null>(null);
   const entryMotion = useRef(new Animated.Value(0)).current;
-  const teaseToolMotion = useRef(new Animated.Value(0)).current;
-  const teaseToolAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
   const entryPlayedRef = useRef<string | null>(null);
   const entryAnimationFinishedRef = useRef(false);
   const keySwingsRef = useRef<Record<string, HomeKeySwing>>({});
@@ -307,32 +298,6 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
       return next;
     });
   }, [onDailyReaction]);
-  const useTeaseTool = useCallback((tool: HomeTeaseToolSelection) => {
-    if (busy || editing || !dailyHydrated) return;
-    teaseToolAnimationRef.current?.stop();
-    teaseToolMotion.setValue(0);
-    setActiveTeaseTool(tool);
-    setBusy(true);
-    onInteract('ほっぺ');
-    const reactionEntry = REACTION_STICKERS[selectedCharacterId]?.[tool.kind === 'poke' ? 1 : 9];
-    setActiveTeaseReaction(reactionEntry ?? null);
-    if (reactionEntry) collectReaction(reactionEntry.id);
-    const animation = Animated.timing(teaseToolMotion, {
-      toValue: 1,
-      duration: reduceMotion ? 620 : tool.kind === 'poke' ? 980 : 1320,
-      easing: Easing.linear,
-      useNativeDriver: typeof document === 'undefined',
-    });
-    teaseToolAnimationRef.current = animation;
-    animation.start(() => {
-      teaseToolAnimationRef.current = null;
-      teaseToolMotion.setValue(0);
-      setActiveTeaseTool(null);
-      setActiveTeaseReaction(null);
-      setBusy(false);
-    });
-  }, [busy, collectReaction, dailyHydrated, editing, onInteract, reduceMotion, selectedCharacterId, teaseToolMotion]);
-  useEffect(() => () => teaseToolAnimationRef.current?.stop(), []);
   const registerKeySwing = useCallback((id: string, swing: HomeKeySwing) => {
     keySwingsRef.current[id] = swing;
     return () => {
@@ -454,9 +419,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
     if (!busy && !editing) return;
     entryMotion.stopAnimation();
     entryMotion.setValue(0);
-    teaseToolMotion.stopAnimation();
-    teaseToolMotion.setValue(0);
-  }, [busy, editing, entryMotion, teaseToolMotion]);
+  }, [busy, editing, entryMotion]);
 
   const setCurrentDragSession = useCallback((next: HomeDragSession | null) => {
     dragSessionRef.current = next;
@@ -627,7 +590,7 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
           >
             {placement ? <View style={[styles.homeArrangePlacementVisual, dragged && styles.homeArrangeDraggedItem]}>
               <HomeWallKeychain
-                item={placement.item} placementId={placement.id} variant={placement.variant as Exclude<CollectibleVariant, 'plush'>} index={index} selectedId={selected.id}
+                item={placement.item} placementId={placement.id} variant={placement.variant as Exclude<CollectibleVariant, 'plush'>} index={index}
                 ownedCount={placementOwnedCount} incidentState={placementIncidentState}
                 editing={editing} editSelected={placementSelection === placement.id}
                 onPress={onIncidentPress} onEditPress={() => activateSlot('wall', index, placement.id)} onEditStart={() => beginEditing('wall', placement.id)} onSwing={onKeychainSwing} registerSwing={registerKeySwing}
@@ -669,56 +632,9 @@ export function HomeScreenVisual({ selected, characters, onSelectCharacter, owne
           { translateY: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? [0, 4, -32, -8, -20, -7, 0] : [0, 16, -88, -18, -48, -12, 0] }) },
           { scale: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? [1, 0.94, 1.28, 1.04, 1.16, 1.05, 1] : [1, 0.82, 1.78, 1.08, 1.42, 1.1, 1] }) },
           { rotate: entryMotion.interpolate({ inputRange: [0, 0.1, 0.3, 0.5, 0.7, 0.86, 1], outputRange: reduceMotion ? ['0deg', '-3deg', '4deg', '-3deg', '2deg', '-1deg', '0deg'] : ['0deg', '-9deg', '13deg', '-8deg', '7deg', '-3deg', '0deg'] }) },
-          { translateX: teaseToolMotion.interpolate({ inputRange: [0, 0.18, 0.34, 0.52, 0.76, 1], outputRange: activeTeaseTool?.kind === 'poke' ? [0, 0, -9, 10, -3, 0] : [0, 0, 0, 0, 0, 0] }) },
-          { translateY: teaseToolMotion.interpolate({ inputRange: [0, 0.24, 0.38, 0.76, 1], outputRange: activeTeaseTool?.kind === 'weight' ? [0, 0, 37, 37, 0] : [0, 0, 0, 0, 0] }) },
-          { scaleX: teaseToolMotion.interpolate({ inputRange: [0, 0.18, 0.34, 0.52, 0.76, 1], outputRange: activeTeaseTool?.kind === 'poke' ? [1, 1, 0.67, 0.83, 1.05, 1] : activeTeaseTool?.kind === 'weight' ? [1, 1, 1.34, 1.34, 1.34, 1] : [1, 1, 1, 1, 1, 1] }) },
-          { scaleY: teaseToolMotion.interpolate({ inputRange: [0, 0.18, 0.34, 0.52, 0.76, 1], outputRange: activeTeaseTool?.kind === 'poke' ? [1, 1, 1.19, 1.1, 0.98, 1] : activeTeaseTool?.kind === 'weight' ? [1, 1, 0.43, 0.43, 0.43, 1] : [1, 1, 1, 1, 1, 1] }) },
         ] }}>
-          <Animated.View style={{ opacity: activeTeaseReaction
-            ? teaseToolMotion.interpolate({ inputRange: [0, 0.22, 0.34, 0.78, 0.9, 1], outputRange: [1, 1, 0, 0, 1, 1] })
-            : 1 }}>
-            <MobbyIdleMotion enabled={!busy && !editing}><PullableMobby selected={selected} selectedMobbyName={selectedCharacter.name} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={!editing} onValidRelease={dailyHydrated ? onDailyPullRelease : undefined} onReaction={collectReaction} /></MobbyIdleMotion>
-          </Animated.View>
-          {activeTeaseReaction ? <AnimatedImage
-            accessible={false}
-            contentFit="contain"
-            contentPosition="center"
-            source={activeTeaseReaction.source}
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              zIndex: 3,
-              width: compact ? 178 : 220,
-              height: compact ? 178 : 220,
-              opacity: teaseToolMotion.interpolate({ inputRange: [0, 0.22, 0.34, 0.78, 0.9, 1], outputRange: [0, 0, 1, 1, 0, 0] }),
-            }}
-          /> : null}
+          <MobbyIdleMotion enabled={!busy && !editing}><PullableMobby selected={selected} selectedMobbyName={selectedCharacter.name} specialCentering size={compact ? 178 : 220} onPull={() => onInteract('ほっぺ')} onInteractionStateChange={setBusy} enabled={!editing} onValidRelease={dailyHydrated ? onDailyPullRelease : undefined} onReaction={collectReaction} /></MobbyIdleMotion>
         </Animated.View>
-        {activeTeaseTool ? <AnimatedImage
-          accessible={false}
-          contentFit="contain"
-          contentPosition="center"
-          source={activeTeaseTool.source}
-          style={{
-            position: 'absolute',
-            zIndex: 18,
-            width: activeTeaseTool.kind === 'poke' ? 124 : 146,
-            height: activeTeaseTool.kind === 'poke' ? 124 : 146,
-            left: activeTeaseTool.kind === 'poke' ? 118 : 38,
-            top: activeTeaseTool.kind === 'poke' ? 36 : -95,
-            opacity: teaseToolMotion.interpolate({ inputRange: [0, 0.08, 0.82, 1], outputRange: [0, 1, 1, 0] }),
-            transform: activeTeaseTool.kind === 'poke' ? [
-              { translateX: teaseToolMotion.interpolate({ inputRange: [0, 0.2, 0.34, 0.52, 0.75, 1], outputRange: [92, 45, -36, 14, 48, 92] }) },
-              { translateY: teaseToolMotion.interpolate({ inputRange: [0, 0.34, 0.52, 1], outputRange: [18, 0, 8, 18] }) },
-              { rotate: '-48deg' },
-            ] : [
-              { translateY: teaseToolMotion.interpolate({ inputRange: [0, 0.24, 0.38, 0.76, 1], outputRange: [-130, -80, 42, 42, -130] }) },
-              { rotate: teaseToolMotion.interpolate({ inputRange: [0, 0.38, 0.76, 1], outputRange: ['-4deg', '3deg', '-2deg', '-4deg'] }) },
-            ],
-          }}
-        /> : null}
-        <HomeTeaseTools disabled={busy || editing || !dailyHydrated} onUse={useTeaseTool} />
         <MobbyAssetButton accessibilityLabel={`メインキャラを選ぶ（現在：${selectedCharacter.name}）`} backgroundSource={homeThemeAssets?.controlButton ?? HOME_CONTROL_BUTTON_BACKGROUND} backgroundResizeMode="contain" preferBackgroundSource tone="cream" onPress={() => { onUiTap(); setReactionBookOpen(false); setCharacterPickerOpen(true); }} disabled={busy || editing} style={[styles.characterPickerButton, styles.characterPickerButtonCompact]} contentStyle={styles.characterPickerButtonAsset}><Text style={styles.characterPickerCaption}>キャラ</Text><Text style={styles.characterPickerValue}>選択</Text></MobbyAssetButton>
         <Animated.View pointerEvents="none" style={{
           position: 'absolute', top: -12, right: -10, zIndex: 5,

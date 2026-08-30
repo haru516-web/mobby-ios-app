@@ -120,7 +120,6 @@ export function IncidentCasebookScreen({
       </MobbyAssetButton>
     </View>
   </View> : <View style={[styles.section, styles.centerSection]}>
-    <Text style={styles.kicker}>CASE FILE 01</Text>
     <Text accessibilityRole="header" style={styles.caseTitle}>第1話を始めよう</Text>
     <Text style={styles.emptyLead}>金庫破りとれおもびの、妙に優雅なティータイム。</Text>
     <MobbyAssetButton accessibilityLabel="第1話を開始" backgroundResizeMode="cover" onPress={onStart} style={styles.startButton} contentStyle={styles.actionContent}>
@@ -152,12 +151,10 @@ export function IncidentCasebookScreen({
 
   const relationshipContent = relationship ? <View style={styles.section}>
     <Pager index={relationshipIndex} length={relationships.length} label="関係性" onChange={setRelationshipIndex} />
-    <Text style={styles.kicker}>RELATIONSHIP RECORD</Text>
     <Image accessible={false} source={relationship.image} contentFit="contain" style={[styles.relationshipImage, compact && styles.relationshipImageCompact]} />
     <Text accessibilityRole="header" numberOfLines={1} style={styles.caseTitle}>{relationship.enemyName} × {relationship.mobbyName}</Text>
     <Text numberOfLines={3} style={styles.relationshipLead}>{relationship.label}</Text>
   </View> : <View style={[styles.section, styles.centerSection]}>
-    <Text style={styles.kicker}>RELATIONSHIP RECORD</Text>
     <Text style={styles.emptyLead}>関係性はエピソード完走後に記録されます。</Text>
   </View>;
 
@@ -178,7 +175,6 @@ export function IncidentCasebookScreen({
     >
       {embedded ? null : <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>CASE ARCHIVE</Text>
           <Text accessibilityRole="header" style={styles.heading}>事件ファイル</Text>
         </View>
       </View>}
@@ -210,7 +206,6 @@ const styles = StyleSheet.create({
   backgroundImage: { opacity: 0.96, borderRadius: 28 },
   header: { minHeight: 62, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerCopy: { flex: 1 },
-  eyebrow: { color: '#E9A5AC', fontSize: 10, lineHeight: 13, fontWeight: '900', letterSpacing: 1.7, ...lightTextShadow },
   heading: { color: '#FFF0DB', fontSize: 24, lineHeight: 29, fontWeight: '900', ...lightTextShadow },
   tabs: { height: 45, paddingHorizontal: 12, paddingVertical: 3, flexDirection: 'row', gap: 5 },
   tabsEmbedded: { marginTop: 0 },

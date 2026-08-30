@@ -16,7 +16,6 @@ export default function MobbyPickerRoute() {
   useEffect(() => { if (shell.isHydrated) setDraft(shell.favoriteId); }, [shell.favoriteId, shell.isHydrated]);
   const done = () => { if (shell.setFavorite(draft)) router.back(); };
   return <SheetScreen title="メインモビー" backgroundSource={MOBBY_PICKER_BACKGROUND} closeImageSource={BACK_BUTTON} footer={<View style={styles.actions}><MobbyAssetButton accessibilityLabel="メインモビーの選択をキャンセル" tone="cream" onPress={() => router.back()} style={styles.done}><Text style={styles.cancelText}>キャンセル</Text></MobbyAssetButton><MobbyAssetButton accessibilityLabel="メインモビーの選択を完了" disabled={!shell.isHydrated || draft === shell.favoriteId} onPress={done} style={styles.done}><Text style={s.actionText}>完了</Text></MobbyAssetButton></View>}>
-    <Text style={s.body}>お部屋でいっしょに過ごすモビーを選んでね。</Text>
     <View style={styles.grid}>{shell.characters.map((item) => <MobbyAssetSelectable key={item.id} accessibilityLabel={`${item.name}${item.owned ? '' : '、まだお迎えしていません'}`} selected={draft === item.id} disabled={!item.owned || !shell.isHydrated} onPress={() => setDraft(item.id)} style={styles.option} contentStyle={styles.optionContent}><Image source={item.image} contentFit="contain" style={styles.image}/><Text style={styles.name} numberOfLines={1}>{item.name}</Text>{!item.owned ? <Text numberOfLines={1} ellipsizeMode="tail" style={[s.secondary, styles.unowned]}>まだお迎えしていません</Text> : null}</MobbyAssetSelectable>)}</View>
   </SheetScreen>;
 }

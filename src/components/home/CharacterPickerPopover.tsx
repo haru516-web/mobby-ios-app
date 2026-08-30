@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Image, ImageBackground } from 'expo-image';
 import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 
-import { MobbyAssetButton } from '@/components/mobby-ui';
+import { MobbyAssetButton, MobbyAssetCloseButton } from '@/components/mobby-ui';
 import { BlackStarToggle } from '@/components/characters';
 import { Text } from '@/ui/layout/visualPrimitives';
 import { useGachaTheme } from '@/theme/GachaThemeContext';
@@ -56,13 +56,11 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
       <View style={styles.panelContent}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>MAIN MOBBY</Text>
           <Text accessibilityRole="header" style={styles.title}>キャラ選択</Text>
-          <Text style={styles.subtitle}>お部屋でいっしょに過ごすモビーを選んでね</Text>
         </View>
-        <Pressable accessibilityLabel="キャラ選択を閉じる" accessibilityRole="button" hitSlop={8} onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+        <MobbyAssetCloseButton accessibilityLabel="キャラ選択を閉じる" onPress={close} style={styles.close}>
           <Text style={styles.closeText}>×</Text>
-        </Pressable>
+        </MobbyAssetCloseButton>
       </View>
 
       <BlackStarToggle
@@ -148,9 +146,8 @@ const styles = StyleSheet.create({
   panelContent: { flex: 1, minHeight: 0, zIndex: 1 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 20, paddingHorizontal: 30, paddingBottom: 10 },
   headerCopy: { flex: 1 },
-  eyebrow: { color: '#A45D68', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
+
   title: { color: '#593C5D', fontSize: 22, fontWeight: '900', marginTop: 2 },
-  subtitle: { color: '#8A6C79', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 3 },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#7E4C60', fontSize: 30, lineHeight: 32, fontWeight: '900' },
   blackStarToggle: { alignSelf: 'flex-end', minWidth: 88, minHeight: 36, marginRight: 29, marginTop: -7, marginBottom: 2, transform: [{ scale: 0.86 }] },

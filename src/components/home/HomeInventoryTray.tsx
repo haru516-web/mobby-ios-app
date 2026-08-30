@@ -200,7 +200,6 @@ export function HomeInventoryTray({
   return <ImageBackground source={homeThemeAssets?.inventoryTray ?? TRAY_SURFACE} contentFit="cover" style={trayStyles.surface} imageStyle={trayStyles.surfaceImage}>
     <View style={trayStyles.header}>
       <View style={trayStyles.headingCopy}>
-        <Text style={trayStyles.eyebrow}>MY ITEMS</Text>
         <Text style={trayStyles.title}>所持アイテム</Text>
       </View>
       <View accessibilityRole="tablist" style={trayStyles.tabs}>
@@ -281,19 +280,18 @@ const trayStyles = StyleSheet.create({
   surfaceImage: { borderRadius: 25 },
   header: { height: 34, flexDirection: 'row', alignItems: 'center' },
   headingCopy: { width: 105 },
-  eyebrow: { color: '#B65D67', fontSize: 8, lineHeight: 9, fontWeight: '900', letterSpacing: 1.1 },
   title: { color: '#593E57', fontSize: 14, lineHeight: 18, fontWeight: '900' },
-  tabs: { flex: 1, height: 30, padding: 2, borderRadius: 15, flexDirection: 'row', backgroundColor: 'rgba(147,91,110,0.13)' },
+  tabs: { flex: 1, height: 30, padding: 2, borderRadius: 15, flexDirection: 'row', backgroundColor: 'transparent' },
   blackStarToggle: { minWidth: 68, width: 68, minHeight: 30, height: 30, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 4, transform: [{ scale: 0.86 }] },
   tab: { flex: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  tabActive: { backgroundColor: '#FFF6E9', borderWidth: 1, borderColor: '#D88994' },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: '#D88994' },
   tabText: { color: '#8B6C7D', fontSize: 10, fontWeight: '900' },
   tabTextActive: { color: '#A94E62' },
   count: { width: 82, color: '#806375', fontSize: 8, lineHeight: 10, fontWeight: '900', textAlign: 'right' },
-  sizeTabs: { height: 24, marginTop: 2, padding: 2, borderRadius: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(147,91,110,0.09)' },
+  sizeTabs: { height: 24, marginTop: 2, padding: 2, borderRadius: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' },
   sizeLabel: { width: 48, color: '#806375', fontSize: 9, fontWeight: '900', textAlign: 'center' },
   sizeTab: { flex: 1, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  sizeTabActive: { backgroundColor: '#FFF6E9', borderWidth: 1, borderColor: '#D88994' },
+  sizeTabActive: { borderBottomWidth: 2, borderBottomColor: '#D88994' },
   sizeTabText: { color: '#8B6C7D', fontSize: 9, fontWeight: '900' },
   sizeTabTextActive: { color: '#A94E62' },
   scroll: { flex: 1, marginTop: 3 },

@@ -150,7 +150,10 @@ $themeSlots = @(
   @{ Name='buttonPrimary'; Width=720; Height=180; Radius=54 },
   @{ Name='buttonSecondary'; Width=720; Height=180; Radius=54 },
   @{ Name='card'; Width=720; Height=520; Radius=52 },
-  @{ Name='navigation'; Width=768; Height=190; Radius=42 },
+  # The navigation backdrop is rendered in the bottom tab bar, whose source
+  # artwork is 1320x222. Keep this slot at the same aspect ratio so `contain`
+  # fills the bar without introducing side gutters on narrow screens.
+  @{ Name='navigation'; Width=1320; Height=222; Radius=52 },
   @{ Name='popup'; Width=720; Height=960; Radius=58 }
 )
 

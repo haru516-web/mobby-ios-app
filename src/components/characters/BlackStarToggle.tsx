@@ -1,12 +1,12 @@
 import { memo } from 'react';
 import {
-  Pressable,
   StyleSheet,
   Text,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { MobbyAssetTabButton } from '@/components/mobby-ui';
 
 export type BlackStarToggleProps = {
   active: boolean;
@@ -28,19 +28,17 @@ export const BlackStarToggle = memo(function BlackStarToggle({
   testID,
 }: BlackStarToggleProps) {
   return (
-    <Pressable
+    <MobbyAssetTabButton
       accessibilityHint={active ? '通常のモビー表示に戻します' : '黒星の一覧に切り替えます'}
       accessibilityLabel="黒星"
-      accessibilityRole="button"
-      accessibilityState={{ disabled, selected: active }}
+      selected={active}
       disabled={disabled}
       hitSlop={8}
       onPress={() => onChange(!active)}
-      style={({ pressed }) => [
+      style={[
         styles.button,
         active && styles.buttonActive,
         disabled && styles.buttonDisabled,
-        pressed && !disabled && styles.buttonPressed,
         style,
       ]}
       testID={testID}
@@ -49,7 +47,7 @@ export const BlackStarToggle = memo(function BlackStarToggle({
         <Text style={[styles.starText, active && styles.starTextActive]}>★</Text>
       </View>
       <Text style={[styles.label, active && styles.labelActive]}>黒星</Text>
-    </Pressable>
+    </MobbyAssetTabButton>
   );
 });
 
@@ -62,7 +60,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 2,
     borderColor: '#30273A',
-    backgroundColor: '#FFF8ED',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -70,7 +68,7 @@ const styles = StyleSheet.create({
   },
   buttonActive: {
     borderColor: '#17131D',
-    backgroundColor: '#241B2B',
+    backgroundColor: 'transparent',
   },
   buttonDisabled: {
     opacity: 0.42,

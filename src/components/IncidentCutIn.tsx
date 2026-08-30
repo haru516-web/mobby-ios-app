@@ -16,7 +16,6 @@ export type IncidentCutInProps = {
 export function IncidentCutIn({ enemyName, enemyImage, targetName, targetImage, onPlay, onLater }: IncidentCutInProps) {
   return <View style={styles.overlay} accessibilityViewIsModal accessibilityLiveRegion="assertive">
     <MobbyAssetSurface variant="darkCaseTall" style={styles.card} contentStyle={styles.cardContent}>
-      <Text style={styles.kicker}>新しい関係性エピソード</Text>
       <Text style={styles.title}>{enemyName}と{targetName}が、まさかの共演！</Text>
       <View style={styles.scene}>
         <Image accessibilityLabel={enemyName} source={enemyImage} contentFit="contain" style={styles.enemy} />
@@ -33,7 +32,6 @@ export function IncidentCutIn({ enemyName, enemyImage, targetName, targetImage, 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 170, backgroundColor: 'rgba(16,10,20,.94)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   card: { width: '100%', minHeight: 560 }, cardContent: { minHeight: 560, padding: 28, gap: 14, justifyContent: 'center' },
-  kicker: { color: '#FFB5BF', fontSize: 13, fontWeight: '900' },
   title: { color: '#FFF8EF', fontSize: 25, lineHeight: 33, fontWeight: '900', textAlign: 'center' },
   scene: { height: 230, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   enemy: { width: 155, height: 220 }, target: { width: 130, height: 180 },

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { MobbyAssetSurface } from '@/components/mobby-ui';
+import { MobbyAssetSurface, MobbyAssetTabButton } from '@/components/mobby-ui';
 import { MobbyTimeScreen } from '@/screens/MobbyTimeScreen';
 import { TradeScreen } from '@/screens/TradeScreen';
 import { Text } from '@/ui/layout/visualPrimitives';
@@ -34,24 +34,22 @@ export function MobbyTimeHubScreen({
         contentStyle={styles.tabSurfaceContent}
       >
         <View accessibilityLabel="MOBBY TIMEの機能" accessibilityRole="tablist" style={styles.tabs}>
-          <Pressable
+          <MobbyAssetTabButton
             accessibilityLabel="MOBBY TIME"
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === 'time' }}
+            selected={tab === 'time'}
             onPress={() => setTab('time')}
-            style={({ pressed }) => [styles.tab, tab === 'time' && styles.tabActive, pressed && styles.tabPressed]}
+            style={[styles.tab, tab === 'time' && styles.tabActive]}
           >
             <Text style={[styles.tabText, tab === 'time' && styles.tabTextActive]}>MOBBY TIME</Text>
-          </Pressable>
-          <Pressable
+          </MobbyAssetTabButton>
+          <MobbyAssetTabButton
             accessibilityLabel="交換"
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === 'exchange' }}
+            selected={tab === 'exchange'}
             onPress={() => setTab('exchange')}
-            style={({ pressed }) => [styles.tab, tab === 'exchange' && styles.tabActive, pressed && styles.tabPressed]}
+            style={[styles.tab, tab === 'exchange' && styles.tabActive]}
           >
             <Text style={[styles.tabText, tab === 'exchange' && styles.tabTextActive]}>交換</Text>
-          </Pressable>
+          </MobbyAssetTabButton>
         </View>
       </MobbyAssetSurface>
       <View style={styles.scene}>
@@ -86,8 +84,8 @@ const styles = StyleSheet.create({
     outlineWidth: 0,
     outlineColor: 'transparent',
   },
-  tabActive: { backgroundColor: '#8C667F' },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: '#8C667F' },
   tabPressed: { opacity: 0.68 },
   tabText: { color: '#876C79', fontSize: 10, lineHeight: 13, fontWeight: '900' },
-  tabTextActive: { color: '#FFF8EA' },
+  tabTextActive: { color: '#68465F' },
 });

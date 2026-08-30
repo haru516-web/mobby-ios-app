@@ -443,8 +443,12 @@ export function CollectionVisual({
       <Image source={COLLECTION_DISPLAY_BOARD} contentFit="contain" contentPosition="center" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
       <View style={styles.collectionHeaderBar}>
         <ImageBackground source={UI_WIDE_PAPER} contentFit="contain" contentPosition="center" accessibilityRole="tablist" accessibilityLabel="コレクションの種類" style={styles.collectionModeTabs}>
-          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいキー" accessibilityState={{ selected: mode === 'ぬいキー' }} onPress={() => setMode('ぬいキー')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>{mode === 'ぬいキー' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}<Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text></Pressable>
-          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいぐるみ" accessibilityState={{ selected: mode === 'ぬいぐるみ' }} onPress={() => setMode('ぬいぐるみ')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>{mode === 'ぬいぐるみ' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}<Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいキー" accessibilityState={{ selected: mode === 'ぬいキー' }} onPress={() => setMode('ぬいキー')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>
+            <Text style={[styles.collectionModeText, mode === 'ぬいキー' && styles.collectionModeTextActive]}>ぬいキー</Text>
+          </Pressable>
+          <Pressable accessibilityRole="tab" accessibilityLabel="ぬいぐるみ" accessibilityState={{ selected: mode === 'ぬいぐるみ' }} onPress={() => setMode('ぬいぐるみ')} style={({ pressed }) => [styles.collectionModeTab, pressed && styles.collectionKeySizeTabPressed]}>
+            <Text style={[styles.collectionModeText, mode === 'ぬいぐるみ' && styles.collectionModeTextActive]}>ぬいぐるみ</Text>
+          </Pressable>
         </ImageBackground>
       </View>
       <BlackStarToggle
@@ -456,24 +460,10 @@ export function CollectionVisual({
       {mode === 'ぬいキー' ? (
         <ImageBackground source={UI_SIZE_SELECTOR_PAPER} contentFit="contain" contentPosition="center" accessibilityRole="tablist" accessibilityLabel="ぬいキーのサイズ" style={styles.collectionKeySizeTabs}>
           <Text style={styles.collectionKeySizeLabel}>サイズ</Text>
-          <Pressable
-            accessibilityRole="tab"
-            accessibilityLabel="ノーマルサイズ"
-            accessibilityState={{ selected: keyImageSize === 'normal' }}
-            onPress={() => setKeyImageSize('normal')}
-            style={({ pressed }) => [styles.collectionKeySizeTab, pressed && styles.collectionKeySizeTabPressed]}
-          >
-            {keyImageSize === 'normal' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}
+          <Pressable accessibilityRole="tab" accessibilityLabel="ノーマルサイズ" accessibilityState={{ selected: keyImageSize === 'normal' }} onPress={() => setKeyImageSize('normal')} style={({ pressed }) => [styles.collectionKeySizeTab, pressed && styles.collectionKeySizeTabPressed]}>
             <Text style={[styles.collectionKeySizeText, keyImageSize === 'normal' && styles.collectionKeySizeTextActive]}>ノーマル</Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="tab"
-            accessibilityLabel="Sサイズ"
-            accessibilityState={{ selected: keyImageSize === 'small' }}
-            onPress={() => setKeyImageSize('small')}
-            style={({ pressed }) => [styles.collectionKeySizeTab, pressed && styles.collectionKeySizeTabPressed]}
-          >
-            {keyImageSize === 'small' ? <View pointerEvents="none" style={styles.collectionSelectionPanel} /> : null}
+          <Pressable accessibilityRole="tab" accessibilityLabel="Sサイズ" accessibilityState={{ selected: keyImageSize === 'small' }} onPress={() => setKeyImageSize('small')} style={({ pressed }) => [styles.collectionKeySizeTab, pressed && styles.collectionKeySizeTabPressed]}>
             <Text style={[styles.collectionKeySizeText, keyImageSize === 'small' && styles.collectionKeySizeTextActive]}>S</Text>
           </Pressable>
         </ImageBackground>

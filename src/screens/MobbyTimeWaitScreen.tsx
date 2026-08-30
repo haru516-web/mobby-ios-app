@@ -42,7 +42,6 @@ export function MobbyTimeWaitScreen() {
   return (
     <SafeAreaView edges={['left', 'right']} style={waitStyles.safeArea}>
       <ScrollView contentContainerStyle={waitStyles.content}>
-        <Text accessibilityRole="header" style={waitStyles.eyebrow}>DAILY DELIVERY</Text>
         <Text style={waitStyles.title}>MOBBY TIME</Text>
         <MobbyAssetSurface variant="statusWide" accessibilityLiveRegion="polite" style={waitStyles.statusPanel} contentStyle={waitStyles.statusPanelContent}>
           {!clientReady || !isHydrated ? <ActivityIndicator color="#e76f51" /> : null}
@@ -72,7 +71,6 @@ export function MobbyTimeWaitScreen() {
 const waitStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff9ef' },
   content: { width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 18, paddingBottom: 20, gap: 12 },
-  eyebrow: { color: '#9b5b46', fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
   title: { color: '#48372f', fontSize: 32, lineHeight: 40, fontWeight: '900' },
   statusPanel: { width: '100%', overflow: 'hidden' },
   statusPanelContent: { justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 18 },

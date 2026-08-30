@@ -24,7 +24,6 @@ export function DailyRecordPopover({
   return <ShellDetailPopover
     accessibilityLabel="きょうの記録"
     contentContainerStyle={styles.content}
-    eyebrow="DAILY RECORD"
     footer={<MobbyAssetButton
       accessibilityLabel="MOBBY TIMEを見る"
       contentStyle={styles.actionContent}
@@ -36,7 +35,6 @@ export function DailyRecordPopover({
     </MobbyAssetButton>}
     onBack={onBack}
     onClose={onClose}
-    subtitle="スタンプと今日のミッションを確認しよう"
     title="きょうの記録"
   >
     <DailyRecordContent stampCount={stampCount} missions={missions} isHydrated={isHydrated} presentation="popover" />

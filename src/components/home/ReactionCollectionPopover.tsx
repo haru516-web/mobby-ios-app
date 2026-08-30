@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 
 import { ParticleBurst } from '@/components/effects';
+import { MobbyAssetCloseButton, MobbyAssetTabButton } from '@/components/mobby-ui';
 import { BlackStarToggle } from '@/components/characters';
 import { REACTION_BLACK_STAR_IDS, REACTION_MOBBY_IDS, REACTION_STICKERS } from '@/data/reactionCollection';
 import { getCharacterProfile, isBlackStarCharacterId } from '@/domain/characters/roster';
@@ -146,9 +147,6 @@ export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, o
   const characterTabsOffsetRef = useRef(0);
   const characterTabsDragStartRef = useRef(0);
   const previewSticker = stickers.find((sticker) => sticker.id === previewStickerId) ?? null;
-  const collectedCount = displayCharacterOwned
-    ? stickers.reduce((count, sticker) => count + Number(collected.has(sticker.id)), 0)
-    : 0;
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const availableHeight = Math.max(0, Math.min(viewportHeight * 0.82, viewportHeight - 48, 680));
   const panelWidth = Math.max(0, Math.min(viewportWidth - 32, 410, availableHeight * REACTION_COLLECTION_PANEL_ASPECT_RATIO));
@@ -213,13 +211,11 @@ export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, o
       >
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>REACTION STAMPS</Text>
           <Text accessibilityRole="header" style={styles.title}>リアクション図鑑</Text>
-          <Text style={styles.subtitle}>{displayedCharacterName}のリアクションを集めよう ・ {collectedCount}/{stickers.length}</Text>
         </View>
-        <Pressable accessibilityLabel="リアクション図鑑を閉じる" accessibilityRole="button" hitSlop={8} onPress={onClose} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+        <MobbyAssetCloseButton accessibilityLabel="リアクション図鑑を閉じる" onPress={onClose} style={styles.close}>
           <Text style={styles.closeText}>×</Text>
-        </Pressable>
+        </MobbyAssetCloseButton>
       </View>
       <BlackStarToggle
         active={showBlackStars}
@@ -249,19 +245,19 @@ export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, o
           const tabCharacter = getCharacterProfile(id);
           const owned = !isBlackStarCharacterId(id) || ownedCharacters.has(id);
           const selected = id === displayCharacterId;
-          return <Pressable
+          return <MobbyAssetTabButton
             accessibilityLabel={owned ? `${tabCharacter.name}のリアクション` : '未解放の黒星'}
-            accessibilityRole="tab"
-            accessibilityState={{ disabled: !owned, selected }}
+            selected={selected}
             disabled={!owned}
             key={id}
             onPress={() => onSelectCharacter(id)}
-            style={({ pressed }) => [styles.tab, selected && styles.tabSelected, !owned && styles.tabLocked, pressed && styles.pressed]}
+            style={[styles.tab, selected && styles.tabSelected, !owned && styles.tabLocked]}
+            contentStyle={styles.tabContent}
           >
             <Image accessible={false} source={tabCharacter.image} contentFit="contain" tintColor={owned ? undefined : '#17131D'} style={[styles.tabImage, !owned && styles.tabImageLocked]} />
             <Text numberOfLines={1} style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{owned ? tabCharacter.name : '？？？'}</Text>
             {selected ? <View pointerEvents="none" style={styles.tabIndicator} /> : null}
-          </Pressable>;
+          </MobbyAssetTabButton>;
         })}
       </ScrollView>
       </View>
@@ -339,9 +335,7 @@ const styles = StyleSheet.create({
   collectionContentHidden: { opacity: 0 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 20, paddingHorizontal: 30, paddingBottom: 10 },
   headerCopy: { flex: 1 },
-  eyebrow: { color: '#A45D68', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
   title: { color: '#593C5D', fontSize: 22, fontWeight: '900', marginTop: 2 },
-  subtitle: { color: '#8A6C79', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 3 },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#7E4C60', fontSize: 30, lineHeight: 32, fontWeight: '900' },
   blackStarToggle: { alignSelf: 'flex-end', minWidth: 86, minHeight: 36, marginTop: -6, marginRight: 29, marginBottom: 4, transform: [{ scale: 0.86 }] },
@@ -349,6 +343,7 @@ const styles = StyleSheet.create({
   tabsScroll: { flexGrow: 0 },
   tabs: { gap: 8, paddingHorizontal: 4, paddingBottom: 9 },
   tab: { width: 58, minHeight: 62, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, paddingBottom: 5 },
+  tabContent: { minHeight: 62, paddingHorizontal: 2, paddingVertical: 4 },
   tabSelected: { transform: [{ scale: 1.04 }] },
   tabLocked: { opacity: 0.48 },
   tabImage: { width: 38, height: 38 },

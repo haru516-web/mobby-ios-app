@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View, type AccessibilityRole, type Accessibility
 import { Text } from '@/ui/layout/visualPrimitives';
 import { OutlinedText } from '@/ui/text/OutlinedText';
 import { useGachaTheme } from '@/theme/GachaThemeContext';
+import type { GachaThemeAssetSlot } from '@/data/gachaCatalog';
 
 export type MobbyAssetSurfaceVariant = 'paper' | 'paperTall' | 'modalPortrait' | 'statusWide' | 'notice' | 'tile' | 'tileSelected' | 'dialogue' | 'darkCase' | 'darkCaseTall' | 'darkTopbar' | 'labelPill';
 
@@ -34,15 +35,13 @@ function surfaceResizeMode(variant: MobbyAssetSurfaceVariant): 'contain' | 'cove
 
 function themedSurfaceSource(activeTheme: ReturnType<typeof useGachaTheme>['activeTheme'], variant: MobbyAssetSurfaceVariant) {
   if (!activeTheme) return null;
-  // Theme popup art is the only generic theme surface whose portrait aspect
-  // and semantic role match these tall overlays. Other standard surfaces have
-  // purpose-built silhouettes (square tiles, speech bubbles, notices, pills,
-  // top bars, and wide papers) that must not be replaced by a cropped generic
-  // card or navigation strip.
-  if (variant === 'paperTall') {
-    return activeTheme.assets.popup;
-  }
-  return null;
+  // Use the authored theme bitmap for readable cards instead of recreating a
+  // flat colored column in CSS. Tall surfaces use the portrait composition;
+  // dark cases/topbars keep their purpose-built neutral artwork.
+  if (variant === 'paperTall' || variant === 'modalPortrait' || variant === 'darkCaseTall') return activeTheme.assets.popup;
+  if (variant === 'darkCase' || variant === 'darkTopbar') return null;
+  if (variant === 'labelPill') return activeTheme.assets.tab;
+  return activeTheme.assets.card;
 }
 
 export const MobbyColors = {
@@ -109,6 +108,7 @@ export function MobbyAssetButton({
   tone = 'coral',
   backgroundSource,
   backgroundResizeMode,
+  themeAssetSlot,
   preferBackgroundSource = false,
   onPress,
   style,
@@ -122,6 +122,8 @@ export function MobbyAssetButton({
   tone?: 'coral' | 'cream';
   backgroundSource?: ImageSourcePropType;
   backgroundResizeMode?: 'cover' | 'contain';
+  /** Resolve a theme-owned control slot when no explicit source is supplied. */
+  themeAssetSlot?: GachaThemeAssetSlot;
   /** Keep a shape-specific supplied bitmap instead of replacing it with a generic theme button. */
   preferBackgroundSource?: boolean;
   onPress: () => void;
@@ -131,7 +133,9 @@ export function MobbyAssetButton({
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
 }) {
   const { activeTheme } = useGachaTheme();
-  const themedBackground = activeTheme?.assets[tone === 'cream' ? 'buttonSecondary' : 'buttonPrimary'];
+  const themedBackground = themeAssetSlot
+    ? activeTheme?.assets[themeAssetSlot]
+    : activeTheme?.assets[tone === 'cream' ? 'buttonSecondary' : 'buttonPrimary'];
   const suppliedBackground = backgroundSource ?? ASSET_BUTTON_SOURCES[tone];
   const resolvedBackground = preferBackgroundSource ? suppliedBackground : themedBackground ?? suppliedBackground;
   return (
@@ -184,6 +188,7 @@ export function MobbyAssetIconButton({
   badge?: ReactNode;
   disabled?: boolean;
 }) {
+  const { activeTheme } = useGachaTheme();
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
@@ -199,7 +204,7 @@ export function MobbyAssetIconButton({
         importantForAccessibility="no-hide-descendants"
         contentFit="cover"
         contentPosition="center"
-        source={HEADER_CIRCLE_PAPER}
+        source={activeTheme?.assets.iconButton ?? HEADER_CIRCLE_PAPER}
         style={styles.iconButtonSurface}
       >
         <Image accessible={false} source={icon} contentFit="contain" style={[styles.iconButtonImage, iconStyle]} />
@@ -209,11 +214,114 @@ export function MobbyAssetIconButton({
   );
 }
 
+export function MobbyAssetTabButton({
+  children,
+  accessibilityLabel,
+  accessibilityHint,
+  selected = false,
+  onPress,
+  hitSlop,
+  testID,
+  style,
+  contentStyle,
+  backgroundSource,
+  backgroundResizeMode = 'contain',
+  themeAssetSlot,
+  preferBackgroundSource = false,
+  hideBackground = false,
+  disabled = false,
+}: {
+  children: ReactNode;
+  accessibilityLabel: string;
+  accessibilityHint?: string;
+  selected?: boolean;
+  onPress: () => void;
+  hitSlop?: PressableProps['hitSlop'];
+  testID?: string;
+  style?: StyleProp<ViewStyle>;
+  contentStyle?: StyleProp<ViewStyle>;
+  backgroundSource?: ImageSourcePropType;
+  backgroundResizeMode?: 'cover' | 'contain';
+  themeAssetSlot?: GachaThemeAssetSlot;
+  preferBackgroundSource?: boolean;
+  /** Render the tab content without a decorative bitmap behind it. */
+  hideBackground?: boolean;
+  disabled?: boolean;
+}) {
+  const { activeTheme } = useGachaTheme();
+  const themedBackground = themeAssetSlot ? activeTheme?.assets[themeAssetSlot] : activeTheme?.assets.tab;
+  const resolvedBackground = preferBackgroundSource ? backgroundSource : themedBackground ?? backgroundSource;
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityRole="tab"
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={hitSlop}
+      testID={testID}
+      style={({ pressed }) => [styles.assetTabButton, selected && styles.assetTabButtonSelected, disabled && styles.buttonDisabled, pressed && styles.buttonPressed, style]}
+    >
+      {hideBackground ? (
+        <View style={[styles.assetButtonContent, styles.assetTabContent, contentStyle]}>{children}</View>
+      ) : (
+        <ImageBackground
+          accessible={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          contentFit={backgroundResizeMode}
+          contentPosition="center"
+          source={resolvedBackground ?? SURFACE_SOURCES.labelPill}
+          style={styles.assetTabBackground}
+        >
+          <View style={[styles.assetButtonContent, styles.assetTabContent, contentStyle]}>{children}</View>
+        </ImageBackground>
+      )}
+    </Pressable>
+  );
+}
+
+export function MobbyAssetCloseButton({
+  children,
+  accessibilityLabel,
+  onPress,
+  style,
+  contentStyle,
+  disabled = false,
+}: {
+  children?: ReactNode;
+  accessibilityLabel: string;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  contentStyle?: StyleProp<ViewStyle>;
+  disabled?: boolean;
+}) {
+  const { activeTheme } = useGachaTheme();
+  const closeContent = children ?? <Text style={styles.closeGlyph}>×</Text>;
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.assetCloseButton, disabled && styles.buttonDisabled, pressed && styles.buttonPressed, style]}
+    >
+      <Image accessible={false} source={activeTheme?.assets.closeButton ?? ASSET_BUTTON_SOURCES.cream} contentFit="contain" contentPosition="center" style={styles.assetButtonImage} />
+      <View style={[styles.assetButtonContent, contentStyle]}>{closeContent}</View>
+    </Pressable>
+  );
+}
+
 export function MobbyAssetSurface({
   children,
   variant = 'paper',
   style,
   contentStyle,
+  backgroundSource,
+  backgroundResizeMode,
+  themeAssetSlot,
   accessible,
   accessibilityLabel,
   accessibilityRole,
@@ -228,6 +336,9 @@ export function MobbyAssetSurface({
   variant?: MobbyAssetSurfaceVariant;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
+  backgroundSource?: ImageSourcePropType;
+  backgroundResizeMode?: 'cover' | 'contain';
+  themeAssetSlot?: GachaThemeAssetSlot;
   accessible?: boolean;
   accessibilityLabel?: string;
   accessibilityRole?: AccessibilityRole;
@@ -240,13 +351,14 @@ export function MobbyAssetSurface({
 }) {
   const { activeTheme } = useGachaTheme();
   const themedSource = themedSurfaceSource(activeTheme, variant);
+  const themedAssetSource = themeAssetSlot ? activeTheme?.assets[themeAssetSlot] : null;
   return (
     <View accessible={accessible} accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole} accessibilityState={accessibilityState} accessibilityValue={accessibilityValue} accessibilityLiveRegion={accessibilityLiveRegion} accessibilityViewIsModal={accessibilityViewIsModal} pointerEvents={pointerEvents} testID={testID} style={style}>
       <ImageBackground
         accessible={false}
-        contentFit={surfaceResizeMode(variant)}
+        contentFit={backgroundResizeMode ?? surfaceResizeMode(variant)}
         contentPosition="center"
-        source={themedSource ?? SURFACE_SOURCES[variant]}
+        source={backgroundSource ?? themedAssetSource ?? themedSource ?? SURFACE_SOURCES[variant]}
         style={[styles.assetSurface, contentStyle]}
       >
         {children}
@@ -337,6 +449,12 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.55 },
   buttonPressed: { transform: [{ translateY: 2 }], opacity: 0.84 },
   assetButton: { minHeight: 48, borderRadius: 16, overflow: 'hidden' },
+  assetTabButton: { minHeight: 40, borderRadius: 12, overflow: 'hidden' },
+  assetTabButtonSelected: { transform: [{ translateY: -1 }], borderBottomWidth: 2, borderBottomColor: '#8C667F' },
+  assetTabBackground: { width: '100%', height: '100%' },
+  assetTabContent: { minHeight: 40, paddingHorizontal: 10, paddingVertical: 6 },
+  assetCloseButton: { width: 44, height: 44, borderRadius: 14, overflow: 'hidden' },
+  closeGlyph: { color: MobbyColors.ink, fontSize: 25, lineHeight: 28, fontWeight: '900' },
   assetButtonImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   assetButtonContent: { zIndex: 1, flex: 1, width: '100%', minHeight: 48, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   iconButton: { width: 44, height: 44, overflow: 'hidden', position: 'relative' },

@@ -137,7 +137,6 @@ export function IncidentComicsScreen({
         <View style={styles.content}>
           <View style={styles.headingRow}>
             <View style={styles.headingCopy}>
-              <Text style={[styles.eyebrow, compact && styles.eyebrowCompact]}>INCIDENT ARCHIVE</Text>
               <Text accessibilityRole="header" style={[styles.heading, compact && styles.headingCompact]}>事件</Text>
             </View>
             <MobbyAssetSurface
@@ -257,8 +256,6 @@ const styles = StyleSheet.create({
   content: { position: 'absolute', top: '12.5%', left: '12.5%', right: '12.5%', bottom: '7.2%' },
   headingRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
   headingCopy: { flex: 1, minWidth: 0 },
-  eyebrow: { color: '#A06670', fontSize: 8, lineHeight: 10, fontWeight: '900', letterSpacing: 1.35 },
-  eyebrowCompact: { fontSize: 7, lineHeight: 9 },
   heading: { color: '#62435C', fontSize: 21, lineHeight: 25, fontWeight: '900' },
   headingCompact: { fontSize: 18, lineHeight: 22 },
   progressPill: { width: 68, height: 34, overflow: 'hidden' },

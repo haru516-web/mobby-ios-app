@@ -47,7 +47,6 @@ export function WelcomeBackOverlay({ logicalDate, mobbyName, image, enabled }: P
     <View style={styles.overlay} accessibilityViewIsModal>
       <Pressable accessibilityRole="button" accessibilityLabel="おかえりメッセージを閉じる" onPress={close} style={styles.backdrop} />
       <MobbyAssetSurface variant="paperTall" style={styles.card} contentStyle={styles.cardContent} accessible accessibilityRole="summary">
-        <Text style={styles.kicker}>WELCOME BACK</Text>
         <MobbyIdleMotion style={styles.motion}>
           <Image source={image} contentFit="contain" style={styles.image} />
         </MobbyIdleMotion>
@@ -66,7 +65,6 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 120, alignItems: 'center', justifyContent: 'center' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(65,43,59,0.42)' },
   card: { width: 300, minHeight: 420 }, cardContent: { minHeight: 420, padding: 28, alignItems: 'center', justifyContent: 'center' },
-  kicker: { color: '#A57682', fontSize: 12, fontWeight: '900', letterSpacing: 1.8 },
   motion: { width: 150, height: 145, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   image: { width: 142, height: 142 },
   title: { color: '#5C405B', fontSize: 25, fontWeight: '900' },

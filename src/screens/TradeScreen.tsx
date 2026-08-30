@@ -16,6 +16,7 @@ import {
   type CollectibleVariant,
 } from '@/data/collectibles';
 import { Text } from '@/ui/layout/visualPrimitives';
+import { useGachaTheme } from '@/theme/GachaThemeContext';
 
 const TRADE_BOARD = require('../../assets/backgrounds/trade-exchange-board-transparent-v1.png');
 const TRADE_ICON = require('../../assets/home-ui/icons/nav-trade-v1.png');
@@ -57,6 +58,7 @@ type TradeScreenProps = {
 
 export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: TradeScreenProps) {
   const focused = useIsFocused();
+  const { activeTheme } = useGachaTheme();
   const [stageSize, setStageSize] = useState({ width: MAX_BOARD_WIDTH + 16, height: 760 });
   const [variant, setVariant] = useState<CollectibleVariant>('key-normal');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -129,7 +131,6 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
         <ImageBackground imageStyle={styles.boardImage} source={TRADE_BOARD} contentFit="contain" contentPosition="center" style={styles.board}>
           {pickerOpen ? <>
             <View style={styles.topPanel}>
-              <Text style={styles.eyebrow}>CHOOSE YOUR ITEM</Text>
               <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>交換する子を選ぶ</Text>
               <View accessibilityRole="tablist" accessibilityLabel="交換グッズの種類" style={styles.variantTabs}>
                 {COLLECTIBLE_VARIANTS.map((value) => <Pressable
@@ -209,7 +210,6 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
             </View>
           </> : <>
             <View style={styles.topPanel}>
-              <Text style={styles.eyebrow}>MOBBY EXCHANGE</Text>
               <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>モビー交換会</Text>
               <View style={styles.qrArea}>
                 <View style={styles.qrVisual}>
@@ -231,7 +231,6 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
               </View>
             </View>
             <View style={styles.bottomPanel}>
-              <Text style={styles.eyebrow}>YOUR ITEM</Text>
               <Text style={styles.sectionTitle}>交換する子</Text>
               {selected ? <View style={styles.selected}>
                 <Image source={collectibleImage(selected.item, selected.variant)} contentFit="contain" style={[styles.selectedImage, compact && styles.selectedImageCompact]} />
@@ -241,7 +240,7 @@ export function TradeScreen({ collectibleInventory, isHydrated, reduceMotion }: 
                   <Text style={styles.selectedCount}>所持 ×{selected.count}</Text>
                 </View>
               </View> : <View style={styles.emptySelection}><Text style={styles.empty}>{isHydrated ? '交換できるグッズはまだありません' : 'グッズを確認しています'}</Text></View>}
-              <MobbyAssetButton accessibilityLabel="交換するモビーを選び直す" backgroundSource={RESELECT_BUTTON} backgroundResizeMode="contain" preferBackgroundSource disabled={!allOwnedOptions.length} onPress={openPicker} style={styles.chooseButton} contentStyle={styles.chooseButtonContent}>
+              <MobbyAssetButton accessibilityLabel="交換するモビーを選び直す" backgroundSource={activeTheme?.assets.reselectButton ?? RESELECT_BUTTON} backgroundResizeMode="contain" preferBackgroundSource disabled={!allOwnedOptions.length} onPress={openPicker} style={styles.chooseButton} contentStyle={styles.chooseButtonContent}>
                 <Text style={styles.secondaryText}>交換するモビーを選び直す</Text>
               </MobbyAssetButton>
             </View>
@@ -260,7 +259,6 @@ const styles = StyleSheet.create({
   boardImage: { borderRadius: 30 },
   topPanel: { position: 'absolute', top: '12.6%', left: '13%', right: '13%', height: '31%', alignItems: 'center', paddingTop: 6 },
   bottomPanel: { position: 'absolute', top: '46.5%', left: '13%', right: '13%', bottom: '7.2%', alignItems: 'center', paddingTop: 8, paddingBottom: 8 },
-  eyebrow: { color: '#9D6873', fontSize: 9, lineHeight: 11, fontWeight: '900', letterSpacing: 1.4, textAlign: 'center' },
   title: { color: '#67465E', fontSize: 22, lineHeight: 28, fontWeight: '900', textAlign: 'center' },
   titleCompact: { fontSize: 19, lineHeight: 24 },
   sectionTitle: { color: '#66485D', fontSize: 17, lineHeight: 22, fontWeight: '900', textAlign: 'center' },

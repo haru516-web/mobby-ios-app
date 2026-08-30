@@ -22,7 +22,6 @@ export function MobbyTimePopover({
 }) {
   return <ShellDetailPopover
     accessibilityLabel="MOBBY TIME"
-    eyebrow="MOBBY TIME"
     flush
     footer={resultReady ? <View style={styles.results}>
       <MobbyAssetButton accessibilityLabel="ホームで見る" onPress={onOpenHome} style={styles.resultButton}>
@@ -34,7 +33,6 @@ export function MobbyTimePopover({
     </View> : undefined}
     onBack={onBack}
     onClose={onClose}
-    subtitle="今日のBOXを確認しよう"
     title="MOBBY TIME"
   >
     {children}

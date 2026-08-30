@@ -9,7 +9,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 
-import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
+import { MobbyAssetButton, MobbyAssetSurface, MobbyAssetTabButton } from '@/components/mobby-ui';
 import { COMIC_CHARACTER_ORDER, COMIC_VOLUMES, getComicsForCharacter, type ComicVolumeId } from '@/data/comics';
 import { getMobby, type MobbyId } from '@/data/mobies';
 import { IncidentComicsScreen, type IncidentComicsScreenProps } from '@/screens/IncidentComicsScreen';
@@ -146,6 +146,7 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
   };
 
   if (section === 'incident') {
+    const sectionValue = section as 'comic' | 'incident';
     return <View style={styles.incidentSectionRoot}>
       {!incidentPlayerVisible ? <MobbyAssetSurface
         pointerEvents="box-none"
@@ -154,23 +155,22 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
         contentStyle={styles.incidentSectionTabsContent}
       >
         <View accessibilityLabel="ストーリーの種類" accessibilityRole="tablist" style={styles.incidentSectionTabs}>
-          <Pressable
+          <MobbyAssetTabButton
             accessibilityLabel="4コマ漫画"
-            accessibilityRole="tab"
-            accessibilityState={{ selected: false }}
+            selected={false}
             onPress={() => setSection('comic')}
-            style={({ pressed }) => [styles.incidentSectionTab, pressed && styles.pressed]}
+            style={[styles.incidentSectionTab, sectionValue === 'comic' && styles.incidentSectionTabActive]}
           >
-            <Text style={styles.incidentSectionTabText}>4コマ漫画</Text>
-          </Pressable>
-          <Pressable
+            <Text style={[styles.incidentSectionTabText, sectionValue === 'comic' && styles.incidentSectionTabTextActive]}>4コマ漫画</Text>
+          </MobbyAssetTabButton>
+          <MobbyAssetTabButton
             accessibilityLabel="事件"
-            accessibilityRole="tab"
-            accessibilityState={{ selected: true }}
-            style={({ pressed }) => [styles.incidentSectionTab, styles.incidentSectionTabActive, pressed && styles.pressed]}
+            selected={section === 'incident'}
+            onPress={() => setSection('incident')}
+            style={[styles.incidentSectionTab, section === 'incident' && styles.incidentSectionTabActive]}
           >
-            <Text style={[styles.incidentSectionTabText, styles.incidentSectionTabTextActive]}>事件</Text>
-          </Pressable>
+            <Text style={[styles.incidentSectionTabText, section === 'incident' && styles.incidentSectionTabTextActive]}>事件</Text>
+          </MobbyAssetTabButton>
         </View>
       </MobbyAssetSurface> : null}
       <IncidentComicsScreen
@@ -264,30 +264,27 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
       <View style={styles.topPanel}>
         <View style={styles.headingRow}>
           <View>
-            <Text style={[styles.eyebrow, compact && styles.eyebrowCompact]}>STORY LIBRARY</Text>
             <Text accessibilityRole="header" style={[styles.heading, compact && styles.headingCompact]}>ストーリー</Text>
           </View>
         </View>
         <View accessibilityLabel="ストーリーの種類" accessibilityRole="tablist" style={[styles.sectionTabs, compact && styles.sectionTabsCompact]}>
-          <Pressable
+          <MobbyAssetTabButton
             accessibilityLabel="4コマ漫画"
-            accessibilityRole="tab"
-            accessibilityState={{ selected: true }}
+            selected
             onPress={() => setSection('comic')}
-            style={({ pressed }) => [styles.sectionTab, pressed && styles.pressed]}
+            style={styles.sectionTab}
           >
             <Text style={[styles.sectionTabText, styles.sectionTabTextActive, compact && styles.sectionTabTextCompact]}>4コマ漫画</Text>
             <View style={styles.sectionTabUnderline} />
-          </Pressable>
-          <Pressable
+          </MobbyAssetTabButton>
+          <MobbyAssetTabButton
             accessibilityLabel="事件"
-            accessibilityRole="tab"
-            accessibilityState={{ selected: false }}
+            selected={false}
             onPress={() => setSection('incident')}
-            style={({ pressed }) => [styles.sectionTab, pressed && styles.pressed]}
+            style={styles.sectionTab}
           >
             <Text style={[styles.sectionTabText, compact && styles.sectionTabTextCompact]}>事件</Text>
-          </Pressable>
+          </MobbyAssetTabButton>
         </View>
         <ScrollView
           accessibilityLabel="4コマ漫画のキャラ選択"
@@ -369,17 +366,15 @@ const styles = StyleSheet.create({
   incidentSectionTabsContent: { minHeight: 42, paddingHorizontal: 5, paddingVertical: 4 },
   incidentSectionTabs: { flex: 1, flexDirection: 'row', gap: 4 },
   incidentSectionTab: { flex: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
-  incidentSectionTabActive: { backgroundColor: '#8C667F' },
+  incidentSectionTabActive: { borderBottomWidth: 2, borderBottomColor: '#8C667F' },
   incidentSectionTabText: { color: '#876C79', fontSize: 10, lineHeight: 13, fontWeight: '900' },
-  incidentSectionTabTextActive: { color: '#FFF8EA' },
+  incidentSectionTabTextActive: { color: '#68465F' },
   root: { flex: 1, minHeight: 0, paddingHorizontal: 7, paddingBottom: TAB_BAR_CLEARANCE, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   board: { position: 'relative', borderRadius: 30, overflow: 'hidden' },
   boardImage: { borderRadius: 30 },
   topPanel: { position: 'absolute', top: '12.6%', left: '13%', right: '13%', height: '31%', paddingTop: 4 },
   bottomPanel: { position: 'absolute', top: '46.5%', left: '13%', right: '13%', bottom: '7.2%', paddingTop: 7, paddingBottom: 6 },
   headingRow: { minHeight: 45, alignItems: 'flex-start' },
-  eyebrow: { color: '#A06670', fontSize: 8, lineHeight: 10, fontWeight: '900', letterSpacing: 1.35 },
-  eyebrowCompact: { fontSize: 7, lineHeight: 9 },
   heading: { color: '#62435C', fontSize: 21, lineHeight: 25, fontWeight: '900' },
   headingCompact: { fontSize: 18, lineHeight: 22 },
   sectionTabs: { height: 34, flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: 1, borderBottomColor: 'rgba(148,99,102,0.24)' },

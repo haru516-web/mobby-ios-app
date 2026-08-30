@@ -23,6 +23,15 @@ import {
 export const GACHA_STORAGE_KEY = '@mobby/gacha-inventory-v1';
 export const GACHA_HISTORY_LIMIT = 12;
 
+/**
+ * Local-development preview switch. Production builds keep the normal gacha
+ * ownership flow; the preview simply exposes every dress-up theme while the
+ * current feature set is being reviewed.
+ */
+export const GACHA_DEVELOPMENT_FLAGS = {
+  temporaryUnlockAllThemes: true,
+} as const;
+
 export type GachaPullSize = 1 | 10;
 export type GachaRerollReason = 'none' | 'duplicate-theme' | 'all-themes-owned';
 
@@ -70,6 +79,23 @@ export type GachaPullOptions = {
 const MAX_TIMESTAMP = 8_640_000_000_000_000;
 const listeners = new Set<(state: GachaInventoryState) => void>();
 let transactionQueue: Promise<void> = Promise.resolve();
+
+export function isTemporaryThemeUnlockEnabled(): boolean {
+  return (
+    typeof __DEV__ !== 'undefined' &&
+    __DEV__ &&
+    GACHA_DEVELOPMENT_FLAGS.temporaryUnlockAllThemes
+  );
+}
+
+function developmentOwnedThemeIds(): GachaThemeRewardId[] {
+  return GACHA_THEME_REWARDS.map((theme) => theme.id);
+}
+
+function applyDevelopmentThemeOwnership(state: GachaInventoryState): GachaInventoryState {
+  if (!isTemporaryThemeUnlockEnabled()) return state;
+  return { ...state, ownedThemeIds: developmentOwnedThemeIds() };
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -182,7 +208,7 @@ export function createInitialGachaState(now = Date.now()): GachaInventoryState {
   return {
     version: 1,
     stackableCounts: {},
-    ownedThemeIds: [],
+    ownedThemeIds: isTemporaryThemeUnlockEnabled() ? developmentOwnedThemeIds() : [],
     equippedThemeId: null,
     totalPulls: 0,
     singlePulls: 0,
@@ -277,7 +303,8 @@ async function readStoredGachaState(): Promise<GachaInventoryState> {
   try {
     const raw = await AsyncStorage.getItem(GACHA_STORAGE_KEY);
     if (!raw) return createInitialGachaState(now);
-    return decodeGachaState(JSON.parse(raw), now) ?? createInitialGachaState(now);
+    const decoded = decodeGachaState(JSON.parse(raw), now) ?? createInitialGachaState(now);
+    return applyDevelopmentThemeOwnership(decoded);
   } catch {
     return createInitialGachaState(now);
   }

@@ -51,6 +51,7 @@ import { EPISODES, getEpisode, resolveEpisodeAsset } from '@/data/episodes/regis
 import type { Cue, EpisodeData, EpisodeId, PlaybackState } from '@/data/episodes/types';
 import { useMobbyHaptics } from '@/hooks/useMobbyHaptics';
 import { HomeScreen } from '@/screens/HomeScreen';
+import { HomeThemePicker } from '@/components/home/HomeThemePicker';
 import { CollectionScreen } from '@/screens/CollectionScreen';
 import { MobbyTimeScreen } from '@/screens/MobbyTimeScreen';
 import { MobbyTimeHubScreen } from '@/screens/MobbyTimeHubScreen';
@@ -183,6 +184,7 @@ const UI_WIDE_PAPER = require('../../assets/home-ui/panels/wide-paper.png');
 const MODAL_SURFACE = require('../../assets/generated-ui/surface-modal-portrait-v1.png');
 const NOTICE_SURFACE = require('../../assets/generated-ui/surface-status-wide-v1.png');
 const HEADER_SETTINGS_ICON = require('../../assets/generated-ui/header-settings-icon-v1.png');
+const HEADER_DRESS_UP_BACKGROUND = require('../../assets/generated-ui/home-control-button-v1.png');
 const TAKARA_MOBBY_LOGO = require('../../assets/home-ui/logo/takara-mobby-logo-transparent.png');
 const BELL = require('../../assets/home-ui/icons/bell.png');
 const MOBIYAN_LOADING = require('../../assets/loading/mobiyan-loading.webp');
@@ -196,6 +198,8 @@ const ONBOARDING_REWARD_EVENT_ID = 'onboarding:first-reward:v1';
 const ONBOARDING_REWARD_RECEIPT = '@onboarding-reward:first-reward:v1';
 const STORAGE_CASES = '@mobby/case-files-v2';
 const STORAGE_HOME_LAYOUT = '@mobby/home-layout-v1';
+// Babumoby is the default companion shown on Home for a fresh install.
+const DEFAULT_FAVORITE_ITEM_ID: Item['id'] = 'babu-key';
 const FEATURED_EPISODE_ID = 'episode-1' as const;
 const EPISODE_PROGRESS_DEBOUNCE_MS = 180;
 const MOBBY_TIME_STAGES: readonly MobbyTimeStage[] = ['arrived', 'opening', 'revealed', 'placing', 'placed'];
@@ -276,10 +280,23 @@ const OPENING_KEY_DECORATIONS = [
 ] as const;
 
 
-function Header({ onBell, onSettings }: { onBell: () => void; onSettings: () => void }) {
+function Header({ onBell, onSettings, onOpenDressUp, screen }: { onBell: () => void; onSettings: () => void; onOpenDressUp: () => void; screen: Screen | null }) {
   return (
     <View style={styles.header}>
-      <View style={styles.brandWrap}><Image source={TAKARA_MOBBY_LOGO} contentFit="contain" style={styles.headerLogoImage} /></View>
+      <View style={styles.brandWrap}>
+        {screen === 'home' ? <MobbyAssetButton
+          accessibilityLabel="着せ替えを開く"
+          backgroundSource={HEADER_DRESS_UP_BACKGROUND}
+          backgroundResizeMode="contain"
+          themeAssetSlot="dressUpButton"
+          tone="cream"
+          onPress={onOpenDressUp}
+          style={styles.headerDressUpButton}
+          contentStyle={styles.headerDressUpContent}
+        >
+          <Text style={styles.headerDressUpText}>着せ替え</Text>
+        </MobbyAssetButton> : <Image source={TAKARA_MOBBY_LOGO} contentFit="contain" style={styles.headerLogoImage} />}
+      </View>
       <View style={styles.headerSpacer} />
       <View style={styles.headerActions}>
         <MobbyAssetIconButton accessibilityLabel="設定を開く" icon={HEADER_SETTINGS_ICON} iconStyle={styles.headerSettingsIcon} onPress={onSettings} style={styles.soundButton} />
@@ -371,7 +388,9 @@ function FavoriteMobbyPicker({
   const entrance = useRef(new Animated.Value(0)).current;
   const { scale } = useAppLayout();
   const { activeTheme } = useGachaTheme();
-  const selectedItem = ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0];
+  const selectedItem = ITEMS.find((item) => item.id === selectedId)
+    ?? ITEMS.find((item) => item.id === DEFAULT_FAVORITE_ITEM_ID)
+    ?? ITEMS[0];
   const selectedMobbyId = ITEM_MOBBY_IDS[selectedItem.id] ?? 'mobichi';
 
   useEffect(() => {
@@ -384,7 +403,6 @@ function FavoriteMobbyPicker({
       <Animated.View style={[styles.favoriteCard, { opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }]}> 
         <View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ImageBackground source={activeTheme?.assets.popup ?? MODAL_SURFACE} contentFit="cover" style={styles.favoriteCardImage} /></View>
         <View pointerEvents="none" style={styles.favoriteGlassSheen} />
-        <Text style={styles.onboardingKicker}>WELCOME TO MOBBY</Text>
         <Text style={styles.favoriteTitle}>お気に入りのモビーは？</Text>
         <Text style={styles.favoriteLead}>モビーは全部で9キャラ！ 最初の相棒を選んでね。{`\n`}左右にスワイプ・あとからいつでも変更できます。</Text>
         <MobbyCarousel
@@ -541,9 +559,7 @@ function OpeningScreen({ onBegin, onStart }: { onBegin: () => void; onStart: () 
       <Animated.View pointerEvents="none" style={[styles.openingTitleWrap, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) }] }]}>
         <ImageBackground source={MOBBY_TIME_TIMER_PLAQUE} contentFit="contain" contentPosition="center" style={styles.openingTitlePlaque}>
           <Image source={TAKARA_MOBBY_LOGO} contentFit="contain" style={styles.openingLogoImage} />
-          <Text style={styles.openingTitleSub}>C O L L E C T I O N</Text>
         </ImageBackground>
-        <Text style={styles.openingTagline}>モビーたちと、毎日を飾ろう。</Text>
       </Animated.View>
       <View pointerEvents="none" style={[styles.openingScene, { top: openingSceneTop, height: openingCompositionHeight }]}>
         <AnimatedImage source={MOBBY_TIME_OPENED_BOX} contentFit="contain" contentPosition="center" style={[styles.openingOpenedBox, { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.76, 1] }) }, { rotate: bob.interpolate({ inputRange: [0, 1], outputRange: ['-1deg', '1deg'] }) }] }]} />
@@ -660,7 +676,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const [fontError, setFontError] = useState<Error | null>(null);
   const [appStarted, setAppStarted] = useState(false);
   const [experienceScreen, setExperienceScreen] = useState<Extract<Screen, 'touch' | 'episode'> | null>(null);
-  const [selectedId, setSelectedId] = useState('yami-key');
+  const [selectedId, setSelectedId] = useState(DEFAULT_FAVORITE_ITEM_ID);
   const [owned, setOwned] = useState(INITIAL_OWNED);
   const [gachaInventory, setGachaInventory] = useState<GachaInventoryState>(() => createInitialGachaState());
   const [gachaReady, setGachaReady] = useState(false);
@@ -676,6 +692,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const [casebookInitialTab, setCasebookInitialTab] = useState<IncidentCasebookTab>('active');
   const [notice, setNotice] = useState('');
   const [headerPopover, setHeaderPopover] = useState<'settings' | 'notifications' | 'daily' | 'mobby-time' | 'stories' | null>(null);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [wallPlacement, setWallPlacement] = useState<CollectibleReward | null>(null);
@@ -684,7 +701,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const [storageReady, setStorageReady] = useState(false);
   const [tutorialComplete, setTutorialComplete] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('none');
-  const [favoriteDraftId, setFavoriteDraftId] = useState(ITEMS[0].id);
+  const [favoriteDraftId, setFavoriteDraftId] = useState(DEFAULT_FAVORITE_ITEM_ID);
   const [onboardingReward, setOnboardingReward] = useState<OnboardingRewardState | null>(null);
   const [onboardingGrantRetry, setOnboardingGrantRetry] = useState(0);
   const pullReactionIndexRef = useRef<Record<string, number>>({});
@@ -719,7 +736,9 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       ? reward.assets.appBackground.source ?? reward.assets.appBackground.fallbackSource
       : null;
   }, [gachaInventory.equippedThemeId]);
-  const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId) ?? ITEMS[0], [selectedId]);
+  const selected = useMemo(() => ITEMS.find((item) => item.id === selectedId)
+    ?? ITEMS.find((item) => item.id === DEFAULT_FAVORITE_ITEM_ID)
+    ?? ITEMS[0], [selectedId]);
   const shellCharacters = useMemo<MobbyShellCharacter[]>(() => ITEMS.map((item) => {
     const enemyId = ITEM_ENEMY_IDS[item.id];
     return {
@@ -789,6 +808,9 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
     previousRouteScreenRef.current = routeScreen;
   }, [routeScreen]);
   const screen: Screen | null = experienceScreen ?? routeScreen;
+  useEffect(() => {
+    if (screen !== 'home') setThemePickerOpen(false);
+  }, [screen]);
   // Preserve incident progress in storage while the feature is paused, but do
   // not let that saved state alter Home, audio, navigation, or overlays.
   const activeIncident = INCIDENTS_ENABLED ? incidentStorage.activeEpisode : null;
@@ -876,8 +898,8 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
         if (!mounted) return;
         const values = Object.fromEntries(entries);
         const completed = values[STORAGE_TUTORIAL_COMPLETE] === 'true';
-        const favoriteValue = values[STORAGE_FAVORITE] ?? ITEMS[0].id;
-        const storedFavorite = ITEMS.some((item) => item.id === favoriteValue) ? favoriteValue : ITEMS[0].id;
+        const favoriteValue = values[STORAGE_FAVORITE] ?? DEFAULT_FAVORITE_ITEM_ID;
+        const storedFavorite = ITEMS.some((item) => item.id === favoriteValue) ? favoriteValue : DEFAULT_FAVORITE_ITEM_ID;
         let storedOwned = completed ? INITIAL_OWNED : EMPTY_OWNED;
         const storedInventory = values[STORAGE_OWNED] ?? values[STORAGE_OWNED_LEGACY];
         if (storedInventory) {
@@ -1513,6 +1535,8 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       : COLLECTIBLE_VARIANTS.some((variant) => ownedCollectibleCount(effectiveOwned, item.id, variant) > 0);
     if (!isOwned) return false;
     setReaction('');
+    // Main character selection is independent from the explicitly equipped
+    // dress-up theme. Changing this character must not switch the room.
     setSelectedId(id);
     return true;
   }, [effectiveOwned, storyUnlockedBlackStarSet]);
@@ -1628,12 +1652,18 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               >
               {appStarted ? <>
               <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-                {equippedThemeBackground ? <Image accessible={false} source={equippedThemeBackground} contentFit="cover" style={styles.appShellBackground} /> : screen === 'collection' ? <>
+                {/* A selected theme owns the room background on every app screen, including Home. */}
+                {equippedThemeBackground ? <Image accessible={false} source={equippedThemeBackground} contentFit="cover" style={styles.appShellBackground} /> : screen === 'home' ? <Image accessible={false} source={HOME_WALL_BACKGROUND} contentFit="cover" style={styles.appShellBackground} /> : screen === 'collection' ? <>
                   <Image accessible={false} source={ROOM_BACKGROUND} contentFit="cover" style={styles.appShellBackground} />
                   <Image accessible={false} source={COLLECTION_WALL_BACKGROUND} contentFit="cover" style={styles.collectionReferenceBackground} />
-                </> : <Image accessible={false} source={screen === 'home' ? HOME_WALL_BACKGROUND : ROOM_BACKGROUND} contentFit="cover" style={styles.appShellBackground} />}
+                </> : <Image accessible={false} source={ROOM_BACKGROUND} contentFit="cover" style={styles.appShellBackground} />}
               </View>
               {incidentExperienceActive ? <View pointerEvents="none" style={styles.globalHeaderPlaceholder} /> : <Header
+                screen={screen}
+                onOpenDressUp={() => {
+                  playSfx('tap');
+                  setThemePickerOpen(true);
+                }}
                 onSettings={() => {
                   playSfx('tap');
                   setHeaderPopover('settings');
@@ -1663,6 +1693,13 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               {onboardingStep === 'favorite' ? <FavoriteMobbyPicker selectedId={favoriteDraftId} onSelect={(id) => { playSfx('tap'); setFavoriteDraftId(id); }} onConfirm={confirmFavorite} /> : null}
               </> : null}
               </View>
+              {appStarted && screen === 'home' ? <HomeThemePicker
+                visible={themePickerOpen}
+                onClose={() => {
+                  playSfx('tap');
+                  setThemePickerOpen(false);
+                }}
+              /> : null}
               {appStarted && headerPopover === 'settings' ? <SettingsPopover
                 soundEnabled={soundEnabled}
                 reduceMotion={reduceMotion}
@@ -1710,12 +1747,10 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               </MobbyTimePopover> : null}
               {INCIDENTS_ENABLED && appStarted && headerPopover === 'stories' ? <ShellDetailPopover
                 accessibilityLabel="関係性アルバム"
-                eyebrow="RELATIONSHIP ALBUM"
                 flush
                 onBack={returnToNotifications}
                 onClose={closeHeaderPopover}
                 scrollable={false}
-                subtitle="ふたりのおはなしを見返そう"
                 title="関係性アルバム"
               >
                 <IncidentCasebookScreen

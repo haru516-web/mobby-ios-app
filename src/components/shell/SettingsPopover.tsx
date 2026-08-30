@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { useGachaTheme } from '@/theme/GachaThemeContext';
+import { MobbyAssetCloseButton } from '@/components/mobby-ui';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 const SETTINGS_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-settings-v1.png');
@@ -51,17 +52,9 @@ export function SettingsPopover({
             <View style={styles.panelContent}>
               <View style={styles.header}>
                 <View style={styles.headerCopy}>
-                  <Text style={styles.eyebrow}>APP PREFERENCES</Text>
                   <Text accessibilityRole="header" style={styles.title}>設定</Text>
-                  <Text style={styles.subtitle}>遊びやすさを自分に合わせよう</Text>
                 </View>
-                <Pressable
-                  accessibilityLabel="設定を閉じる"
-                  accessibilityRole="button"
-                  hitSlop={8}
-                  onPress={onClose}
-                  style={({ pressed }) => [styles.close, pressed && styles.pressed]}
-                />
+                <MobbyAssetCloseButton accessibilityLabel="設定を閉じる" onPress={onClose} style={styles.close} />
               </View>
 
               <ScrollView
@@ -139,9 +132,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerCopy: { flex: 1, minWidth: 0, paddingRight: 42 },
-  eyebrow: { color: '#A45D68', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
   title: { color: '#593C5D', fontSize: 22, fontWeight: '900', marginTop: 2 },
-  subtitle: { color: '#8A6C79', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 3 },
   close: { position: 'absolute', top: 14, right: 2, width: 56, height: 56 },
   pressed: { opacity: 0.68, transform: [{ scale: 0.94 }] },
   scroll: { flex: 1, minHeight: 0 },

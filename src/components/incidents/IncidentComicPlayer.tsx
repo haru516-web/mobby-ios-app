@@ -79,7 +79,6 @@ export function IncidentComicPlayer({
       </> : null}
       <View style={styles.topBar}>
         <View style={styles.titleCopy}>
-          <Text numberOfLines={1} style={styles.eyebrow}>BLACK STAR INCIDENT</Text>
           <Text numberOfLines={1} style={styles.title}>{incident.title}</Text>
         </View>
         <MobbyAssetButton
@@ -203,7 +202,6 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   titleCopy: { flex: 1, minWidth: 0 },
-  eyebrow: { color: '#D6B1BC', fontSize: 8, lineHeight: 10, letterSpacing: 1.4, fontWeight: '900' },
   title: { color: '#FFF9EE', fontSize: 17, lineHeight: 22, fontWeight: '900', marginTop: 1 },
   skipButton: { width: 86, minHeight: 38, height: 38 },
   smallButtonContent: { minHeight: 38, paddingHorizontal: 8, paddingVertical: 5 },

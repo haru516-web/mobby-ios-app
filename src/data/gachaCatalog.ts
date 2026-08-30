@@ -4,6 +4,7 @@ import { ENEMIES, type EnemyId } from '@/data/enemies';
 import { MOBBIES, type MobbyId } from '@/data/mobies';
 
 import { getGeneratedGachaHomeThemeAssets } from './gachaHomeThemeAssets.generated';
+import { getGeneratedGachaMobbyTimeThemeAssets } from './gachaMobbyTimeThemeAssets.generated';
 import { getGeneratedGachaThemeAssets } from './gachaThemeAssets.generated';
 
 export const GACHA_STYLE_NUMBERS = [1, 2, 3, 4, 5] as const;
@@ -29,7 +30,15 @@ export type GachaThemeAssetSlot =
   | 'buttonSecondary'
   | 'card'
   | 'navigation'
-  | 'popup';
+  | 'popup'
+  | 'iconButton'
+  | 'tab'
+  | 'closeButton'
+  | 'reselectButton'
+  | 'dressUpButton'
+  | 'themeActionLabel'
+  | 'themeCharacterTab'
+  | 'themeResetButton';
 
 // Home furniture and its stitched-paper controls have shapes that cannot be
 // represented faithfully by the generic app-wide card/navigation/popup slots.
@@ -157,7 +166,17 @@ const THEME_FALLBACK_SOURCES: Record<GachaThemeAssetSlot, ImageSourcePropType> =
   card: require('../../assets/generated-ui/surface-paper-wide-v1.png'),
   navigation: require('../../assets/home-ui/panels/nav-backdrop-v4.png'),
   popup: require('../../assets/generated-ui/popup-settings-v1.png'),
+  iconButton: require('../../assets/generated-ui/header-circle-paper-v1.png'),
+  tab: require('../../assets/generated-ui/button-cream-v1.png'),
+  closeButton: require('../../assets/generated-ui/button-back-v1.png'),
+  reselectButton: require('../../assets/generated-ui/button-exchange-reselect-v1.png'),
+  // Dress-up controls have their own proportions and copy-safe areas.
+  dressUpButton: require('../../assets/generated-ui/home-control-button-v1.png'),
+  themeActionLabel: require('../../assets/generated-ui/surface-label-pill-v1.png'),
+  themeCharacterTab: require('../../assets/generated-ui/button-cream-v1.png'),
+  themeResetButton: require('../../assets/generated-ui/button-cream-v1.png'),
 };
+
 const HOME_THEME_FALLBACK_SOURCES: Record<GachaHomeThemeAssetSlot, ImageSourcePropType> = {
   controlButton: require('../../assets/generated-ui/home-control-button-v1.png'),
   garland: require('../../assets/backgrounds/home-garland-trimmed-v1.png'),
@@ -250,6 +269,11 @@ function themeAssets(characterId: GachaCharacterId, styleNumber: GachaStyleNumbe
   ) as GachaThemeAssetGroup;
 }
 
+export function getGachaThemeAssetSource(theme: Pick<GachaThemeReward, 'assets'>, slot: GachaThemeAssetSlot): ImageSourcePropType {
+  const reference = theme.assets[slot];
+  return reference.source ?? reference.fallbackSource;
+}
+
 function homeThemeAssets(characterId: GachaCharacterId, styleNumber: GachaStyleNumber): GachaHomeThemeAssetGroup {
   const generatedAssets = getGeneratedGachaHomeThemeAssets(characterId, styleNumber);
   return Object.fromEntries(
@@ -265,12 +289,14 @@ function homeThemeAssets(characterId: GachaCharacterId, styleNumber: GachaStyleN
 }
 
 function mobbyTimeThemeAssets(characterId: GachaCharacterId, styleNumber: GachaStyleNumber): GachaMobbyTimeThemeAssetGroup {
+  const generatedAssets = getGeneratedGachaMobbyTimeThemeAssets(characterId, styleNumber);
   return Object.fromEntries(
     (Object.keys(MOBBY_TIME_THEME_FALLBACK_SOURCES) as GachaMobbyTimeThemeAssetSlot[]).map((slot) => [
       slot,
       {
         assetKey: `themes/${characterId}/${String(styleNumber).padStart(2, '0')}/mobby-time/${slot}`,
         fallbackSource: MOBBY_TIME_THEME_FALLBACK_SOURCES[slot],
+        source: generatedAssets[slot],
       },
     ]),
   ) as GachaMobbyTimeThemeAssetGroup;

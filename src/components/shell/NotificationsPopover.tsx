@@ -13,9 +13,7 @@ export function NotificationsPopover({
   return <ShellDetailPopover
     accessibilityLabel="お知らせ"
     contentContainerStyle={styles.content}
-    eyebrow="NOTIFICATIONS"
     onClose={onClose}
-    subtitle="今日の出来事をまとめて確認できるよ"
     title="お知らせ"
   >
     <View style={styles.section}>

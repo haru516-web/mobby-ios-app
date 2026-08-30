@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { useGachaTheme } from '@/theme/GachaThemeContext';
+import { MobbyAssetCloseButton } from '@/components/mobby-ui';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 const DETAIL_POPUP_BACKGROUND = require('../../../assets/generated-ui/popup-settings-v1.png');
@@ -19,9 +20,7 @@ const DETAIL_PANEL_ASPECT_RATIO = 978 / 1485;
 
 export function ShellDetailPopover({
   accessibilityLabel,
-  eyebrow,
   title,
-  subtitle,
   children,
   footer,
   scrollable = true,
@@ -31,9 +30,7 @@ export function ShellDetailPopover({
   onClose,
 }: {
   accessibilityLabel: string;
-  eyebrow: string;
   title: string;
-  subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
   scrollable?: boolean;
@@ -68,20 +65,12 @@ export function ShellDetailPopover({
           >
             <View style={styles.panelContent}>
               <View style={styles.header}>
-                <Text style={styles.eyebrow}>{eyebrow}</Text>
                 <Text accessibilityRole="header" style={styles.title}>{title}</Text>
-                {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
                 {onBack ? <Pressable accessibilityLabel="お知らせに戻る" accessibilityRole="button" hitSlop={6} onPress={onBack} style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
                   <Text style={styles.backText}>‹ お知らせに戻る</Text>
                 </Pressable> : null}
               </View>
-              <Pressable
-                accessibilityLabel={`${accessibilityLabel}を閉じる`}
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={onClose}
-                style={({ pressed }) => [styles.close, pressed && styles.pressed]}
-              />
+              <MobbyAssetCloseButton accessibilityLabel={`${accessibilityLabel}を閉じる`} onPress={onClose} style={styles.close} />
 
               {scrollable ? <ScrollView
                 contentContainerStyle={[styles.scrollContent, flush && styles.flushContent, contentContainerStyle]}
@@ -119,9 +108,7 @@ const styles = StyleSheet.create({
   panelImage: { borderRadius: 30 },
   panelContent: { flex: 1, minHeight: 0, zIndex: 1 },
   header: { paddingTop: 26, paddingLeft: 66, paddingRight: 58, paddingBottom: 10 },
-  eyebrow: { color: '#A45D68', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
   title: { color: '#593C5D', fontSize: 22, lineHeight: 29, fontWeight: '900', marginTop: 2 },
-  subtitle: { color: '#8A6C79', fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 2 },
   back: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginTop: 3 },
   backText: { color: '#A45D68', fontSize: 12, lineHeight: 18, fontWeight: '900' },
   close: { position: 'absolute', top: 14, right: 2, width: 56, height: 56 },

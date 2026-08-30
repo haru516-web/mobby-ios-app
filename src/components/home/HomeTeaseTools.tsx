@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
+import { MobbyAssetButton, MobbyAssetCloseButton, MobbyAssetSurface } from '@/components/mobby-ui';
 import {
   GACHA_TOOL_REWARDS,
   type GachaStyleNumber,
@@ -85,13 +85,11 @@ export function HomeTeaseTools({ disabled = false, onUse }: {
         >
           <View style={styles.headingRow}>
             <View style={styles.headingCopy}>
-              <Text style={styles.eyebrow}>TEASE TOOLS</Text>
               <Text accessibilityRole="header" style={styles.title}>何で遊ぶ？</Text>
-              <Text style={styles.subtitle}>つつくとへこむ・重しでむぎゅっとつぶれる</Text>
             </View>
-            <Pressable accessibilityLabel="道具選択を閉じる" hitSlop={8} onPress={() => setOpen(false)} style={styles.close}>
+            <MobbyAssetCloseButton accessibilityLabel="道具選択を閉じる" onPress={() => setOpen(false)} style={styles.close}>
               <Text style={styles.closeText}>×</Text>
-            </Pressable>
+            </MobbyAssetCloseButton>
           </View>
           <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator>
             {GACHA_TOOL_REWARDS.map((reward) => {
@@ -134,9 +132,7 @@ const styles = StyleSheet.create({
   panelContent: { flex: 1, minHeight: 0, paddingHorizontal: 27, paddingTop: 26, paddingBottom: 22 },
   headingRow: { minHeight: 75, flexDirection: 'row', gap: 8 },
   headingCopy: { flex: 1, minWidth: 0 },
-  eyebrow: { color: '#A45D68', fontSize: 9, lineHeight: 11, fontWeight: '900', letterSpacing: 1.3 },
   title: { color: '#593C5D', fontSize: 22, lineHeight: 28, fontWeight: '900' },
-  subtitle: { color: '#806978', fontSize: 10, lineHeight: 14, fontWeight: '800', marginTop: 2 },
   close: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#7E4C60', fontSize: 29, lineHeight: 31, fontWeight: '900' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, paddingVertical: 10 },
