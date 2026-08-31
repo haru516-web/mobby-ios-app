@@ -13,9 +13,10 @@ import { useGachaTheme } from '@/theme/GachaThemeContext';
 type MobbyTimeStage = 'arrived' | 'opening' | 'revealed' | 'placing' | 'placed';
 type DailyMobbyTimeStatus = 'available' | 'carryover' | 'opened' | 'expired' | 'unavailable';
 
-const MOBBY_TIME_BOARD = require('../../../assets/backgrounds/mobby-time-board.png');
+const MOBBY_TIME_BOARD = require('../../../assets/backgrounds/mobby-time-board-cutout.png');
 const MOBBY_TIME_PACKAGE = require('../../../assets/mobby-time-package.png');
 const MOBBY_TIME_TIMER_PLAQUE = require('../../../assets/mobby-time/timer-plaque.png');
+const MOBBY_TIME_TITLE_PLAQUE = require('../../../assets/mobby-time/title-plaque.png');
 const MOBBY_TIME_MESSAGE_PLAQUE = require('../../../assets/mobby-time/message-plaque.png');
 const MOBBY_TIME_REWARD_SEAL = require('../../../assets/mobby-time/reward-seal.png');
 const MOBBY_ICON = require('../../../assets/home-ui/icons/mobby.png');
@@ -52,7 +53,7 @@ export function MobbyTimeVisual({
   const mobbyTimeThemeAssets = activeTheme?.mobbyTimeAssets;
   const { width: appWidth, height: appHeight } = useAppLayout();
   const popover = presentation === 'popover';
-  const [headerHeight, setHeaderHeight] = useState(popover ? POPOVER_TIME_HEADER_HEIGHT : 110);
+  const [headerHeight, setHeaderHeight] = useState(popover ? POPOVER_TIME_HEADER_HEIGHT : 128);
   const onboardingFlow = flow === 'onboarding';
   const canOpen = dailyHydrated && secondsLeft > 0 && (dailyStatus === 'available' || dailyStatus === 'carryover');
   const active = canOpen || rewardInProgress;
@@ -323,7 +324,7 @@ export function MobbyTimeVisual({
   const packageArtwork = <Image source={MOBBY_TIME_PACKAGE} contentFit="contain" style={styles.mobbyTimePackageAsset} />;
   return (
     <Animated.View style={[styles.timeScrollContent, { opacity: entryMotion.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0.86, 1] }), transform: [{ translateY: entryMotion.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [18, 0] : [22, 0] }) }, { scale: entryMotion.interpolate({ inputRange: [0, 1], outputRange: reduceMotion ? [0.94, 1] : [0.965, 1] }) }] }]}>
-        <View onLayout={handleHeaderLayout} style={[styles.timeHeader, popover && styles.timeHeaderPopover]}>{!popover ? <Text style={styles.timeTitle}>{onboardingFlow ? 'はじめてのBOX' : 'MOBBY TIME'}</Text> : null}<Text style={styles.timeHeaderSub}>{statusTitle}</Text><ImageBackground source={mobbyTimeThemeAssets?.timerPlaque ?? MOBBY_TIME_TIMER_PLAQUE} contentFit="contain" contentPosition="center" style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{onboardingFlow ? 'WELCOME' : canOpen ? 'あと' : '状態'}</Text><Text style={styles.bigTimerValue}>{onboardingFlow ? !dailyHydrated ? '準備中' : opening ? '開封中' : rewardInProgress ? '受取中' : 'BOX' : canOpen ? `${minutes}:${seconds}` : opening ? '開封中' : rewardInProgress ? '受取中' : !dailyHydrated ? '読込中' : dailyStatus === 'opened' ? '開封済' : dailyStatus === 'expired' ? '期限切れ' : '待機中'}</Text></ImageBackground></View>
+        <View onLayout={handleHeaderLayout} style={[styles.timeHeader, popover && styles.timeHeaderPopover]}>{!popover ? <ImageBackground source={MOBBY_TIME_TITLE_PLAQUE} contentFit="contain" contentPosition="center" style={styles.timeTitlePlaque}><Text style={styles.timeTitle}>{onboardingFlow ? 'はじめてのBOX' : 'MOBBY TIME'}</Text><Text style={styles.timeHeaderSub}>{statusTitle}</Text></ImageBackground> : <Text style={styles.timeHeaderSub}>{statusTitle}</Text>}<ImageBackground source={mobbyTimeThemeAssets?.timerPlaque ?? MOBBY_TIME_TIMER_PLAQUE} contentFit="contain" contentPosition="center" style={styles.bigTimer}><Text style={styles.bigTimerLabel}>{onboardingFlow ? 'WELCOME' : canOpen ? 'あと' : '状態'}</Text><Text style={styles.bigTimerValue}>{onboardingFlow ? !dailyHydrated ? '準備中' : opening ? '開封中' : rewardInProgress ? '受取中' : 'BOX' : canOpen ? `${minutes}:${seconds}` : opening ? '開封中' : rewardInProgress ? '受取中' : !dailyHydrated ? '読込中' : dailyStatus === 'opened' ? '開封済' : dailyStatus === 'expired' ? '期限切れ' : '待機中'}</Text></ImageBackground></View>
       <View style={{ width: encounterBoardBaseWidth * encounterBoardScale, height: encounterBoardBaseHeight * encounterBoardScale }}>
       <ImageBackground source={mobbyTimeThemeAssets?.board ?? MOBBY_TIME_BOARD} contentFit="contain" contentPosition="center" style={[styles.encounterCard, { width: encounterBoardBaseWidth, height: encounterBoardBaseHeight, transform: [{ scale: encounterBoardScale }], transformOrigin: 'top left' }]} imageStyle={styles.encounterCardImage}>
         <View style={styles.arrivalNotice}><Text style={styles.arrivalNoticeText}>{statusMessage}</Text></View>

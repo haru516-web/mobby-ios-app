@@ -10,7 +10,7 @@ import { Text, useAppLayout } from '@/ui/layout/visualPrimitives';
 
 type KeychainImageSize = 'normal' | 'small';
 
-const COLLECTION_DISPLAY_BOARD = require('../../../assets/backgrounds/collection-display-board-v1.png');
+const COLLECTION_DISPLAY_BOARD = require('../../../assets/backgrounds/collection-display-board-cutout-v1.png');
 const UI_WIDE_PAPER = require('../../../assets/home-ui/panels/wide-paper.png');
 const UI_SIZE_SELECTOR_PAPER = require('../../../assets/home-ui/panels/size-selector-paper-v1.png');
 

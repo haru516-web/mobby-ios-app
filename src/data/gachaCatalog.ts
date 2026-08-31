@@ -188,7 +188,7 @@ const HOME_THEME_FALLBACK_SOURCES: Record<GachaHomeThemeAssetSlot, ImageSourcePr
   shelf: require('../../assets/backgrounds/plush-base-transparent.png'),
 };
 const MOBBY_TIME_THEME_FALLBACK_SOURCES: Record<GachaMobbyTimeThemeAssetSlot, ImageSourcePropType> = {
-  board: require('../../assets/backgrounds/mobby-time-board.png'),
+  board: require('../../assets/backgrounds/mobby-time-board-cutout.png'),
   timerPlaque: require('../../assets/mobby-time/timer-plaque.png'),
   messagePlaque: require('../../assets/mobby-time/message-plaque.png'),
   rewardSeal: require('../../assets/mobby-time/reward-seal.png'),

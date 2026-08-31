@@ -1,7 +1,11 @@
 param(
   [switch]$Force,
   [switch]$ForceNewSlots,
-  [switch]$ForceBrightControls
+  [switch]$ForceBrightControls,
+  [switch]$ForceCloseButtons,
+  [switch]$ForceIconButtons,
+  [switch]$ForceTabs,
+  [switch]$ForceReselectButtons
 )
 
 Add-Type -AssemblyName System.Drawing
@@ -219,7 +223,10 @@ foreach ($character in $characters) {
       $clip = New-RoundedPath $bounds $slot.Radius
       $graphics.SetClip($clip)
       Draw-TintedCrop -graphics $graphics -image $source -sourceRect $slot.Source -targetRect $bounds -accent $accent -FillTarget:$isNewSlot -Brightness $brightness -AccentMix $accentMix
-      if (-not $isNewSlot) {
+      # These controls already contain their own authored shapes. Do not add
+      # a theme tint wash behind them; it becomes an unrelated colored outer
+      # container around the artwork.
+      if (-not $isNewSlot -and $slot.Name -notin @('iconButton', 'tab', 'closeButton', 'reselectButton')) {
         $wash = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(48, $tint))
         $graphics.FillRectangle($wash, $bounds)
         $wash.Dispose()
@@ -235,7 +242,7 @@ foreach ($character in $characters) {
         Draw-ThemeMark $graphics $character.Motif $accent $slot.Width $slot.Height $style.Number
       }
       $target = Join-Path $styleRoot ($slot.Name + '.png')
-      if ($Force -or ($ForceNewSlots -and $isNewSlot) -or ($ForceBrightControls -and $isBrightSlot) -or -not (Test-Path $target)) {
+      if ($Force -or ($ForceNewSlots -and $isNewSlot) -or ($ForceBrightControls -and $isBrightSlot) -or ($ForceCloseButtons -and $slot.Name -eq 'closeButton') -or ($ForceIconButtons -and $slot.Name -eq 'iconButton') -or ($ForceTabs -and $slot.Name -eq 'tab') -or ($ForceReselectButtons -and $slot.Name -eq 'reselectButton') -or -not (Test-Path $target)) {
         $bitmap.Save($target, [System.Drawing.Imaging.ImageFormat]::Png)
       }
       $graphics.Dispose()

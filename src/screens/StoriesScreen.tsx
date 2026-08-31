@@ -15,7 +15,7 @@ import { getMobby, type MobbyId } from '@/data/mobies';
 import { IncidentComicsScreen, type IncidentComicsScreenProps } from '@/screens/IncidentComicsScreen';
 import { Text } from '@/ui/layout/visualPrimitives';
 
-const STORY_BOARD = require('../../assets/backgrounds/trade-exchange-board.png');
+const STORY_BOARD = require('../../assets/backgrounds/trade-exchange-board-cutout-v1.png');
 
 const BOARD_ASPECT_RATIO = 2 / 3;
 const COMIC_ASPECT_RATIO = 941 / 1672;

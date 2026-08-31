@@ -58,8 +58,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#30273A',
     backgroundColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
@@ -67,7 +65,6 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   buttonActive: {
-    borderColor: '#17131D',
     backgroundColor: 'transparent',
   },
   buttonDisabled: {

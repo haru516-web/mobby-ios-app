@@ -511,7 +511,7 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
                   backgroundResizeMode="cover"
                   backgroundSource={characterTheme ? getGachaThemeAssetSource(characterTheme, 'themeCharacterTab') : undefined}
                   preferBackgroundSource
-                  style={[styles.characterTab, { borderColor: character.accent }]}
+                  style={styles.characterTab}
                   contentStyle={styles.characterTabContent}
                 >
                   <Image accessible={false} source={character.image} contentFit="contain" style={styles.characterTabImage} />
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
   themeList: { gap: 10, paddingHorizontal: 3, paddingBottom: 7 },
   characterTabs: { flexGrow: 0, marginBottom: 8 },
   characterTabsContent: { gap: 6, paddingHorizontal: 2 },
-  characterTab: { width: 92, minHeight: 54, borderWidth: 1.5 },
+  characterTab: { width: 92, minHeight: 54 },
   characterTabContent: { minHeight: 54, paddingHorizontal: 5, paddingVertical: 4, gap: 2 },
   characterTabImage: { width: 24, height: 28 },
   characterTabText: { color: '#614559', fontSize: 10, lineHeight: 12, fontWeight: '900', textAlign: 'center' },

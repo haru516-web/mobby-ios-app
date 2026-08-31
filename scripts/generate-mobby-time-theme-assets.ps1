@@ -10,6 +10,58 @@ function Get-ThemeColor([string]$hex) {
   return [System.Drawing.ColorTranslator]::FromHtml($hex)
 }
 
+function Add-RoundedRectangle(
+  [System.Drawing.Drawing2D.GraphicsPath]$path,
+  [System.Drawing.RectangleF]$rect,
+  [single]$radius
+) {
+  $diameter = $radius * 2
+  $path.AddArc($rect.X, $rect.Y, $diameter, $diameter, 180, 90)
+  $path.AddArc($rect.Right - $diameter, $rect.Y, $diameter, $diameter, 270, 90)
+  $path.AddArc($rect.Right - $diameter, $rect.Bottom - $diameter, $diameter, $diameter, 0, 90)
+  $path.AddArc($rect.X, $rect.Bottom - $diameter, $diameter, $diameter, 90, 90)
+  $path.CloseFigure()
+}
+
+function New-BoardSilhouette([int]$width, [int]$height) {
+  $sx = [single]($width / 1024.0)
+  $sy = [single]($height / 1536.0)
+  $mainPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+  Add-RoundedRectangle $mainPath (New-Object System.Drawing.RectangleF([single](30 * $sx), [single](54 * $sy), [single](964 * $sx), [single](1458 * $sy))) ([single](38 * [Math]::Min($sx, $sy)))
+  $region = New-Object System.Drawing.Region($mainPath)
+  $mainPath.Dispose()
+  $topCrest = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $bottomCrest = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $topCrest.AddEllipse([single](342 * $sx), [single](28 * $sy), [single](340 * $sx), [single](150 * $sy))
+  $bottomCrest.AddEllipse([single](338 * $sx), [single](1390 * $sy), [single](348 * $sx), [single](132 * $sy))
+  $region.Union($topCrest)
+  $region.Union($bottomCrest)
+  $topCrest.Dispose()
+  $bottomCrest.Dispose()
+  $leftTassel = @(
+    (New-Object System.Drawing.PointF([single](54 * $sx), [single](300 * $sy))),
+    (New-Object System.Drawing.PointF([single](77 * $sx), [single](318 * $sy))),
+    (New-Object System.Drawing.PointF([single](89 * $sx), [single](350 * $sy))),
+    (New-Object System.Drawing.PointF([single](91 * $sx), [single](423 * $sy))),
+    (New-Object System.Drawing.PointF([single](76 * $sx), [single](457 * $sy))),
+    (New-Object System.Drawing.PointF([single](31 * $sx), [single](470 * $sy))),
+    (New-Object System.Drawing.PointF([single](16 * $sx), [single](447 * $sy))),
+    (New-Object System.Drawing.PointF([single](13 * $sx), [single](390 * $sy))),
+    (New-Object System.Drawing.PointF([single](25 * $sx), [single](347 * $sy))),
+    (New-Object System.Drawing.PointF([single](41 * $sx), [single](318 * $sy)))
+  )
+  $rightTassel = @($leftTassel | ForEach-Object { New-Object System.Drawing.PointF([single](($width - $_.X)), [single]$_.Y) })
+  $leftPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $rightPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $leftPath.AddPolygon([System.Drawing.PointF[]]$leftTassel)
+  $rightPath.AddPolygon([System.Drawing.PointF[]]$rightTassel)
+  $region.Union($leftPath)
+  $region.Union($rightPath)
+  $leftPath.Dispose()
+  $rightPath.Dispose()
+  return $region
+}
+
 function Draw-Cover([System.Drawing.Graphics]$graphics, [System.Drawing.Image]$image, [int]$width, [int]$height, [int]$alpha) {
   $scale = [Math]::Max($width / $image.Width, $height / $image.Height)
   $drawWidth = [int][Math]::Ceiling($image.Width * $scale)
@@ -50,7 +102,7 @@ $characters = @(
 )
 
 $slots = @(
-  @{ Name='board'; Base='assets\backgrounds\mobby-time-board.png'; Alpha=38; MotifFraction=0.62 },
+  @{ Name='board'; Base='assets\backgrounds\mobby-time-board-cutout.png'; Alpha=38; MotifFraction=0.62 },
   @{ Name='timerPlaque'; Base='assets\mobby-time\timer-plaque.png'; Alpha=46; MotifFraction=0.74 },
   @{ Name='messagePlaque'; Base='assets\mobby-time\message-plaque.png'; Alpha=46; MotifFraction=0.70 },
   @{ Name='rewardSeal'; Base='assets\mobby-time\reward-seal.png'; Alpha=56; MotifFraction=0.74 }
@@ -85,10 +137,13 @@ foreach ($character in $characters) {
       $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
       $graphics.Clear([System.Drawing.Color]::Transparent)
       $graphics.DrawImage($baseImage, 0, 0, $baseImage.Width, $baseImage.Height)
+      # Only the opaque board receives a full theme overlay. The plaques and
+      # seal are authored transparent assets; a rectangular overlay behind
+      # them shows up as a colored wash outside their silhouette.
       if ($slot.Name -eq 'board') {
+        $boardClip = New-BoardSilhouette $baseImage.Width $baseImage.Height
+        $graphics.SetClip([System.Drawing.Region]$boardClip, [System.Drawing.Drawing2D.CombineMode]::Replace)
         Draw-Cover $graphics $cardImage $baseImage.Width $baseImage.Height $slot.Alpha
-      } else {
-        Draw-Contain $graphics $cardImage $baseImage.Width $baseImage.Height $slot.MotifFraction $slot.Alpha
       }
       # The board is opaque, so a subtle accent band can safely span its
       # bounds. Plaques and the seal have transparent corners; do not paint
@@ -98,6 +153,8 @@ foreach ($character in $characters) {
         $graphics.FillRectangle($accentBrush, 0, 0, $baseImage.Width, [int]($baseImage.Height * 0.07))
         $graphics.FillRectangle($accentBrush, 0, [int]($baseImage.Height * 0.93), $baseImage.Width, [int]($baseImage.Height * 0.07))
         $accentBrush.Dispose()
+        $graphics.ResetClip()
+        $boardClip.Dispose()
       }
       $outputPath = Join-Path $outputRoot ($slot.Name + '.png')
       $bitmap.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
