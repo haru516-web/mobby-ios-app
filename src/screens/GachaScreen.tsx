@@ -37,13 +37,15 @@ import {
   type GachaPullSize,
 } from '@/game/gachaStorage';
 import { useMobbyHaptics } from '@/hooks/useMobbyHaptics';
-import { useGachaTheme } from '@/theme/GachaThemeContext';
 import { useResponsiveLayout } from '@/ui/layout/responsive';
 import { Text } from '@/ui/layout/visualPrimitives';
 
 const GACHA_MACHINE = require('../../assets/gacha/screen/gacha-machine-v1.png');
 const GACHA_MACHINE_PANEL = require('../../assets/gacha/screen/gacha-machine-panel-v2.png');
 const GACHA_SPARKLE_RING = require('../../assets/gacha/screen/gacha-sparkle-ring-v1.png');
+const GACHA_PULL_BUTTON = require('../../assets/generated-ui/gacha-pull-button-v2.png');
+const GACHA_STAT_PLAQUE = require('../../assets/generated-ui/gacha-stat-plaque-v2.png');
+const GACHA_LINEUP_TILE = require('../../assets/generated-ui/gacha-lineup-tile-v2.png');
 const TAB_BAR_CLEARANCE = 82;
 
 const GACHA_LINEUP_ITEMS = [
@@ -204,7 +206,6 @@ function GachaResultModal({ outcome, onClose }: { outcome: GachaPullOutcome | nu
 
 export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps) {
   const { isCompact } = useResponsiveLayout();
-  const { activeTheme } = useGachaTheme();
   const haptics = useMobbyHaptics();
   const [inventory, setInventory] = useState<GachaInventoryState>(() => createInitialGachaState());
   const [hydrated, setHydrated] = useState(false);
@@ -355,7 +356,7 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
             style={styles.headerFreeBadge}
             contentStyle={styles.headerFreeBadgeContent}
           >
-            <Text style={[styles.headerFreeText, activeTheme && styles.navigationText]}>ずっと無料</Text>
+            <Text style={styles.headerFreeText}>ずっと無料</Text>
           </MobbyAssetSurface>
         </MobbyAssetSurface>
 
@@ -371,13 +372,25 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
           ].map((item) => <MobbyAssetSurface
             key={item.label}
             variant="labelPill"
+            backgroundSource={GACHA_STAT_PLAQUE}
+            backgroundResizeMode="cover"
             style={styles.progressCard}
             contentStyle={styles.progressCardContent}
           >
-            <Text style={[styles.progressValue, activeTheme && styles.navigationText]}>
-              {item.value}<Text style={[styles.progressUnit, activeTheme && styles.navigationSubText]}>{item.unit}</Text>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              style={styles.progressValue}
+            >
+              {item.value}<Text style={styles.progressUnit}>{item.unit}</Text>
             </Text>
-            <Text style={[styles.progressLabel, activeTheme && styles.navigationSubText]}>{item.label}</Text>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+              style={styles.progressLabel}
+            >{item.label}</Text>
           </MobbyAssetSurface>)}
         </View>
 
@@ -414,8 +427,8 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
                 style={styles.machinePlaque}
                 contentStyle={styles.machinePlaqueContent}
               >
-                <Text style={[styles.machineKicker, activeTheme && styles.navigationSubText]}>{pulling ? 'OPENING...' : 'TAP TO OPEN'}</Text>
-                <Text style={[styles.machineTitle, activeTheme && styles.navigationText]}>{pulling ? 'どきどき…' : '今日は何が出るかな？'}</Text>
+                <Text style={styles.machineKicker}>{pulling ? 'OPENING...' : 'TAP TO OPEN'}</Text>
+                <Text style={styles.machineTitle}>{pulling ? 'どきどき…' : '今日は何が出るかな？'}</Text>
               </MobbyAssetSurface>
             </View>
 
@@ -426,6 +439,9 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
                 disabled={actionDisabled}
                 onPress={() => void handlePull(1)}
                 tone="cream"
+                backgroundSource={GACHA_PULL_BUTTON}
+                backgroundResizeMode="cover"
+                preferBackgroundSource
                 style={styles.pullButton}
                 contentStyle={styles.pullButtonContent}
               >
@@ -439,6 +455,9 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
                 accessibilityState={{ busy: pulling }}
                 disabled={actionDisabled}
                 onPress={() => void handlePull(10)}
+                backgroundSource={GACHA_PULL_BUTTON}
+                backgroundResizeMode="cover"
+                preferBackgroundSource
                 style={[styles.pullButton, styles.pullButtonTen]}
                 contentStyle={styles.pullButtonContent}
               >
@@ -460,6 +479,8 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
           {GACHA_LINEUP_ITEMS.map((item) => <MobbyAssetSurface
             key={item.label}
             variant="tile"
+            backgroundSource={GACHA_LINEUP_TILE}
+            backgroundResizeMode="cover"
             style={styles.lineupCard}
             contentStyle={styles.lineupCardContent}
           >
@@ -590,21 +611,19 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'transparent' },
   content: { width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 14, paddingTop: 8, paddingBottom: TAB_BAR_CLEARANCE + 66 },
   contentCompact: { paddingHorizontal: 10 },
-  navigationText: { color: '#FFF8E9', textShadowColor: 'rgba(42,29,39,0.8)', textShadowRadius: 3 },
-  navigationSubText: { color: '#F6E1DF', textShadowColor: 'rgba(42,29,39,0.8)', textShadowRadius: 3 },
   headerCard: { minHeight: 94, borderRadius: 24, overflow: 'hidden' },
   headerCardContent: { minHeight: 94, paddingHorizontal: 22, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerCopy: { flex: 1, minWidth: 0, paddingRight: 8 },
+  headerCopy: { flex: 1, minWidth: 0, paddingLeft: 18, paddingRight: 8 },
   title: { color: '#FFF8E9', fontSize: 27, lineHeight: 32, fontWeight: '900', letterSpacing: 0.8, textShadowColor: 'rgba(42,29,39,0.72)', textShadowRadius: 3 },
   headerFreeBadge: { minWidth: 76, height: 32, borderRadius: 16, overflow: 'hidden', transform: [{ rotate: '3deg' }] },
   headerFreeBadgeContent: { height: 32, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
   headerFreeText: { color: '#735039', fontSize: 12, lineHeight: 15, fontWeight: '900' },
   progressRow: { flexDirection: 'row', gap: 7, marginTop: 8 },
   progressCard: { flex: 1, minWidth: 0, height: 56, borderRadius: 18, overflow: 'hidden' },
-  progressCardContent: { height: 56, paddingHorizontal: 5, paddingVertical: 7, alignItems: 'center', justifyContent: 'center' },
-  progressValue: { color: '#5A3D50', fontSize: 17, lineHeight: 20, fontWeight: '900' },
-  progressUnit: { color: '#886A79', fontSize: 12, fontWeight: '800' },
-  progressLabel: { color: '#957382', fontSize: 12, lineHeight: 14, fontWeight: '800', marginTop: 1 },
+  progressCardContent: { height: 56, paddingHorizontal: 2, paddingVertical: 7, alignItems: 'center', justifyContent: 'center' },
+  progressValue: { width: '100%', color: '#4A2D40', fontSize: 17, lineHeight: 20, fontWeight: '900', textAlign: 'center', textShadowColor: 'rgba(255,249,236,0.78)', textShadowRadius: 1 },
+  progressUnit: { color: '#5D3A4F', fontSize: 11, fontWeight: '800', textShadowColor: 'rgba(255,249,236,0.72)', textShadowRadius: 1 },
+  progressLabel: { width: '100%', color: '#5D3A4F', fontSize: 11, lineHeight: 13, fontWeight: '800', marginTop: 1, textAlign: 'center', textShadowColor: 'rgba(255,249,236,0.72)', textShadowRadius: 1 },
   machineCard: { height: 410, marginTop: 8, borderRadius: 30, overflow: 'hidden' },
   machinePanel: { ...StyleSheet.absoluteFillObject },
   machineCardContent: { height: 410, paddingHorizontal: 23, paddingTop: 20, paddingBottom: 23, alignItems: 'center', zIndex: 1 },
@@ -623,8 +642,8 @@ const styles = StyleSheet.create({
   pullButtonContent: { minHeight: 58, paddingHorizontal: 8, paddingVertical: 7 },
   pullButtonCopy: { alignItems: 'center', justifyContent: 'center' },
   pullButtonSub: { color: '#A2695E', fontSize: 12, lineHeight: 12, fontWeight: '900', letterSpacing: 1.3 },
-  pullButtonSubCoral: { color: '#FFE1B2', fontSize: 12, lineHeight: 12, fontWeight: '900', letterSpacing: 1.3 },
-  pullButtonText: { color: '#FFF9EC', fontSize: 17, lineHeight: 21, fontWeight: '900' },
+  pullButtonSubCoral: { color: '#8A4A55', fontSize: 12, lineHeight: 12, fontWeight: '900', letterSpacing: 1.3 },
+  pullButtonText: { color: '#5C3046', fontSize: 17, lineHeight: 21, fontWeight: '900' },
   pullButtonTextCream: { color: '#6A4559', fontSize: 17, lineHeight: 21, fontWeight: '900' },
   errorText: { color: '#B54451', fontSize: 12, lineHeight: 17, fontWeight: '900', textAlign: 'center', marginTop: 5, textShadowColor: 'rgba(255,249,235,0.9)', textShadowRadius: 2 },
   lineupHeader: { minHeight: 50, marginTop: 14, paddingHorizontal: 4, justifyContent: 'center' },

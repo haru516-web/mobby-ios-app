@@ -454,7 +454,7 @@ export function CollectionVisual({
       <BlackStarToggle
         active={showBlackStars}
         onChange={setShowBlackStars}
-        style={{ position: 'absolute', top: 69, right: 12, zIndex: 14, transform: [{ scale: 0.78 }] }}
+        style={{ position: 'absolute', top: 69, right: 12, zIndex: 14 }}
         testID="collection-black-star-toggle"
       />
       {mode === 'ぬいキー' ? (

@@ -13,7 +13,9 @@ Add-Type -AssemblyName System.Drawing
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $themeRoot = Join-Path $repoRoot 'assets\themes'
 $sourcePath = Join-Path $repoRoot 'assets\generated-ui\theme-control-surfaces-source-v1.png'
+$tabSourcePath = Join-Path $repoRoot 'assets\generated-ui\surface-label-pill-v1.png'
 $source = [System.Drawing.Image]::FromFile($sourcePath)
+$tabSource = [System.Drawing.Image]::FromFile($tabSourcePath)
 
 function Get-ThemeColor([string]$hex) {
   return [System.Drawing.ColorTranslator]::FromHtml($hex)
@@ -184,7 +186,12 @@ $styles = @(
 
 $slots = @(
   @{ Name='iconButton'; Width=240; Height=240; Source=(New-Object System.Drawing.Rectangle(20, 20, 550, 560)); Radius=120; Brightness=0.92; AccentMix=0.10 },
-  @{ Name='tab'; Width=520; Height=170; Source=(New-Object System.Drawing.Rectangle(560, 100, 680, 430)); Radius=44 },
+  # Shared by the gacha progress cards (テーマ・グッズ・引いた回数) and
+  # the story section tabs (4コマ漫画・事件). Use the authored bright label
+  # plaque, whose aspect ratio matches this slot, instead of letterboxing the
+  # darker control sheet. This keeps the text-safe center wide enough for the
+  # longest labels and avoids a dark outer wash around the bitmap.
+  @{ Name='tab'; Width=520; Height=170; Source=(New-Object System.Drawing.Rectangle(0, 0, $tabSource.Width, $tabSource.Height)); Radius=44; FillTarget=$true; Brightness=1.02; AccentMix=0.02 },
   @{ Name='closeButton'; Width=190; Height=190; Source=(New-Object System.Drawing.Rectangle(20, 650, 440, 520)); Radius=34 },
   @{ Name='reselectButton'; Width=720; Height=180; Source=(New-Object System.Drawing.Rectangle(560, 100, 680, 430)); Radius=54 },
   # New dress-up controls use text-safe cloth labels. The dimensions are
@@ -198,7 +205,7 @@ $slots = @(
   @{ Name='themeResetButton'; Width=720; Height=348; Source=(New-Object System.Drawing.Rectangle(540, 159, 660, 328)); Radius=62; PortraitOpacity=0.07; Brightness=0.92; AccentMix=0.10 }
 )
 $newSlotNames = @('dressUpButton', 'themeActionLabel', 'themeCharacterTab', 'themeResetButton')
-$brightSlotNames = @('iconButton', 'dressUpButton', 'themeActionLabel', 'themeCharacterTab', 'themeResetButton')
+$brightSlotNames = @('iconButton', 'tab', 'dressUpButton', 'themeActionLabel', 'themeCharacterTab', 'themeResetButton')
 
 foreach ($character in $characters) {
   $accent = Get-ThemeColor $character.Accent
@@ -211,6 +218,8 @@ foreach ($character in $characters) {
     foreach ($slot in $slots) {
       $isNewSlot = $slot.Name -in $newSlotNames
       $isBrightSlot = $slot.Name -in $brightSlotNames
+      $assetSource = if ($slot.Name -eq 'tab') { $tabSource } else { $source }
+      $fillTarget = $isNewSlot -or ($slot.ContainsKey('FillTarget') -and [bool]$slot.FillTarget)
       $brightness = if ($slot.ContainsKey('Brightness')) { [single]$slot.Brightness } else { [single]0.68 }
       $accentMix = if ($slot.ContainsKey('AccentMix')) { [single]$slot.AccentMix } else { [single]0.32 }
       $bitmap = New-Object System.Drawing.Bitmap($slot.Width, $slot.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -222,7 +231,7 @@ foreach ($character in $characters) {
       $bounds = New-Object System.Drawing.RectangleF(0, 0, $slot.Width, $slot.Height)
       $clip = New-RoundedPath $bounds $slot.Radius
       $graphics.SetClip($clip)
-      Draw-TintedCrop -graphics $graphics -image $source -sourceRect $slot.Source -targetRect $bounds -accent $accent -FillTarget:$isNewSlot -Brightness $brightness -AccentMix $accentMix
+      Draw-TintedCrop -graphics $graphics -image $assetSource -sourceRect $slot.Source -targetRect $bounds -accent $accent -FillTarget:$fillTarget -Brightness $brightness -AccentMix $accentMix
       # These controls already contain their own authored shapes. Do not add
       # a theme tint wash behind them; it becomes an unrelated colored outer
       # container around the artwork.
@@ -238,7 +247,7 @@ foreach ($character in $characters) {
         $portraitRect = New-Object System.Drawing.RectangleF(($slot.Width - $portraitWidth - ($slot.Width * 0.045)), ($slot.Height * 0.08), $portraitWidth, ($slot.Height * 0.84))
         Draw-SoftPortrait $graphics $characterImage $portraitRect ([single]$slot.PortraitOpacity)
         Draw-ThemeEmblem $graphics $accent $tint $slot.Width $slot.Height $style.Number
-      } else {
+      } elseif ($slot.Name -ne 'tab') {
         Draw-ThemeMark $graphics $character.Motif $accent $slot.Width $slot.Height $style.Number
       }
       $target = Join-Path $styleRoot ($slot.Name + '.png')
@@ -252,4 +261,5 @@ foreach ($character in $characters) {
   $characterImage.Dispose()
 }
 $source.Dispose()
+$tabSource.Dispose()
 Write-Output "Generated $($characters.Count * $styles.Count * $slots.Count) themed control assets under $themeRoot"

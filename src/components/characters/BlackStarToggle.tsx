@@ -35,6 +35,7 @@ export const BlackStarToggle = memo(function BlackStarToggle({
       disabled={disabled}
       hitSlop={8}
       onPress={() => onChange(!active)}
+      backgroundResizeMode="cover"
       style={[
         styles.button,
         active && styles.buttonActive,
@@ -53,10 +54,10 @@ export const BlackStarToggle = memo(function BlackStarToggle({
 
 const styles = StyleSheet.create({
   button: {
-    minWidth: 92,
-    minHeight: 42,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    minWidth: 108,
+    minHeight: 48,
+    paddingHorizontal: 5,
+    paddingVertical: 4,
     borderRadius: 22,
     backgroundColor: 'transparent',
     flexDirection: 'row',

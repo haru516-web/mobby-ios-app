@@ -160,16 +160,20 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
             selected={false}
             onPress={() => setSection('comic')}
             style={[styles.incidentSectionTab, sectionValue === 'comic' && styles.incidentSectionTabActive]}
+            contentStyle={styles.incidentSectionTabContent}
+            backgroundResizeMode="cover"
           >
-            <Text style={[styles.incidentSectionTabText, sectionValue === 'comic' && styles.incidentSectionTabTextActive]}>4コマ漫画</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={[styles.incidentSectionTabText, sectionValue === 'comic' && styles.incidentSectionTabTextActive]}>4コマ漫画</Text>
           </MobbyAssetTabButton>
           <MobbyAssetTabButton
             accessibilityLabel="事件"
             selected={section === 'incident'}
             onPress={() => setSection('incident')}
             style={[styles.incidentSectionTab, section === 'incident' && styles.incidentSectionTabActive]}
+            contentStyle={styles.incidentSectionTabContent}
+            backgroundResizeMode="cover"
           >
-            <Text style={[styles.incidentSectionTabText, section === 'incident' && styles.incidentSectionTabTextActive]}>事件</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={[styles.incidentSectionTabText, section === 'incident' && styles.incidentSectionTabTextActive]}>事件</Text>
           </MobbyAssetTabButton>
         </View>
       </MobbyAssetSurface> : null}
@@ -273,8 +277,10 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
             selected
             onPress={() => setSection('comic')}
             style={styles.sectionTab}
+            contentStyle={styles.sectionTabContent}
+            backgroundResizeMode="cover"
           >
-            <Text style={[styles.sectionTabText, styles.sectionTabTextActive, compact && styles.sectionTabTextCompact]}>4コマ漫画</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={[styles.sectionTabText, styles.sectionTabTextActive, compact && styles.sectionTabTextCompact]}>4コマ漫画</Text>
             <View style={styles.sectionTabUnderline} />
           </MobbyAssetTabButton>
           <MobbyAssetTabButton
@@ -282,8 +288,10 @@ export function StoriesScreen({ entryNonce = 0, onBlackStarUnlocked }: StoriesSc
             selected={false}
             onPress={() => setSection('incident')}
             style={styles.sectionTab}
+            contentStyle={styles.sectionTabContent}
+            backgroundResizeMode="cover"
           >
-            <Text style={[styles.sectionTabText, compact && styles.sectionTabTextCompact]}>事件</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={[styles.sectionTabText, compact && styles.sectionTabTextCompact]}>事件</Text>
           </MobbyAssetTabButton>
         </View>
         <ScrollView
@@ -363,11 +371,12 @@ const styles = StyleSheet.create({
   incidentSectionRoot: { flex: 1, minHeight: 0 },
   incidentSectionScreen: { flex: 1, minHeight: 0 },
   incidentSectionTabsSurface: { width: 226, height: 42, alignSelf: 'center', marginTop: 5, marginBottom: -3, zIndex: 5, overflow: 'hidden' },
-  incidentSectionTabsContent: { minHeight: 42, paddingHorizontal: 5, paddingVertical: 4 },
+  incidentSectionTabsContent: { minHeight: 42, paddingHorizontal: 3, paddingVertical: 4 },
   incidentSectionTabs: { flex: 1, flexDirection: 'row', gap: 4 },
-  incidentSectionTab: { flex: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  incidentSectionTab: { flex: 1, minHeight: 0, borderRadius: 14, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  incidentSectionTabContent: { minHeight: 0, paddingHorizontal: 2, paddingVertical: 3 },
   incidentSectionTabActive: { borderBottomWidth: 2, borderBottomColor: '#8C667F' },
-  incidentSectionTabText: { color: '#876C79', fontSize: 10, lineHeight: 13, fontWeight: '900' },
+  incidentSectionTabText: { width: '100%', color: '#876C79', fontSize: 9, lineHeight: 12, fontWeight: '900', textAlign: 'center' },
   incidentSectionTabTextActive: { color: '#68465F' },
   root: { flex: 1, minHeight: 0, paddingHorizontal: 7, paddingBottom: TAB_BAR_CLEARANCE, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   board: { position: 'relative', borderRadius: 30, overflow: 'hidden' },
@@ -379,9 +388,10 @@ const styles = StyleSheet.create({
   headingCompact: { fontSize: 18, lineHeight: 22 },
   sectionTabs: { height: 34, flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: 1, borderBottomColor: 'rgba(148,99,102,0.24)' },
   sectionTabsCompact: { height: 29 },
-  sectionTab: { flex: 1, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
-  sectionTabText: { color: '#A88B87', fontSize: 11, lineHeight: 14, fontWeight: '900' },
-  sectionTabTextCompact: { fontSize: 9, lineHeight: 12 },
+  sectionTab: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent' },
+  sectionTabContent: { minHeight: 0, paddingHorizontal: 2, paddingVertical: 2 },
+  sectionTabText: { width: '100%', color: '#A88B87', fontSize: 10, lineHeight: 13, fontWeight: '900', textAlign: 'center' },
+  sectionTabTextCompact: { fontSize: 8, lineHeight: 11 },
   sectionTabTextActive: { color: '#724B66' },
   sectionTabUnderline: { position: 'absolute', left: '18%', right: '18%', bottom: -1, height: 3, borderRadius: 2, backgroundColor: '#D36F7D' },
   disabledTabLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
