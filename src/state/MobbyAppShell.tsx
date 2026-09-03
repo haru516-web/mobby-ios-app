@@ -17,6 +17,7 @@ import {
   StyleSheet,
   Text as NativeText,
   View,
+  type ImageSourcePropType,
   type TextProps,
 } from 'react-native';
 
@@ -75,8 +76,8 @@ import { zenMaruFamily } from '@/ui/text/fontFamily';
 import { GachaThemeProvider, useGachaTheme } from '@/theme/GachaThemeContext';
 import { MobbyAssetButton, MobbyAssetIconButton } from '@/components/mobby-ui';
 import {
-  CHARACTER_ITEM_IDS, COLLECTIBLE_VARIANTS, EMPTY_OWNED, ITEMS, ITEM_ENEMY_IDS, ITEM_MOBBY_IDS, collectibleInventoryKey,
-  collectibleName, isCollectibleVariant, isItemId, itemCharacterName, legacyVariantForItem,
+  COLLECTION_ITEMS, COLLECTIBLE_VARIANTS, EMPTY_OWNED, ITEMS, ITEM_ENEMY_IDS, ITEM_MOBBY_IDS, characterItemId, collectibleInventoryKey,
+  collectibleName, isCollectibleVariant, isItemId, itemCharacterName,
   normalizeCollectibleInventory, ownedCollectibleCount,
   type CollectibleVariant, type Item,
 } from '@/data/collectibles';
@@ -224,15 +225,25 @@ function decodeOnboardingReward(raw: string | null): OnboardingRewardState | nul
 }
 
 // Character availability and collectible ownership are deliberately separate.
-// Black Stars are unlocked by finishing their incident story, while each of
-// their three physical goods remains a gacha reward. The local development
-// preview unlocks character selection only; it must not silently grant goods.
-const DEFAULT_OWNED: Record<string, number> = ITEMS.filter((item) => !ITEM_ENEMY_IDS[item.id]).reduce<Record<string, number>>((inventory, item) => {
-  inventory[collectibleInventoryKey(item.id, legacyVariantForItem(item))] = 1;
+// The preview starts with every physical collectible visible so the complete
+// gacha catalog can be checked without requiring one pull per item.
+const INITIAL_OWNED: Record<string, number> = COLLECTION_ITEMS.reduce<Record<string, number>>((inventory, item) => {
+  for (const variant of COLLECTIBLE_VARIANTS) {
+    inventory[collectibleInventoryKey(item.id, variant)] = 1;
+  }
   return inventory;
 }, { ...EMPTY_OWNED });
 
-const INITIAL_OWNED: Record<string, number> = DEFAULT_OWNED;
+function ensureAllCollectiblesOwned(inventory: Record<string, number>) {
+  const completed = { ...inventory };
+  for (const item of COLLECTION_ITEMS) {
+    for (const variant of COLLECTIBLE_VARIANTS) {
+      const key = collectibleInventoryKey(item.id, variant);
+      completed[key] = Math.max(1, completed[key] ?? 0);
+    }
+  }
+  return completed;
+}
 
 function normalizeOwnedInventory(raw: Record<string, unknown>) {
   return normalizeCollectibleInventory(raw, (key) => key.startsWith(DAILY_REWARD_RECEIPT_PREFIX) || key === ONBOARDING_REWARD_RECEIPT);
@@ -614,7 +625,7 @@ const MobbySceneContext = createContext<MobbySceneContextValue>({ scene: null })
 export type MobbyShellCharacter = {
   id: string;
   name: string;
-  image: number;
+  image: ImageSourcePropType;
   owned: boolean;
   faction: 'mobby' | 'kuroboshi';
 };
@@ -722,7 +733,8 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
   const effectiveOwned = useMemo(() => {
     const merged = { ...owned };
     for (const reward of GACHA_GOODS_REWARDS) {
-      const itemId = CHARACTER_ITEM_IDS[reward.characterId];
+      const itemId = characterItemId(reward.characterId);
+      if (!itemId) continue;
       const key = collectibleInventoryKey(itemId, reward.variant);
       merged[key] = (merged[key] ?? 0) + getGachaGoodsCount(gachaInventory, reward.characterId, reward.variant);
     }
@@ -906,7 +918,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
           try {
             const parsed = JSON.parse(storedInventory) as Record<string, unknown>;
             const normalizedInventory = normalizeOwnedInventory(parsed);
-            storedOwned = normalizedInventory;
+            storedOwned = ensureAllCollectiblesOwned(normalizedInventory);
           } catch {
             storedOwned = completed ? INITIAL_OWNED : EMPTY_OWNED;
           }
@@ -941,7 +953,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!mounted) return;
-        const fallbackOwned = EMPTY_OWNED;
+        const fallbackOwned = INITIAL_OWNED;
         storedHomeLayoutRawRef.current = null;
         setOwned(fallbackOwned);
         setHomeLayout(createDefaultHomeLayout(fallbackOwned));
@@ -1677,7 +1689,7 @@ function MobbyAppShellClient({ children }: { children: ReactNode }) {
               <View style={styles.screenBody}>
                 <ScreenTransition screenKey={screen ?? `route:${pathname}`} reduceMotion={reduceMotion}>
                 {screen === 'home' ? <HomeScreen selected={selected} characters={shellCharacters} onSelectCharacter={setFavorite} owned={effectiveOwned} incidentWallItemId={incidentTargetItemId ?? resolutionTargetItemId ?? undefined} incidentWallState={incidentWallState} placementHiddenWallPlacementId={wallPlacement && wallPlacement.variant !== 'plush' ? wallPlacement.placementId : undefined} onIncidentPress={openIncident} homeLayout={homeLayout} onCommitHomeLayout={commitHomeLayout} onMoveHomePlacement={moveHomeItem} onRemoveHomePlacement={hideHomeItem} onArrangeStart={haptics.medium} onArrangeMove={haptics.threshold} onUiTap={() => playSfx('tap')} onInteract={interact} onKeychainSwing={playKeychainJingle} reaction={reaction} entryNonce={tabEntryNonce} /> : null}
-                {screen === 'collection' ? <CollectionScreen items={ITEMS} owned={effectiveOwned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
+                {screen === 'collection' ? <CollectionScreen items={COLLECTION_ITEMS} owned={effectiveOwned} selectedId={selectedId} onSelect={selectItem} onKeychainSwing={playKeychainJingle} entryNonce={tabEntryNonce} /> : null}
                 {screen === 'time' && headerPopover !== 'mobby-time' ? <MobbyTimeHubScreen
                   entryNonce={tabEntryNonce}
                   mobbyTimeProps={{ flow: onboardingRewardActive ? 'onboarding' : 'daily', today, todayVariant: effectiveTodayVariant, stage: effectiveMobbyTimeStage, reduceMotion, onOpen: handleRewardOpen, onReveal: handleRewardReveal, onPlace: handleRewardPlace, onPlaced: handleRewardPlaced, secondsLeft }}

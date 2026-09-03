@@ -52,7 +52,7 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable accessibilityLabel="キャラ選択を閉じる" accessibilityRole="button" onPress={close} style={styles.backdrop} />
       <View accessibilityViewIsModal accessibilityLabel="メインモビーのキャラ選択" style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
-      <ImageBackground accessible={false} imageStyle={styles.panelImage} contentFit="cover" source={activeTheme?.assets.popup ?? CHARACTER_PICKER_POPUP_BACKGROUND} style={styles.panelBackground}>
+      <ImageBackground accessible={false} imageStyle={styles.panelImage} contentFit="cover" source={activeTheme?.assets.characterPickerPopup ?? CHARACTER_PICKER_POPUP_BACKGROUND} style={styles.panelBackground}>
       <View style={styles.panelContent}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
@@ -71,6 +71,7 @@ export function CharacterPickerPopover({ characters, selectedId, disabled, onCon
           const next = candidates.find((character) => character.id === draftId) ?? candidates.find((character) => character.owned) ?? candidates[0];
           if (next) setDraftId(next.id);
         }}
+        showStarIcon={false}
         style={styles.blackStarToggle}
         testID="character-picker-black-star-toggle"
       />

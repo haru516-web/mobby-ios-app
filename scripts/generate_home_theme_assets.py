@@ -299,7 +299,7 @@ def render_slot(
     trim = draw_style_trim(base.size, character, style, seed, frame_mask)
     rendered.alpha_composite(trim)
 
-    # Add a small actual-character motif outside the content-safe center.
+    # Add an actual-character motif outside the content-safe center.
     medallion_size = max(24, round(min(base.size) * slot.motif_scale))
     medallion = character_medallion(character, character_art, medallion_size, style, seed)
     mx = round(base.width * slot.motif_anchor[0] - medallion.width / 2)
@@ -481,10 +481,6 @@ def main() -> None:
         recompress_home_assets()
         return
 
-    missing = [str(path) for path in STYLE_MATERIALS.values() if not path.is_file()]
-    if missing:
-        raise SystemExit("Missing ImageGen material sheets:\n" + "\n".join(missing))
-
     if args.registry_only:
         if args.scope in ("home", "all"):
             write_registry()
@@ -492,6 +488,10 @@ def main() -> None:
             write_mobby_time_registry()
         print("Generated static theme asset registries")
         return
+
+    missing = [str(path) for path in STYLE_MATERIALS.values() if not path.is_file()]
+    if missing:
+        raise SystemExit("Missing ImageGen material sheets:\n" + "\n".join(missing))
 
     materials = {style: Image.open(path).convert("RGB") for style, path in STYLE_MATERIALS.items()}
     scopes = []

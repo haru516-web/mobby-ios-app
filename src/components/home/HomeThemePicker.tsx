@@ -120,6 +120,7 @@ export function HomeThemePicker({ visible, onClose }: { visible: boolean; onClos
         accessibilityViewIsModal
         accessibilityLabel="アプリ内背景の着せ替え"
         variant="modalPortrait"
+        themeAssetSlot="dressUpPopup"
         style={[styles.panel, { width: panelWidth, height: panelHeight }]}
         contentStyle={styles.panelContent}
       >

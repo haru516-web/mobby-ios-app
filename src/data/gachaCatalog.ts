@@ -3,6 +3,11 @@ import type { ImageSourcePropType } from 'react-native';
 import { ENEMIES, type EnemyId } from '@/data/enemies';
 import { MOBBIES, type MobbyId } from '@/data/mobies';
 
+import {
+  DIAGNOSIS_CHARACTER_DEFINITIONS,
+  DIAGNOSIS_GOODS_PREVIEWS,
+  type DiagnosisMobbyId,
+} from './diagnosisCharacters';
 import { getGeneratedGachaHomeThemeAssets } from './gachaHomeThemeAssets.generated';
 import { getGeneratedGachaMobbyTimeThemeAssets } from './gachaMobbyTimeThemeAssets.generated';
 import { getGeneratedGachaThemeAssets } from './gachaThemeAssets.generated';
@@ -14,7 +19,7 @@ export const GACHA_TOOL_KINDS = ['poke', 'weight'] as const;
 export type GachaStyleNumber = (typeof GACHA_STYLE_NUMBERS)[number];
 export type GachaGoodsVariant = (typeof GACHA_GOODS_VARIANTS)[number];
 export type GachaToolKind = (typeof GACHA_TOOL_KINDS)[number];
-export type GachaCharacterId = MobbyId | EnemyId;
+export type GachaCharacterId = MobbyId | EnemyId | DiagnosisMobbyId;
 export type GachaRewardCategory = 'tool' | 'goods' | 'theme';
 export type GachaRarity = 'R' | 'SR' | 'SSR';
 
@@ -31,6 +36,9 @@ export type GachaThemeAssetSlot =
   | 'card'
   | 'navigation'
   | 'popup'
+  | 'dressUpPopup'
+  | 'characterPickerPopup'
+  | 'reactionBookPopup'
   | 'iconButton'
   | 'tab'
   | 'closeButton'
@@ -157,6 +165,7 @@ const GOODS_PREVIEWS: Readonly<Record<GachaCharacterId, Readonly<Record<GachaGoo
   'veiled-duchess': { 'key-normal': require('../../assets/gacha/goods/veiled-duchess/key-normal.png'), 'key-small': require('../../assets/gacha/goods/veiled-duchess/key-small.png'), plush: require('../../assets/gacha/goods/veiled-duchess/plush.png') },
   courier: { 'key-normal': require('../../assets/gacha/goods/courier/key-normal.png'), 'key-small': require('../../assets/gacha/goods/courier/key-small.png'), plush: require('../../assets/gacha/goods/courier/plush.png') },
   commander: { 'key-normal': require('../../assets/gacha/goods/commander/key-normal.png'), 'key-small': require('../../assets/gacha/goods/commander/key-small.png'), plush: require('../../assets/gacha/goods/commander/plush.png') },
+  ...DIAGNOSIS_GOODS_PREVIEWS,
 };
 const THEME_PREVIEW = require('../../assets/backgrounds/home-room-rich-v2.png');
 const THEME_FALLBACK_SOURCES: Record<GachaThemeAssetSlot, ImageSourcePropType> = {
@@ -166,6 +175,9 @@ const THEME_FALLBACK_SOURCES: Record<GachaThemeAssetSlot, ImageSourcePropType> =
   card: require('../../assets/generated-ui/surface-paper-wide-v1.png'),
   navigation: require('../../assets/home-ui/panels/nav-backdrop-v4.png'),
   popup: require('../../assets/generated-ui/popup-settings-v1.png'),
+  dressUpPopup: require('../../assets/generated-ui/popup-themes/dress-up-panel-v1.png'),
+  characterPickerPopup: require('../../assets/generated-ui/popup-themes/character-picker-panel-v1.png'),
+  reactionBookPopup: require('../../assets/generated-ui/popup-themes/reaction-book-panel-v1.png'),
   iconButton: require('../../assets/generated-ui/header-circle-paper-v1.png'),
   tab: require('../../assets/generated-ui/button-cream-v1.png'),
   closeButton: require('../../assets/generated-ui/button-back-v1.png'),
@@ -204,7 +216,7 @@ const ENEMY_ACCENTS: Readonly<Record<EnemyId, string>> = {
   commander: '#535B75',
 };
 
-export const GACHA_CHARACTERS: readonly GachaCharacterSummary[] = [
+const BASE_GACHA_CHARACTERS: readonly GachaCharacterSummary[] = [
   ...MOBBIES.map((mobby): GachaCharacterSummary => ({
     id: mobby.id,
     name: mobby.name,
@@ -220,6 +232,22 @@ export const GACHA_CHARACTERS: readonly GachaCharacterSummary[] = [
     faction: 'kuroboshi',
   })),
 ];
+
+export const GACHA_CHARACTERS: readonly GachaCharacterSummary[] = [
+  ...BASE_GACHA_CHARACTERS,
+  ...DIAGNOSIS_CHARACTER_DEFINITIONS.map((character): GachaCharacterSummary => ({
+    id: character.id,
+    name: character.name,
+    accent: character.accent,
+    image: character.assets.plush,
+    faction: 'mobby',
+  })),
+];
+
+// Diagnosis characters add goods to the capsule pool only.  The existing
+// five-style theme catalog remains tied to the playable base roster until
+// character-specific theme art is authored for those diagnoses.
+export const GACHA_THEME_CHARACTERS = BASE_GACHA_CHARACTERS;
 
 export const GACHA_CHARACTER_IDS = GACHA_CHARACTERS.map((character) => character.id);
 
@@ -332,7 +360,7 @@ const GOODS_REWARDS: readonly GachaGoodsReward[] = GACHA_CHARACTERS.flatMap((cha
   })),
 );
 
-const THEME_REWARDS: readonly GachaThemeReward[] = GACHA_CHARACTERS.flatMap((character) =>
+const THEME_REWARDS: readonly GachaThemeReward[] = BASE_GACHA_CHARACTERS.flatMap((character) =>
   GACHA_STYLE_NUMBERS.map((styleNumber): GachaThemeReward => {
     const assets = themeAssets(character.id, styleNumber);
     const homeAssets = homeThemeAssets(character.id, styleNumber);

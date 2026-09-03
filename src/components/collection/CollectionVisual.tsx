@@ -4,7 +4,8 @@ import { AccessibilityInfo, Animated, PanResponder, Platform, Pressable, View, t
 
 import type { ReactionMilestone } from '@/data/dailyRewards';
 import { BlackStarToggle } from '@/components/characters';
-import { collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectibleVariant, type Item, type ItemKind } from '@/data/collectibles';
+import { DIAGNOSIS_CATEGORY_LABELS } from '@/data/diagnosisCharacters';
+import { collectibleImage, itemCharacterName, ownedCollectibleCount, type CollectionGroup, type CollectibleVariant, type Item, type ItemKind } from '@/data/collectibles';
 import { styles } from '@/ui/layout/appStyles';
 import { Text, useAppLayout } from '@/ui/layout/visualPrimitives';
 
@@ -38,6 +39,13 @@ const COLLECTION_BOARD_TOP = 128;
 const COLLECTION_COLUMN_X = [128, 220, 312] as const;
 const COLLECTION_KEY_ROW_RATIOS = [0.149, 0.396, 0.665] as const;
 const COLLECTION_PLUSH_SHELF_RATIOS = [0.324, 0.6, 0.871] as const;
+const COLLECTION_GROUP_TABS = [
+  { id: 'base', label: '通常', accessibilityLabel: '通常モビー' },
+  { id: 'school', label: '学校', accessibilityLabel: DIAGNOSIS_CATEGORY_LABELS.school },
+  { id: 'renai', label: '恋愛', accessibilityLabel: DIAGNOSIS_CATEGORY_LABELS.renai },
+  { id: 'oshi', label: '推し活', accessibilityLabel: DIAGNOSIS_CATEGORY_LABELS.oshi },
+  { id: 'menhera', label: 'メンヘラ', accessibilityLabel: DIAGNOSIS_CATEGORY_LABELS.menhera },
+] as const;
 
 
 
@@ -156,7 +164,7 @@ function KeychainTile({ item, owned, selectedId, onSelect, imageSize = 'normal',
       <Pressable disabled={ownedCount === 0} onPress={selectKey} style={styles.collectionKeyPressable} accessibilityRole="button" accessibilityLabel={`${name}${imageSize === 'small' ? ' Sサイズ' : ' 通常サイズ'}を揺らす`} accessibilityState={{ disabled: ownedCount === 0 }}>
         <Text style={styles.collectionKeyName} numberOfLines={1}>{name}</Text>
         <Animated.View style={[styles.collectionKeySwing, { transform: [{ rotate: sway }, { scale }] }]}>
-          <View style={[styles.collectionKeyBody, item && ownedCount > 0 && styles.collectionKeyBodyOwned, item && ownedCount > 0 && selectedId === item.id && styles.collectionKeySelected]}>{item && ownedCount > 0 ? <Image source={keyImage} contentFit="contain" style={[styles.collectionKeyImage, imageSize === 'small' && styles.collectionSmallKeyImage]} /> : item?.faction === 'kuroboshi' ? <Image source={keyImage} contentFit="contain" tintColor="#17131D" style={[styles.collectionKeyImage, imageSize === 'small' && styles.collectionSmallKeyImage, { opacity: 0.44 }]} /> : <Text style={styles.collectionKeyPlaceholderText}>?</Text>}</View>
+        <View style={[styles.collectionKeyBody, item && ownedCount > 0 && styles.collectionKeyBodyOwned, item && ownedCount > 0 && selectedId === item.id && styles.collectionKeySelected]}>{item && ownedCount > 0 ? <Image source={keyImage} contentFit="contain" style={[styles.collectionKeyImage, imageSize === 'small' && styles.collectionSmallKeyImage]} /> : item ? <Image source={keyImage} contentFit="contain" tintColor="#17131D" style={[styles.collectionKeyImage, imageSize === 'small' && styles.collectionSmallKeyImage, { opacity: 0.44 }]} /> : <Text style={styles.collectionKeyPlaceholderText}>?</Text>}</View>
         </Animated.View>
       </Pressable>
     </Animated.View>
@@ -426,11 +434,26 @@ export function CollectionVisual({
   const [mode, setMode] = useState<ItemKind>('ぬいキー');
   const [keyImageSize, setKeyImageSize] = useState<KeychainImageSize>('normal');
   const [showBlackStars, setShowBlackStars] = useState(false);
-  useEffect(() => setShowBlackStars(false), [entryNonce]);
-  const visibleItems = items.filter((item) => item.faction === (showBlackStars ? 'kuroboshi' : 'mobby'));
+  const [collectionGroup, setCollectionGroup] = useState<CollectionGroup>('base');
+  const [collectionPage, setCollectionPage] = useState(0);
+  useEffect(() => {
+    setShowBlackStars(false);
+    setCollectionGroup('base');
+    setCollectionPage(0);
+  }, [entryNonce]);
+  const visibleItems = items.filter((item) => {
+    if (item.faction !== (showBlackStars ? 'kuroboshi' : 'mobby')) return false;
+    return showBlackStars || (item.collectionGroup ?? 'base') === collectionGroup;
+  });
   const slotCount = showBlackStars ? 7 : 9;
-  const displayItems: (Item | null)[] = [...visibleItems, ...Array.from({ length: Math.max(0, slotCount - visibleItems.length) }, () => null)];
+  const pageCount = Math.max(1, Math.ceil(visibleItems.length / slotCount));
+  const visiblePage = Math.min(collectionPage, pageCount - 1);
+  const pageItems = visibleItems.slice(visiblePage * slotCount, (visiblePage + 1) * slotCount);
+  const displayItems: (Item | null)[] = [...pageItems, ...Array.from({ length: Math.max(0, slotCount - pageItems.length) }, () => null)];
   const boardHeight = Math.min(640, Math.max(420, appHeight - 302));
+  useEffect(() => {
+    setCollectionPage(0);
+  }, [collectionGroup, mode, showBlackStars]);
   void reactionCount;
   void claimedReactionMilestones;
   void dailyHydrated;
@@ -439,7 +462,6 @@ export function CollectionVisual({
     <View style={styles.collectionScreenBackground}>
       <View style={styles.collectionScrollContent}>
       <View style={[styles.collectionStage, { height: COLLECTION_BOARD_TOP + boardHeight }]}>
-      <View pointerEvents="none" style={[styles.collectionBoardShadow, { height: boardHeight - 10 }]} />
       <Image source={COLLECTION_DISPLAY_BOARD} contentFit="contain" contentPosition="center" style={[styles.collectionDisplayBoard, { height: boardHeight }]} />
       <View style={styles.collectionHeaderBar}>
         <ImageBackground source={UI_WIDE_PAPER} contentFit="contain" contentPosition="center" accessibilityRole="tablist" accessibilityLabel="コレクションの種類" style={styles.collectionModeTabs}>
@@ -453,10 +475,35 @@ export function CollectionVisual({
       </View>
       <BlackStarToggle
         active={showBlackStars}
-        onChange={setShowBlackStars}
+        onChange={(next) => {
+          setShowBlackStars(next);
+          setCollectionGroup('base');
+          setCollectionPage(0);
+        }}
+        showStarIcon={false}
         style={{ position: 'absolute', top: 69, right: 12, zIndex: 14 }}
         testID="collection-black-star-toggle"
       />
+      {!showBlackStars ? (
+        <View accessibilityRole="tablist" accessibilityLabel="診断別コレクション" style={styles.collectionGroupTabs}>
+          {COLLECTION_GROUP_TABS.map((tab) => (
+            <Pressable
+              key={tab.id}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.accessibilityLabel}
+              accessibilityState={{ selected: collectionGroup === tab.id }}
+              onPress={() => setCollectionGroup(tab.id)}
+              style={({ pressed }) => [
+                styles.collectionGroupTab,
+                collectionGroup === tab.id && styles.collectionGroupTabActive,
+                pressed && styles.collectionKeySizeTabPressed,
+              ]}
+            >
+              <Text style={[styles.collectionGroupTabText, collectionGroup === tab.id && styles.collectionGroupTabTextActive]}>{tab.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       {mode === 'ぬいキー' ? (
         <ImageBackground source={UI_SIZE_SELECTOR_PAPER} contentFit="contain" contentPosition="center" accessibilityRole="tablist" accessibilityLabel="ぬいキーのサイズ" style={styles.collectionKeySizeTabs}>
           <Text style={styles.collectionKeySizeLabel}>サイズ</Text>
@@ -489,7 +536,7 @@ export function CollectionVisual({
                   <View style={[styles.plushCollectionBody, item && ownedCollectibleCount(owned, item.id, 'plush') > 0 && styles.plushCollectionBodyOwned, item && ownedCollectibleCount(owned, item.id, 'plush') > 0 && selectedId === item.id && styles.plushCollectionSelected]}>
                     {item && ownedCollectibleCount(owned, item.id, 'plush') > 0 ? (
                       <Image source={item.image} contentFit="contain" style={[styles.plushCollectionImage, { bottom: getPlushCollectionImageBottom(item) }]} />
-                    ) : item?.faction === 'kuroboshi' ? (
+                    ) : item ? (
                       <Image source={item.image} contentFit="contain" tintColor="#17131D" style={[styles.plushCollectionImage, { bottom: getPlushCollectionImageBottom(item), opacity: 0.42 }]} />
                     ) : (
                     <Text style={styles.plushCollectionPlaceholderText}>?</Text>
@@ -500,6 +547,31 @@ export function CollectionVisual({
             ))}
           </View>
         )}
+        {pageCount > 1 ? (
+          <View style={styles.collectionPageControls}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="前のページ"
+              accessibilityState={{ disabled: visiblePage === 0 }}
+              disabled={visiblePage === 0}
+              onPress={() => setCollectionPage(Math.max(0, visiblePage - 1))}
+              style={({ pressed }) => [styles.collectionPageButton, visiblePage === 0 && styles.collectionPageButtonDisabled, pressed && styles.gamePressed]}
+            >
+              <Text style={styles.collectionPageArrow}>‹</Text>
+            </Pressable>
+            <Text accessibilityLabel={`コレクション ${visiblePage + 1} / ${pageCount}ページ`} style={styles.collectionPageText}>{visiblePage + 1} / {pageCount}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="次のページ"
+              accessibilityState={{ disabled: visiblePage >= pageCount - 1 }}
+              disabled={visiblePage >= pageCount - 1}
+              onPress={() => setCollectionPage(Math.min(pageCount - 1, visiblePage + 1))}
+              style={({ pressed }) => [styles.collectionPageButton, visiblePage >= pageCount - 1 && styles.collectionPageButtonDisabled, pressed && styles.gamePressed]}
+            >
+              <Text style={styles.collectionPageArrow}>›</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
       </View>
       </View>

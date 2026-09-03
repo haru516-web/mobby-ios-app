@@ -1,5 +1,5 @@
 import {
-  ITEMS,
+  COLLECTION_ITEMS,
   collectibleInventoryKey,
   isCollectibleVariant,
   isItemId,
@@ -45,7 +45,7 @@ export function resolveHomePlacement(value: unknown): ResolvedHomePlacement | nu
   if (copyValue !== undefined && !/^[1-9]\d*$/.test(copyValue)) return null;
   const copyNumber = copyValue === undefined ? 1 : Number(copyValue);
   if (!Number.isSafeInteger(copyNumber) || copyNumber < 1) return null;
-  const item = ITEMS.find((candidate) => candidate.id === itemId);
+  const item = COLLECTION_ITEMS.find((candidate) => candidate.id === itemId);
   if (!item) return null;
   const inventoryKey = collectibleInventoryKey(itemId, variantValue);
   return {
@@ -71,7 +71,7 @@ export function ownedHomePlacementIds(owned: Readonly<Record<string, number>>, k
     : kind === 'wall'
       ? WALL_VARIANTS
       : ['key-normal', 'key-small', 'plush'];
-  return ITEMS.flatMap((item) => variants.flatMap((variant) => {
+  return COLLECTION_ITEMS.flatMap((item) => variants.flatMap((variant) => {
     const count = ownedCollectibleCount(owned as Record<string, number>, item.id, variant);
     if (!Number.isSafeInteger(count) || count <= 0) return [];
     return Array.from({ length: count }, (_, index) => homePlacementId(item.id, variant, index + 1));
@@ -91,7 +91,7 @@ function isOwnedPlacement(id: HomePlacementId, owned: Readonly<Record<string, nu
 export function createDefaultHomeLayout(owned: Readonly<Record<string, number>>): HomeLayoutV1 {
   const wallSlots = emptySlots(HOME_WALL_SLOT_COUNT);
   let wallIndex = 0;
-  for (const item of ITEMS) {
+  for (const item of COLLECTION_ITEMS) {
     const variant = WALL_VARIANTS.find((candidate) => ownedCollectibleCount(owned as Record<string, number>, item.id, candidate) > 0);
     if (!variant || wallIndex >= wallSlots.length) continue;
     wallSlots[wallIndex] = homePlacementId(item.id, variant, 1);
@@ -99,7 +99,7 @@ export function createDefaultHomeLayout(owned: Readonly<Record<string, number>>)
   }
   const shelfSlots = emptySlots(HOME_SHELF_SLOT_COUNT);
   let shelfIndex = 0;
-  for (const item of ITEMS) {
+  for (const item of COLLECTION_ITEMS) {
     if (shelfIndex >= shelfSlots.length) break;
     if (ownedCollectibleCount(owned as Record<string, number>, item.id, 'plush') <= 0) continue;
     shelfSlots[shelfIndex] = homePlacementId(item.id, 'plush', 1);

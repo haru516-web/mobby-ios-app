@@ -12,6 +12,7 @@ export type BlackStarToggleProps = {
   active: boolean;
   onChange: (active: boolean) => void;
   disabled?: boolean;
+  showStarIcon?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -24,6 +25,7 @@ export const BlackStarToggle = memo(function BlackStarToggle({
   active,
   onChange,
   disabled = false,
+  showStarIcon = true,
   style,
   testID,
 }: BlackStarToggleProps) {
@@ -44,9 +46,9 @@ export const BlackStarToggle = memo(function BlackStarToggle({
       ]}
       testID={testID}
     >
-      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.star, active && styles.starActive]}>
+      {showStarIcon ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.star, active && styles.starActive]}>
         <Text style={[styles.starText, active && styles.starTextActive]}>★</Text>
-      </View>
+      </View> : null}
       <Text style={[styles.label, active && styles.labelActive]}>黒星</Text>
     </MobbyAssetTabButton>
   );

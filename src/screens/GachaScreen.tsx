@@ -10,24 +10,16 @@ import {
   View,
 } from 'react-native';
 
-import { MobbyAssetButton, MobbyAssetSurface, MobbyAssetTabButton } from '@/components/mobby-ui';
+import { MobbyAssetButton, MobbyAssetSurface } from '@/components/mobby-ui';
 import {
   GACHA_CATALOG_COUNTS,
   GACHA_CATEGORY_RATES,
-  GACHA_CHARACTERS,
   GACHA_GOODS_REWARDS,
   GACHA_THEME_REWARDS,
-  GACHA_TOOL_REWARDS,
-  getGachaCharacter,
-  getGachaReward,
-  getGachaThemeAssetSource,
-  type GachaCharacterId,
   type GachaReward,
-  type GachaThemeRewardId,
 } from '@/data/gachaCatalog';
 import {
   createInitialGachaState,
-  equipGachaTheme,
   loadGachaState,
   performGachaPull,
   subscribeGachaState,
@@ -44,17 +36,10 @@ const GACHA_MACHINE = require('../../assets/gacha/screen/gacha-machine-v1.png');
 const GACHA_MACHINE_PANEL = require('../../assets/gacha/screen/gacha-machine-panel-v2.png');
 const GACHA_SPARKLE_RING = require('../../assets/gacha/screen/gacha-sparkle-ring-v1.png');
 const GACHA_PULL_BUTTON = require('../../assets/generated-ui/gacha-pull-button-v2.png');
-const GACHA_STAT_PLAQUE = require('../../assets/generated-ui/gacha-stat-plaque-v2.png');
 const GACHA_LINEUP_TILE = require('../../assets/generated-ui/gacha-lineup-tile-v2.png');
 const TAB_BAR_CLEARANCE = 82;
 
 const GACHA_LINEUP_ITEMS = [
-  {
-    previewImage: GACHA_TOOL_REWARDS[0].previewImage,
-    count: GACHA_CATALOG_COUNTS.tools,
-    rate: GACHA_CATEGORY_RATES.tool,
-    label: 'ちょっかい道具',
-  },
   {
     previewImage: GACHA_GOODS_REWARDS[2].previewImage,
     count: GACHA_CATALOG_COUNTS.goods,
@@ -210,10 +195,8 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
   const [inventory, setInventory] = useState<GachaInventoryState>(() => createInitialGachaState());
   const [hydrated, setHydrated] = useState(false);
   const [pulling, setPulling] = useState(false);
-  const [equippingThemeId, setEquippingThemeId] = useState<GachaThemeRewardId | 'default' | null>(null);
   const [outcome, setOutcome] = useState<GachaPullOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [themeCharacterId, setThemeCharacterId] = useState<GachaCharacterId>(GACHA_THEME_REWARDS[0].characterId);
   const machineMotion = useRef(new Animated.Value(0)).current;
   const lightMotion = useRef(new Animated.Value(0)).current;
   const mountedRef = useRef(true);
@@ -285,45 +268,6 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
     }
   }, [haptics, hydrated, onPullComplete, pulling, runMachineAnimation]);
 
-  const handleEquipTheme = useCallback(async (themeId: GachaThemeRewardId | null) => {
-    if (!hydrated || pulling || equippingThemeId !== null) return;
-    setEquippingThemeId(themeId ?? 'default');
-    setError(null);
-    haptics.light();
-    try {
-      const next = await equipGachaTheme(themeId);
-      if (mountedRef.current) setInventory(next);
-      haptics.success();
-    } catch {
-      if (mountedRef.current) setError('テーマを切り替えられませんでした。');
-      haptics.error();
-    } finally {
-      if (mountedRef.current) setEquippingThemeId(null);
-    }
-  }, [equippingThemeId, haptics, hydrated, pulling]);
-
-  const collectedStackableKinds = Object.keys(inventory.stackableCounts).length;
-  const ownedThemeCharacters = useMemo(
-    () => GACHA_CHARACTERS.filter((character) => inventory.ownedThemeIds.some((id) => {
-      const reward = getGachaReward(id);
-      return reward.category === 'theme' && reward.characterId === character.id;
-    })),
-    [inventory.ownedThemeIds],
-  );
-  const visibleThemes = useMemo(
-    () => GACHA_THEME_REWARDS.filter((theme) => theme.characterId === themeCharacterId && inventory.ownedThemeIds.includes(theme.id)),
-    [inventory.ownedThemeIds, themeCharacterId],
-  );
-  useEffect(() => {
-    const equippedReward = inventory.equippedThemeId ? getGachaReward(inventory.equippedThemeId) : null;
-    const equippedCharacterId = equippedReward?.category === 'theme' ? equippedReward.characterId : null;
-    setThemeCharacterId((current) => {
-      if (equippedCharacterId && ownedThemeCharacters.some((character) => character.id === equippedCharacterId)) return equippedCharacterId;
-      return ownedThemeCharacters.some((character) => character.id === current)
-        ? current
-        : ownedThemeCharacters[0]?.id ?? GACHA_THEME_REWARDS[0].characterId;
-    });
-  }, [inventory.equippedThemeId, ownedThemeCharacters]);
   const totalStackableItems = useMemo(
     () => Object.values(inventory.stackableCounts).reduce((sum, count) => sum + (count ?? 0), 0),
     [inventory.stackableCounts],
@@ -359,40 +303,6 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
             <Text style={styles.headerFreeText}>ずっと無料</Text>
           </MobbyAssetSurface>
         </MobbyAssetSurface>
-
-        <View style={styles.progressRow}>
-          {[
-            {
-              label: 'テーマ',
-              value: inventory.ownedThemeIds.length,
-              unit: ` / ${GACHA_CATALOG_COUNTS.themes}`,
-            },
-            { label: '道具・グッズ', value: collectedStackableKinds, unit: '種' },
-            { label: '引いた回数', value: inventory.totalPulls, unit: '回' },
-          ].map((item) => <MobbyAssetSurface
-            key={item.label}
-            variant="labelPill"
-            backgroundSource={GACHA_STAT_PLAQUE}
-            backgroundResizeMode="cover"
-            style={styles.progressCard}
-            contentStyle={styles.progressCardContent}
-          >
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-              style={styles.progressValue}
-            >
-              {item.value}<Text style={styles.progressUnit}>{item.unit}</Text>
-            </Text>
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.78}
-              style={styles.progressLabel}
-            >{item.label}</Text>
-          </MobbyAssetSurface>)}
-        </View>
 
         <View style={styles.machineCard}>
           <Image
@@ -498,106 +408,6 @@ export function GachaScreen({ entryNonce = 0, onPullComplete }: GachaScreenProps
         </View>
         <Text style={styles.disclaimer}>各カテゴリ内は同じ確率です。着せ替えテーマが重複した場合は、未所持テーマへ自動で再抽選します。</Text>
 
-        <View style={styles.themeHeading}>
-          <View>
-            <Text style={styles.lineupTitle}>着せ替えテーマ</Text>
-          </View>
-          <MobbyAssetButton
-            accessibilityLabel="標準テーマに戻す"
-            disabled={equippingThemeId !== null || inventory.equippedThemeId === null}
-            onPress={() => void handleEquipTheme(null)}
-            tone="cream"
-            themeAssetSlot="themeResetButton"
-            style={styles.defaultThemeButton}
-            contentStyle={styles.defaultThemeButtonContent}
-          >
-            <Text style={styles.defaultThemeButtonText}>{equippingThemeId === 'default' ? '切替中…' : '標準に戻す'}</Text>
-          </MobbyAssetButton>
-        </View>
-        {inventory.ownedThemeIds.length === 0 ? (
-          <MobbyAssetSurface variant="statusWide" style={styles.emptyThemeCard} contentStyle={styles.emptyThemeCardContent}>
-            <Text style={styles.emptyThemeTitle}>テーマはガチャで解放</Text>
-            <Text style={styles.emptyThemeBody}>手に入れたテーマは、ここからアプリ全体へ着せ替えできます。</Text>
-          </MobbyAssetSurface>
-        ) : (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.characterTabsContent} style={styles.characterTabs}>
-              {ownedThemeCharacters.map((character) => {
-                const characterTheme = GACHA_THEME_REWARDS.find((theme) => theme.characterId === character.id && inventory.ownedThemeIds.includes(theme.id));
-                return <MobbyAssetTabButton
-                  key={character.id}
-                  accessibilityLabel={`${character.name}の着せ替え`}
-                  selected={themeCharacterId === character.id}
-                  onPress={() => setThemeCharacterId(character.id)}
-                  backgroundResizeMode="cover"
-                  backgroundSource={characterTheme ? getGachaThemeAssetSource(characterTheme, 'themeCharacterTab') : undefined}
-                  preferBackgroundSource
-                  style={styles.characterTab}
-                  contentStyle={styles.characterTabContent}
-                >
-                  <Image accessible={false} source={character.image} contentFit="contain" style={styles.characterTabImage} />
-                  <Text numberOfLines={1} style={styles.characterTabText}>{character.name}</Text>
-                </MobbyAssetTabButton>;
-              })}
-            </ScrollView>
-            <ScrollView
-              contentContainerStyle={styles.themeList}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-            >
-            {visibleThemes.map((theme) => {
-              const selected = inventory.equippedThemeId === theme.id;
-              const character = getGachaCharacter(theme.characterId);
-              return <Pressable
-                accessibilityLabel={`${theme.name}${selected ? '、使用中' : 'を使う'}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected, busy: equippingThemeId === theme.id }}
-                disabled={equippingThemeId !== null}
-                key={theme.id}
-                onPress={() => void handleEquipTheme(theme.id)}
-                style={({ pressed }) => [
-                  styles.themeCard,
-                  { borderColor: character.accent },
-                  selected && styles.themeCardSelected,
-                  pressed && styles.themePressed,
-                ]}
-              >
-                <MobbyAssetSurface
-                  variant="paper"
-                  backgroundSource={getGachaThemeAssetSource(theme, 'dressUpButton')}
-                  backgroundResizeMode="cover"
-                  style={styles.themeCardSurface}
-                  contentStyle={styles.themeCardSurfaceContent}
-                >
-                  <View style={styles.themePreviewFrame}>
-                    <Image
-                      accessible={false}
-                      contentFit="contain"
-                      contentPosition="center"
-                      source={theme.previewImage}
-                      style={styles.themePreview}
-                    />
-                  </View>
-                  <MobbyAssetSurface
-                    pointerEvents="none"
-                    variant="statusWide"
-                    backgroundSource={getGachaThemeAssetSource(theme, 'themeActionLabel')}
-                    backgroundResizeMode="cover"
-                    style={styles.themeCardCopy}
-                    contentStyle={styles.themeCardCopyContent}
-                  >
-                    <Text numberOfLines={1} style={styles.themeCharacter}>{character.name}</Text>
-                    <Text style={[styles.themeStyle, { color: character.accent }]}>STYLE {theme.styleNumber}</Text>
-                    <Text style={[styles.themeStatus, selected && { color: character.accent }]}>
-                      {equippingThemeId === theme.id ? '切替中…' : selected ? '使用中' : 'このテーマを使う'}
-                    </Text>
-                  </MobbyAssetSurface>
-                </MobbyAssetSurface>
-              </Pressable>;
-            })}
-            </ScrollView>
-          </>
-        )}
       </ScrollView>
     </View>
     <GachaResultModal outcome={outcome} onClose={() => setOutcome(null)} />
@@ -612,18 +422,12 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 14, paddingTop: 8, paddingBottom: TAB_BAR_CLEARANCE + 66 },
   contentCompact: { paddingHorizontal: 10 },
   headerCard: { minHeight: 94, borderRadius: 24, overflow: 'hidden' },
-  headerCardContent: { minHeight: 94, paddingHorizontal: 22, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerCopy: { flex: 1, minWidth: 0, paddingLeft: 18, paddingRight: 8 },
-  title: { color: '#FFF8E9', fontSize: 27, lineHeight: 32, fontWeight: '900', letterSpacing: 0.8, textShadowColor: 'rgba(42,29,39,0.72)', textShadowRadius: 3 },
-  headerFreeBadge: { minWidth: 76, height: 32, borderRadius: 16, overflow: 'hidden', transform: [{ rotate: '3deg' }] },
+  headerCardContent: { minHeight: 94, paddingHorizontal: 22, paddingVertical: 14, position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  headerCopy: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 },
+  title: { color: '#FFF8E9', fontSize: 27, lineHeight: 32, fontWeight: '900', letterSpacing: 0.8, textShadowColor: 'rgba(42,29,39,0.72)', textShadowRadius: 3, transform: [{ translateY: -4 }] },
+  headerFreeBadge: { position: 'absolute', top: 31, right: 22, minWidth: 76, height: 32, borderRadius: 16, overflow: 'hidden', transform: [{ rotate: '3deg' }] },
   headerFreeBadgeContent: { height: 32, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
   headerFreeText: { color: '#735039', fontSize: 12, lineHeight: 15, fontWeight: '900' },
-  progressRow: { flexDirection: 'row', gap: 7, marginTop: 8 },
-  progressCard: { flex: 1, minWidth: 0, height: 56, borderRadius: 18, overflow: 'hidden' },
-  progressCardContent: { height: 56, paddingHorizontal: 2, paddingVertical: 7, alignItems: 'center', justifyContent: 'center' },
-  progressValue: { width: '100%', color: '#4A2D40', fontSize: 17, lineHeight: 20, fontWeight: '900', textAlign: 'center', textShadowColor: 'rgba(255,249,236,0.78)', textShadowRadius: 1 },
-  progressUnit: { color: '#5D3A4F', fontSize: 11, fontWeight: '800', textShadowColor: 'rgba(255,249,236,0.72)', textShadowRadius: 1 },
-  progressLabel: { width: '100%', color: '#5D3A4F', fontSize: 11, lineHeight: 13, fontWeight: '800', marginTop: 1, textAlign: 'center', textShadowColor: 'rgba(255,249,236,0.72)', textShadowRadius: 1 },
   machineCard: { height: 410, marginTop: 8, borderRadius: 30, overflow: 'hidden' },
   machinePanel: { ...StyleSheet.absoluteFillObject },
   machineCardContent: { height: 410, paddingHorizontal: 23, paddingTop: 20, paddingBottom: 23, alignItems: 'center', zIndex: 1 },
@@ -657,33 +461,6 @@ const styles = StyleSheet.create({
   lineupCount: { color: '#8A6878', fontSize: 12, lineHeight: 15, fontWeight: '800', marginTop: 1 },
   lineupRate: { color: '#A17E86', fontSize: 12, lineHeight: 14, fontWeight: '700', marginTop: 3, textAlign: 'center' },
   disclaimer: { color: '#82636F', fontSize: 12, lineHeight: 18, fontWeight: '700', marginTop: 8, paddingHorizontal: 6, textShadowColor: 'rgba(255,249,235,0.94)', textShadowRadius: 2 },
-  themeHeading: { minHeight: 54, marginTop: 15, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  defaultThemeButton: { minHeight: 40, borderRadius: 18, overflow: 'hidden' },
-  defaultThemeButtonContent: { minHeight: 40, paddingHorizontal: 14, paddingVertical: 7 },
-  defaultThemeButtonText: { color: '#6A4859', fontSize: 12, lineHeight: 15, fontWeight: '900' },
-  emptyThemeCard: { height: 94, borderRadius: 20, overflow: 'hidden' },
-  emptyThemeCardContent: { height: 94, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  emptyThemeTitle: { color: '#614559', fontSize: 15, lineHeight: 19, fontWeight: '900' },
-  emptyThemeBody: { color: '#8A6878', fontSize: 12, lineHeight: 17, fontWeight: '700', textAlign: 'center', marginTop: 3 },
-  themeList: { gap: 10, paddingHorizontal: 3, paddingBottom: 7 },
-  characterTabs: { flexGrow: 0, marginBottom: 8 },
-  characterTabsContent: { gap: 6, paddingHorizontal: 2 },
-  characterTab: { width: 92, minHeight: 54 },
-  characterTabContent: { minHeight: 54, paddingHorizontal: 5, paddingVertical: 4, gap: 2 },
-  characterTabImage: { width: 24, height: 28 },
-  characterTabText: { color: '#614559', fontSize: 10, lineHeight: 12, fontWeight: '900', textAlign: 'center' },
-  themeCard: { position: 'relative', width: 174, height: 396, borderRadius: 21, borderWidth: 2, overflow: 'hidden' },
-  themeCardSurface: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
-  themeCardSurfaceContent: { flex: 1, minHeight: 0 },
-  themeCardSelected: { borderWidth: 4, shadowColor: '#52384C', shadowOpacity: 0.24, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  themePressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
-  themePreviewFrame: { width: '100%', aspectRatio: 768 / 1365, overflow: 'hidden' },
-  themePreview: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  themeCardCopy: { flex: 1, minHeight: 76, overflow: 'hidden' },
-  themeCardCopyContent: { flex: 1, minHeight: 76, paddingHorizontal: 10, paddingVertical: 7 },
-  themeCharacter: { color: '#583D50', fontSize: 13, lineHeight: 17, fontWeight: '900', textShadowColor: 'rgba(255,249,235,0.94)', textShadowRadius: 2 },
-  themeStyle: { color: '#98717E', fontSize: 12, lineHeight: 14, fontWeight: '900', letterSpacing: 0.8, textShadowColor: 'rgba(255,249,235,0.94)', textShadowRadius: 2 },
-  themeStatus: { color: '#7D5E6D', fontSize: 12, lineHeight: 15, fontWeight: '800', marginTop: 3, textShadowColor: 'rgba(255,249,235,0.94)', textShadowRadius: 2 },
   modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 20 },
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(55,35,49,0.68)' },
   modalCard: { width: '100%', maxWidth: 400, maxHeight: '90%', minHeight: 488, borderRadius: 30, shadowColor: '#382330', shadowOpacity: 0.34, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 18, overflow: 'hidden' },

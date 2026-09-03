@@ -7,6 +7,7 @@ const characters = [
 ];
 const slots = [
   'appBackground', 'buttonPrimary', 'buttonSecondary', 'card', 'navigation', 'popup',
+  'dressUpPopup', 'characterPickerPopup', 'reactionBookPopup',
   'iconButton', 'tab', 'closeButton', 'reselectButton',
   'dressUpButton', 'themeActionLabel', 'themeCharacterTab', 'themeResetButton',
 ];
@@ -23,7 +24,10 @@ for (const character of characters) {
   for (let style = 1; style <= 5; style += 1) {
     const styleDir = String(style).padStart(2, '0');
     lines.push(`  '${character}:${style}': {`);
-    for (const slot of slots) lines.push(`    ${slot}: require('../../assets/themes/${character}/${styleDir}/${slot}.png'),`);
+    for (const slot of slots) {
+      const extension = ['dressUpPopup', 'characterPickerPopup', 'reactionBookPopup'].includes(slot) ? 'jpg' : 'png';
+      lines.push(`    ${slot}: require('../../assets/themes/${character}/${styleDir}/${slot}.${extension}'),`);
+    }
     lines.push('  },');
   }
 }

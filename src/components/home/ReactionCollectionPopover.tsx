@@ -201,7 +201,7 @@ export function ReactionCollectionPopover({ selectedCharacterId, collectedIds, o
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable accessibilityLabel={previewSticker ? 'リアクションの拡大表示を閉じる' : 'リアクション図鑑を閉じる'} accessibilityRole="button" onPress={dismissPreviewOrClose} style={styles.backdrop} />
       <View accessibilityViewIsModal accessibilityLabel={`${displayedCharacterName}のリアクション図鑑`} style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
-      <ImageBackground accessible={false} imageStyle={styles.panelImage} contentFit="cover" source={activeTheme?.assets.popup ?? REACTION_COLLECTION_POPUP_BACKGROUND} style={styles.panelBackground}>
+      <ImageBackground accessible={false} imageStyle={styles.panelImage} contentFit="cover" source={activeTheme?.assets.reactionBookPopup ?? REACTION_COLLECTION_POPUP_BACKGROUND} style={styles.panelBackground}>
       <View style={styles.panelContent}>
       <View
         accessibilityElementsHidden={Boolean(previewSticker)}

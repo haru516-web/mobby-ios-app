@@ -1,5 +1,13 @@
+import type { ImageSourcePropType } from 'react-native';
+
 import type { MobbyId } from './mobies';
 import type { EnemyId } from './enemies';
+import {
+  DIAGNOSIS_CHARACTER_DEFINITIONS,
+  type DiagnosisCategory,
+  type DiagnosisItemId,
+  type DiagnosisMobbyId,
+} from './diagnosisCharacters';
 
 export const COLLECTIBLE_VARIANTS = ['key-normal', 'key-small', 'plush'] as const;
 export type CollectibleVariant = (typeof COLLECTIBLE_VARIANTS)[number];
@@ -10,12 +18,15 @@ export type Item = {
   name: string;
   kind: ItemKind;
   rarity: string;
-  image: number;
-  keyImage?: number;
-  smallKeyImage?: number;
+  image: ImageSourcePropType;
+  keyImage?: ImageSourcePropType;
+  smallKeyImage?: ImageSourcePropType;
   accent: string;
   faction?: 'mobby' | 'kuroboshi';
+  collectionGroup?: CollectionGroup;
 };
+
+export type CollectionGroup = 'base' | DiagnosisCategory;
 
 const KEYCHAIN = {
   reomoby: require('../../assets/mobby-keychains/reomoby-key.png'), mobichi: require('../../assets/mobby-keychains/mobichi-key.png'),
@@ -45,7 +56,8 @@ export type ItemId =
   | 'mobichi-key' | 'mobiyan-plush' | 'yami-key' | 'mobibou-plush' | 'mobirin-key'
   | 'mobiyura-plush' | 'reo-key' | 'pote-plush' | 'babu-key'
   | 'magician-star' | 'informant-star' | 'tracker-star' | 'safecracker-star'
-  | 'veiled-duchess-star' | 'courier-star' | 'commander-star';
+  | 'veiled-duchess-star' | 'courier-star' | 'commander-star'
+  | DiagnosisItemId;
 export const ITEMS: Item[] = [
   { id: 'mobichi-key', name: 'もびち ぬいキー', kind: 'ぬいキー', rarity: 'R', image: require('../../assets/mobies/mobichi.webp'), keyImage: KEYCHAIN.mobichi, smallKeyImage: KEYCHAIN_SMALL.mobichi, accent: '#E79AA7', faction: 'mobby' },
   { id: 'mobiyan-plush', name: 'もびやん ぬい', kind: 'ぬいぐるみ', rarity: 'SR', image: require('../../assets/mobies/mobiyan.webp'), keyImage: KEYCHAIN.mobiyan, smallKeyImage: KEYCHAIN_SMALL.mobiyan, accent: '#83B8C4', faction: 'mobby' },
@@ -65,6 +77,24 @@ export const ITEMS: Item[] = [
   { id: 'commander-star', name: '皇城 統雅 ぬい', kind: 'ぬいぐるみ', rarity: 'SSR', image: BLACK_STAR_GOODS.commander.plush, keyImage: BLACK_STAR_GOODS.commander.key, smallKeyImage: BLACK_STAR_GOODS.commander.small, accent: '#C49B53', faction: 'kuroboshi' },
 ] as const;
 
+// Diagnosis characters are collectible goods, but they are not playable home
+// characters. Keeping them in a separate catalog lets the home picker continue
+// to show the original roster while Collection and Gacha expose every good.
+export const DIAGNOSIS_ITEMS: Item[] = DIAGNOSIS_CHARACTER_DEFINITIONS.map((character) => ({
+  id: `${character.id}-item`,
+  name: character.name,
+  kind: 'ぬいキー',
+  rarity: 'R',
+  image: character.assets.plush,
+  keyImage: character.assets['key-normal'],
+  smallKeyImage: character.assets['key-small'],
+  accent: character.accent,
+  faction: 'mobby',
+  collectionGroup: character.category,
+}));
+
+export const COLLECTION_ITEMS: Item[] = [...ITEMS, ...DIAGNOSIS_ITEMS];
+
 export type CollectibleSelection = { itemId: ItemId; variant: CollectibleVariant };
 export const ITEM_MOBBY_IDS: Record<string, MobbyId> = {
   'mobichi-key': 'mobichi', 'mobiyan-plush': 'mobiyan', 'yami-key': 'yami', 'mobibou-plush': 'mobibou',
@@ -81,9 +111,17 @@ export const CHARACTER_ITEM_IDS: Readonly<Record<MobbyId | EnemyId, ItemId>> = {
   magician: 'magician-star', informant: 'informant-star', tracker: 'tracker-star', safecracker: 'safecracker-star',
   'veiled-duchess': 'veiled-duchess-star', courier: 'courier-star', commander: 'commander-star',
 };
+export const DIAGNOSIS_CHARACTER_ITEM_IDS: Readonly<Record<DiagnosisMobbyId, DiagnosisItemId>> = Object.fromEntries(
+  DIAGNOSIS_CHARACTER_DEFINITIONS.map((character) => [character.id, `${character.id}-item`]),
+) as Record<DiagnosisMobbyId, DiagnosisItemId>;
+export const characterItemId = (characterId: MobbyId | EnemyId | DiagnosisMobbyId): ItemId | null => {
+  const baseItemId = (CHARACTER_ITEM_IDS as Partial<Record<string, ItemId>>)[characterId];
+  if (baseItemId) return baseItemId;
+  return (DIAGNOSIS_CHARACTER_ITEM_IDS as Partial<Record<string, DiagnosisItemId>>)[characterId] ?? null;
+};
 export const isBlackStarItem = (item: Item) => item.faction === 'kuroboshi' || Object.prototype.hasOwnProperty.call(ITEM_ENEMY_IDS, item.id);
 
-export const isItemId = (value: unknown): value is ItemId => typeof value === 'string' && ITEMS.some((item) => item.id === value);
+export const isItemId = (value: unknown): value is ItemId => typeof value === 'string' && COLLECTION_ITEMS.some((item) => item.id === value);
 export const isCollectibleVariant = (value: unknown): value is CollectibleVariant =>
   typeof value === 'string' && COLLECTIBLE_VARIANTS.includes(value as CollectibleVariant);
 export const isCollectibleSelection = (value: unknown): value is CollectibleSelection & Record<string, unknown> => {
@@ -91,7 +129,7 @@ export const isCollectibleSelection = (value: unknown): value is CollectibleSele
   const candidate = value as { itemId?: unknown; variant?: unknown };
   return isItemId(candidate.itemId) && isCollectibleVariant(candidate.variant);
 };
-export const resolveItem = (itemId: unknown): Item | null => ITEMS.find((item) => item.id === itemId) ?? null;
+export const resolveItem = (itemId: unknown): Item | null => COLLECTION_ITEMS.find((item) => item.id === itemId) ?? null;
 export const itemCharacterName = (item: Item) => item.name.replace(' ぬいキー', '').replace(' ぬい', '');
 export const collectibleVariantLabel = (variant: CollectibleVariant) =>
   variant === 'key-normal' ? 'ぬいキー（通常）' : variant === 'key-small' ? 'ぬいキー（S）' : 'ぬいぐるみ';
@@ -105,11 +143,11 @@ export const collectibleImage = (item: Item, variant: CollectibleVariant) =>
   variant === 'key-small' ? item.smallKeyImage ?? item.keyImage ?? item.image : variant === 'key-normal' ? item.keyImage ?? item.smallKeyImage ?? item.image : item.image;
 export const ownedCollectibleCount = (owned: Record<string, number>, itemId: string, variant: CollectibleVariant) => owned[collectibleInventoryKey(itemId, variant)] ?? 0;
 export const legacyVariantForItem = (item: Item): CollectibleVariant => item.kind === 'ぬいキー' ? 'key-normal' : 'plush';
-export const EMPTY_OWNED: Record<string, number> = Object.fromEntries(ITEMS.flatMap((item) => COLLECTIBLE_VARIANTS.map((variant) => [collectibleInventoryKey(item.id, variant), 0])));
+export const EMPTY_OWNED: Record<string, number> = Object.fromEntries(COLLECTION_ITEMS.flatMap((item) => COLLECTIBLE_VARIANTS.map((variant) => [collectibleInventoryKey(item.id, variant), 0])));
 
 export function normalizeCollectibleInventory(raw: Record<string, unknown>, receiptKeys: (key: string) => boolean) {
   const normalized = { ...EMPTY_OWNED };
-  for (const item of ITEMS) {
+  for (const item of COLLECTION_ITEMS) {
     for (const variant of COLLECTIBLE_VARIANTS) {
       const key = collectibleInventoryKey(item.id, variant);
       const variantCount = Number(raw[key]);
